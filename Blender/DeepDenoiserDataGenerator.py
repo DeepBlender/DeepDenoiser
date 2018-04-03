@@ -1,5 +1,7 @@
-# TODO: Option for progressive rendering with merging (DeepBlender)
 
+# The RenderPasses and UI code are kept in this file to make it executable in Blender without the need to install it as addon.
+
+# TODO: Option for progressive rendering with merging (DeepBlender)
 
 import bpy
 import os
@@ -261,6 +263,9 @@ class DeepDenoiserDataGenerator:
     bpy.ops.render.render()
     DeepDenoiserDataGenerator.calculate_screen_space_normals(target_folder, samples_per_pixel)
 
+
+
+# UI
 
 seed_min = int(0)
 seed_max = int(1e5)
