@@ -2,6 +2,7 @@
 # The RenderPasses and UI code are kept in this file to make it executable in Blender without the need to install it as addon.
 
 # TODO: Option for progressive rendering with merging (DeepBlender)
+# TODO: Try out whether a sharpness channel would help with faster training. Based on the field of view, depth of field and the depth.
 
 import bpy
 import os
