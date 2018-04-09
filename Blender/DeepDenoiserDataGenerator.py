@@ -4,6 +4,8 @@
 # TODO: Option for progressive rendering with merging (DeepBlender)
 # TODO: Try out whether a sharpness channel would help with faster training. Based on the field of view, depth of field and the depth.
 
+# Remark: The volume passes currently only exist in the master branch and not in the official release, that's why it has been commented for now.
+
 import bpy
 import os
 import sys
@@ -123,8 +125,8 @@ class DeepDenoiserDataGenerator:
     render_layer.use_pass_subsurface_indirect = True
     render_layer.use_pass_subsurface_color = True
 
-    cycles_render_layer.use_pass_volume_direct = True
-    cycles_render_layer.use_pass_volume_indirect = True
+    # cycles_render_layer.use_pass_volume_direct = True
+    # cycles_render_layer.use_pass_volume_indirect = True
 
     render_layer.use_pass_combined = True
     
@@ -188,8 +190,8 @@ class DeepDenoiserDataGenerator:
     DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'SubsurfaceDir', output_node, RenderPasses.SUBSURFACE_DIRECT, samples_per_pixel)
     DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'SubsurfaceInd', output_node, RenderPasses.SUBSURFACE_INDIRECT, samples_per_pixel)
     DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'SubsurfaceCol', output_node, RenderPasses.SUBSURFACE_COLOR, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'VolumeDir', output_node, RenderPasses.VOLUME_DIRECT, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'VolumeInd', output_node, RenderPasses.VOLUME_INDIRECT, samples_per_pixel)
+    # DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'VolumeDir', output_node, RenderPasses.VOLUME_DIRECT, samples_per_pixel)
+    # DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'VolumeInd', output_node, RenderPasses.VOLUME_INDIRECT, samples_per_pixel)
     
     viewer_node = node_tree.nodes.new('CompositorNodeViewer')
     viewer_node.location = (300, 150)
