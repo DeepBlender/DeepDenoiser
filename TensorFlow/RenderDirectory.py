@@ -8,18 +8,19 @@ import numpy as np
 
 from RenderPasses import RenderPasses
 
-class RenderFolder:
-  def __init__(self, folder_path, render_passes_usage):
-    self.folder_path = folder_path
-    self.render_passes_usage = render_passes_usage
-    
+class RenderDirectory:
+  def __init__(self, directory):
+    self.directory = directory
     self.render_pass_to_image = {}
+    
+    # This is ensured by the Blender script.
+    self.samples_per_pixel = int(self.directory.split('_')[-2])
   
-  def required_files_exist(self):
+  def required_files_exist(self, render_passes_usage):
     # TODO: Using missing_render_pass_files in this way is not the best idea. (DeepBlender)
     self.missing_render_pass_files = []
-    required_render_passes = self.render_passes_usage.render_passes()
-    exr_files = self._exr_files(self.folder_path)
+    required_render_passes = render_passes_usage.render_passes()
+    exr_files = self._exr_files(self.directory)
     for render_pass in required_render_passes:
       render_pass_exists = False
       for exr_file in exr_files:
@@ -30,10 +31,11 @@ class RenderFolder:
         self.missing_render_pass_files.append(render_pass)
     return len(self.missing_render_pass_files) == 0
 
-  def load_images(self):
+  def load_images(self, render_passes_usage):
+    self.render_passes_usage = render_passes_usage
     self.render_pass_to_image = {}
-    render_passes = self.render_passes_usage.render_passes()
-    exr_files = self._exr_files(self.folder_path)
+    render_passes = render_passes_usage.render_passes()
+    exr_files = self._exr_files(self.directory)
     for render_pass in render_passes:
       exr_loaded = False
       for exr_file in exr_files:
@@ -73,11 +75,11 @@ class RenderFolder:
     
     return result
 
-  def _exr_files(self, folder_path):
+  def _exr_files(self, directory):
     result = []
-    for filename in os.listdir(folder_path):
+    for filename in os.listdir(directory):
       if filename.endswith('.exr'):
-        result.append(os.path.join(folder_path, filename))
+        result.append(os.path.join(directory, filename))
     return result
 
   def _load_exr(self, exr_path):
