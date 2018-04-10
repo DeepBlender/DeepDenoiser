@@ -51,6 +51,28 @@ class RenderFolder:
         # TODO: Improve (DeepBlender)
         raise Exception('Image for \'' + render_pass + '\' could not be loaded or does not exist.')
 
+  def have_loaded_images_identical_sizes(self):
+    result = True
+    
+    is_reference_size_initialized = False
+    reference_height = 0
+    reference_width = 0
+    
+    for render_pass in self.render_pass_to_image:
+      image = self.render_pass_to_image[render_pass]
+      if not is_reference_size_initialized:
+        reference_height = image.shape[0]
+        reference_width = image.shape[1]
+        is_reference_size_initialized = True
+      else:
+        height = image.shape[0]
+        width = image.shape[1]
+        if height != reference_height or width != reference_width:
+          result = False
+          break
+    
+    return result
+
   def _exr_files(self, folder_path):
     result = []
     for filename in os.listdir(folder_path):
