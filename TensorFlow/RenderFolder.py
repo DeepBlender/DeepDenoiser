@@ -6,6 +6,8 @@ import os
 import cv2
 import numpy as np
 
+from RenderPasses import RenderPasses
+
 class RenderFolder:
   def __init__(self, folder_path, render_passes_usage):
     self.folder_path = folder_path
@@ -37,6 +39,11 @@ class RenderFolder:
       for exr_file in exr_files:
         if render_pass in exr_file:
           image = self._load_exr(exr_file)
+          
+          # Special cases: Alpha and depth passes only have one channel.
+          if render_pass is RenderPasses.ALPHA or render_pass is RenderPasses.DEPTH:
+            image = image[:, :, 0]
+          
           self.render_pass_to_image[render_pass] = image
           exr_loaded = True
           break
