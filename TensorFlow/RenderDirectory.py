@@ -34,7 +34,7 @@ class RenderDirectory:
   def load_images(self, render_passes_usage):
     self.render_passes_usage = render_passes_usage
     self.render_pass_to_image = {}
-    render_passes = render_passes_usage.render_passes()
+    render_passes = self.render_passes_usage.render_passes()
     exr_files = self._exr_files(self.directory)
     for render_pass in render_passes:
       exr_loaded = False

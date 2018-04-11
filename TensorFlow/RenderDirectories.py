@@ -26,6 +26,9 @@ class RenderDirectories:
       render_directories = self.samples_per_pixel_to_render_directories[samples_per_pixel]
       for render_directory in render_directories:
         render_directory.load_images(render_passes_usage)
+        
+        # TODO: Horrible way to do it! (DeepBlender)
+        assert render_directory.have_loaded_images_identical_sizes()
   
   def ground_truth_samples_per_pixel(self):
     result = 0
