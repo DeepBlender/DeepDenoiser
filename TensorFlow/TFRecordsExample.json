@@ -1,0 +1,105 @@
+{
+	"base_render_directories_description": "The directory relative to which the render_directories are located as specified in the modes.",
+	"base_render_directories": "../OpenEXR",
+	
+	"base_tfrecords_directory_description": "The generated tfrecords files are stored in child directories named according to the mode.",
+	"base_tfrecords_directory": "../TFRecords",
+	
+	"modes":{
+		"training":{
+			"tiles_height_width": 64,
+			"tiles_per_tfrecords": 80,
+			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
+			"render_directories":[
+				"Training_Example_01",
+				"Training_Example_02",
+				"Training_Example_03"
+			]
+		},
+		"validation":{
+			"tiles_height_width": 64,
+			"tiles_per_tfrecords": 80,
+			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
+			"render_directories":[
+				"Validation_Example_01",
+				"Validation_Example_02"
+			]
+		},
+		"testing":{
+			"tiles_height_width": 64,
+			"tiles_per_tfrecords": 80,
+			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
+			"render_directories":[
+				"Testing_Example_01",
+				"Testing_Example_02"
+			]
+		}
+	},
+	
+	"source":{
+		"samples_per_pixel": 16,
+		"features":{
+			"use_composed": false,
+			"use_alpha": true,
+			"use_depth": true,
+			"use_mist": false,
+			"use_normal": false,
+			"use_screen_space_normal": true,
+			"use_motion_vector": false,
+			"use_object_id": false,
+			"use_material_id": false,
+			"use_uv": false,
+			"use_shadow": false,
+			"use_ambient_occlusion": false,
+			"use_emission": true,
+			"use_environment": true,
+			"use_diffuse_direct": true,
+			"use_diffuse_indirect": true,
+			"use_diffuse_color": true,
+			"use_glossy_direct": true,
+			"use_glossy_indirect": true,
+			"use_glossy_color": true,
+			"use_transmission_direct": true,
+			"use_transmission_indirect": true,
+			"use_transmission_color": true,
+			"use_subsurface_direct": true,
+			"use_subsurface_indirect": true,
+			"use_subsurface_color": true,
+			"use_volume_direct": false,
+			"use_volume_indirect": false
+		}
+	},
+	"target":{
+		"samples_per_pixel": "best",
+		"features":{
+			"use_composed": false,
+			"use_alpha": false,
+			"use_depth": false,
+			"use_mist": false,
+			"use_normal": false,
+			"use_screen_space_normal": false,
+			"use_motion_vector": false,
+			"use_object_id": false,
+			"use_material_id": false,
+			"use_uv": false,
+			"use_shadow": false,
+			"use_ambient_occlusion": false,
+			"use_emission": true,
+			"use_environment": true,
+			"use_diffuse_direct": true,
+			"use_diffuse_indirect": true,
+			"use_diffuse_color": true,
+			"use_glossy_direct": true,
+			"use_glossy_indirect": true,
+			"use_glossy_color": true,
+			"use_transmission_direct": true,
+			"use_transmission_indirect": true,
+			"use_transmission_color": true,
+			"use_subsurface_direct": true,
+			"use_subsurface_indirect": true,
+			"use_subsurface_color": true,
+			"use_volume_direct": false,
+			"use_volume_indirect": false
+		}
+	}
+}

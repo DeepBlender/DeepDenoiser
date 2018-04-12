@@ -21,6 +21,16 @@ class RenderDirectories:
         render_directories = self.samples_per_pixel_to_render_directories[samples_per_pixel]
         render_directories.append(render_directory)
 
+  def required_files_exist(self, samples_per_pixel, render_passes_usage):
+    result = True
+    if samples_per_pixel in self.samples_per_pixel_to_render_directories:
+      render_directories = self.samples_per_pixel_to_render_directories[samples_per_pixel]
+      for render_directory in render_directories:
+        result = render_directory.required_files_exist(render_passes_usage)
+        if not result:
+          break
+    return result
+
   def load_images(self, samples_per_pixel, render_passes_usage):
     if samples_per_pixel in self.samples_per_pixel_to_render_directories:
       render_directories = self.samples_per_pixel_to_render_directories[samples_per_pixel]
