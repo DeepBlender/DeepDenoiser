@@ -36,9 +36,40 @@ class RenderDirectories:
       render_directories = self.samples_per_pixel_to_render_directories[samples_per_pixel]
       for render_directory in render_directories:
         render_directory.load_images(render_passes_usage)
-        
-        # TODO: Horrible way to do it! (DeepBlender)
-        assert render_directory.have_loaded_images_identical_sizes()
+  
+  def size_of_loaded_images(self):
+    height = 0
+    width = 0
+    done = False
+    for samples_per_pixel in self.samples_per_pixel_to_render_directories:
+      render_directories = self.samples_per_pixel_to_render_directories[samples_per_pixel]
+      for render_directory in render_directories:
+        if render_directory.is_loaded():
+          height, width = render_directory.size_of_loaded_images()
+          done = True
+          break
+      if done:
+        break
+    return height, width
+  
+  def have_loaded_images_identical_sizes(self):
+    result = True
+    height, width = self.size_of_loaded_images()
+    for samples_per_pixel in self.samples_per_pixel_to_render_directories:
+      render_directories = self.samples_per_pixel_to_render_directories[samples_per_pixel]
+      for render_directory in render_directories:
+        result = render_directory.have_loaded_images_size(height, width)
+        if not result:
+          break
+      if not result:
+        break
+    return result
+  
+  def unload_images(self):
+    for samples_per_pixel in self.samples_per_pixel_to_render_directories:
+      render_directories = self.samples_per_pixel_to_render_directories[samples_per_pixel]
+      for render_directory in render_directories:
+        render_directory.unload_images()
   
   def ground_truth_samples_per_pixel(self):
     result = 0

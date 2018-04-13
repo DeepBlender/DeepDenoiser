@@ -27,7 +27,7 @@ class TFRecordsCreator:
   # TODO: Add statistics from previous version. (DeepBlender)
 
   def __init__(
-      self, name, base_tfrecords_directory, base_render_directories, render_directories,
+      self, name, base_tfrecords_directory, base_render_directory, relative_render_directories,
       source_samples_per_pixel, source_render_passes_usage,
       target_samples_per_pixel, target_render_passes_usage,
       tiles_height_width, tiles_per_tfrecords):
@@ -40,25 +40,39 @@ class TFRecordsCreator:
     self.tiles_height_width = tiles_height_width
     self.tiles_per_tfrecords = tiles_per_tfrecords
     
-    # REMARK: I couldn't find less confusing variable names, sorry about that. (DeepBlender)
-    self.render_directories = []
-    for relative_directories in render_directories:
-      new_render_directories = RenderDirectories(os.path.join(base_render_directories, relative_directories))
+    self.render_directories_list = []
+    for render_directories in relative_render_directories:
+      new_render_directories = RenderDirectories(os.path.join(base_render_directory, render_directories))
       
       # TODO: Certainly not the best way to perform the validity checks. (DeepBlender)
       assert new_render_directories.required_files_exist(self.source_samples_per_pixel, self.source_render_passes_usage)
       
-      samples_per_pixel = target_samples_per_pixel
-      if samples_per_pixel is 'best':
-        samples_per_pixel = new_render_directories.ground_truth_samples_per_pixel()
-      assert new_render_directories.required_files_exist(samples_per_pixel, self.target_render_passes_usage)
+      target_samples_per_pixel = self.target_samples_per_pixel
+      if target_samples_per_pixel is 'best':
+        target_samples_per_pixel = new_render_directories.ground_truth_samples_per_pixel()
+      assert new_render_directories.required_files_exist(target_samples_per_pixel, self.target_render_passes_usage)
       
-      self.render_directories.append(new_render_directories)
+      self.render_directories_list.append(new_render_directories)
   
   def create(self):
     tfrecords_directory = os.path.join(self.base_tfrecords_directory, self.name)
     if not os.path.exists(tfrecords_directory):
       os.makedirs(tfrecords_directory)
+    
+    for render_directories in self.render_directories_list:
+      target_samples_per_pixel = self.target_samples_per_pixel
+      if target_samples_per_pixel is 'best':
+        target_samples_per_pixel = render_directories.ground_truth_samples_per_pixel()
+      
+      render_directories.load_images(self.source_samples_per_pixel, self.source_render_passes_usage)
+      render_directories.load_images(target_samples_per_pixel, self.target_render_passes_usage)
+      
+      # TODO: Find a better way to deal with it! (DeepBlender)
+      assert render_directories.have_loaded_images_identical_sizes()
+      
+      # TODO: Processing
+      
+      render_directories.unload_images()
   
   def _compress(self, filename, delete_uncompressed=True):
     gzip_filename = filename + '.gz'
@@ -79,7 +93,7 @@ def main(parsed_arguments):
   except:
     print('Expected a valid json file as argument.')
   
-  base_render_directories = parsed_json['base_render_directories']
+  base_render_directory = parsed_json['base_render_directory']
   base_tfrecords_directory = parsed_json['base_tfrecords_directory']
   mode_name_to_mode_settings = parsed_json['modes']
   
@@ -97,7 +111,7 @@ def main(parsed_arguments):
   for mode_name in mode_name_to_mode_settings:
     mode_settings = mode_name_to_mode_settings[mode_name]
     tfrecords_creator = TFRecordsCreator(
-        mode_name, base_tfrecords_directory, base_render_directories, mode_settings['render_directories'],
+        mode_name, base_tfrecords_directory, base_render_directory, mode_settings['render_directories'],
         source_samples_per_pixel, source_render_passes_usage,
         target_samples_per_pixel, target_render_passes_usage,
         mode_settings['tiles_height_width'], mode_settings['tiles_per_tfrecords'])

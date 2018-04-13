@@ -11,7 +11,7 @@ from RenderPasses import RenderPasses
 class RenderDirectory:
   def __init__(self, directory):
     self.directory = directory
-    self.render_pass_to_image = {}
+    self.unload_images()
     
     # This is ensured by the Blender script.
     self.samples_per_pixel = int(self.directory.split('_')[-2])
@@ -53,27 +53,33 @@ class RenderDirectory:
         # TODO: Improve (DeepBlender)
         raise Exception('Image for \'' + render_pass + '\' could not be loaded or does not exist.')
 
-  def have_loaded_images_identical_sizes(self):
-    result = True
-    
-    is_reference_size_initialized = False
-    reference_height = 0
-    reference_width = 0
-    
+  def is_loaded(self):
+    return self.render_passes_usage != None
+  
+  def size_of_loaded_images(self):
+    height = 0
+    width = 0
     for render_pass in self.render_pass_to_image:
       image = self.render_pass_to_image[render_pass]
-      if not is_reference_size_initialized:
-        reference_height = image.shape[0]
-        reference_width = image.shape[1]
-        is_reference_size_initialized = True
-      else:
-        height = image.shape[0]
-        width = image.shape[1]
-        if height != reference_height or width != reference_width:
-          result = False
-          break
-    
+      height = image.shape[0]
+      width = image.shape[1]
+      break
+    return height, width
+
+  def have_loaded_images_size(self, height, width):
+    result = True
+    for render_pass in self.render_pass_to_image:
+      image = self.render_pass_to_image[render_pass]
+      image_height = image.shape[0]
+      image_width = image.shape[1]
+      if image_height != height or image_width != width:
+        result = False
+        break
     return result
+  
+  def unload_images(self):
+    self.render_passes_usage = None
+    self.render_pass_to_image = {}
 
   def _exr_files(self, directory):
     result = []

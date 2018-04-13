@@ -1,6 +1,6 @@
 {
-	"base_render_directories_description": "The directory relative to which the render_directories are located as specified in the modes.",
-	"base_render_directories": "../OpenEXR",
+	"base_render_directory_description": "The directory relative to which the render_directories are located as specified in the modes.",
+	"base_render_directory": "../OpenEXR",
 	
 	"base_tfrecords_directory_description": "The generated tfrecords files are stored in child directories named according to the mode.",
 	"base_tfrecords_directory": "../TFRecords",
