@@ -55,13 +55,11 @@ class TFRecordsCreator:
       self.render_directories_list.append(new_render_directories)
   
   def create(self):
-    tfrecords_directory = os.path.join(self.base_tfrecords_directory, self.name)
-    if not os.path.exists(tfrecords_directory):
-      os.makedirs(tfrecords_directory)
-    
+    tfrecords_writer = TFRecordsWriter(self.name, self.base_tfrecords_directory, self.tiles_per_tfrecords)
+  
     for render_directories in self.render_directories_list:
       target_samples_per_pixel = self.target_samples_per_pixel
-      if target_samples_per_pixel is 'best':
+      if target_samples_per_pixel == 'best':
         target_samples_per_pixel = render_directories.ground_truth_samples_per_pixel()
       
       render_directories.load_images(self.source_samples_per_pixel, self.source_render_passes_usage)
@@ -70,9 +68,88 @@ class TFRecordsCreator:
       # TODO: Find a better way to deal with it! (DeepBlender)
       assert render_directories.have_loaded_images_identical_sizes()
       
-      # TODO: Processing
+      
+      height, width = render_directories.size_of_loaded_images()
+      number_of_sources = len(render_directories.samples_per_pixel_to_render_directories[self.source_samples_per_pixel])
+      
+      # Split the images into tiles
+      tiles_x_count = height // self.tiles_height_width
+      tiles_y_count = width // self.tiles_height_width
+      
+      for i in range(tiles_x_count):
+        for j in range (tiles_y_count):
+          x1 = i * self.tiles_height_width
+          x2 = (i + 1) * self.tiles_height_width
+          y1 = j * self.tiles_height_width
+          y2 = (j + 1) * self.tiles_height_width
+          
+          features = {}
+          features['number_of_sources'] = self._int64_feature(number_of_sources)
+          
+          # Prepare the source image tile.
+          source_index = 0
+          for source_render_directory in render_directories.samples_per_pixel_to_render_directories[self.source_samples_per_pixel]:
+            for source_render_pass in source_render_directory.render_pass_to_image:
+              image = source_render_directory.render_pass_to_image[source_render_pass]
+              features['source_image/' + str(source_index) + '/' + source_render_pass] = self._bytes_feature(tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
+              source_index = source_index + 1
+      
+          # Prepare the target image tiles.
+          target_render_directory = render_directories.samples_per_pixel_to_render_directories[target_samples_per_pixel][0]
+          for target_render_pass in target_render_directory.render_pass_to_image:
+            image = target_render_directory.render_pass_to_image[target_render_pass]
+            features['target_image/' + target_render_pass] = self._bytes_feature(tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
+          
+          tfrecords_writer.write(features)
       
       render_directories.unload_images()
+    tfrecords_writer.close()
+  
+  def _int64_feature(self, values):
+    if not isinstance(values, (tuple, list)):
+      values = [values]
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=values))
+
+  def _bytes_feature(self, values):
+    return tf.train.Feature(bytes_list=tf.train.BytesList(value=[values]))
+
+  def _float_feature(self, values):
+    if not isinstance(values, (tuple, list)):
+      values = [values]
+    return tf.train.Feature(float_list=tf.train.FloatList(value=values))
+
+class TFRecordsWriter:
+  def __init__(self, name, base_directory, tiles_per_tfrecords):
+    self.name = name
+    self.base_directory = base_directory
+    self.tiles_per_tfrecords = tiles_per_tfrecords
+    self.tfrecords_directory = os.path.join(self.base_directory, self.name)
+    if not os.path.exists(self.tfrecords_directory):
+      os.makedirs(self.tfrecords_directory)
+    self.writer = None
+    self.tfrecords_index = 0
+    self.added_tiles = 0
+  
+  def write(self, features):
+    if self.writer == None:
+      self.tfrecords_filename = os.path.join(self.tfrecords_directory, self.name + '_' + str(self.tfrecords_index) + '.tfrecords')
+      self.writer = tf.python_io.TFRecordWriter(self.tfrecords_filename)
+    
+    example = tf.train.Example(features=tf.train.Features(feature=features))
+    self.writer.write(example.SerializeToString())
+    self.added_tiles = self.added_tiles + 1
+    
+    if self.added_tiles >= self.tiles_per_tfrecords:
+      self.close()
+  
+  def close(self):
+    if self.writer != None:
+      self.writer.close()
+      self._compress(self.tfrecords_filename)
+    self.added_tiles = 0
+    self.tfrecords_filename = None
+    self.writer = None
+    self.tfrecords_index = self.tfrecords_index + 1
   
   def _compress(self, filename, delete_uncompressed=True):
     gzip_filename = filename + '.gz'
@@ -83,7 +160,6 @@ class TFRecordsCreator:
     original_file.close()
     if delete_uncompressed:
       os.remove(filename)
-
 
 def main(parsed_arguments):
   try:
