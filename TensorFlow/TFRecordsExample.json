@@ -38,6 +38,7 @@
 	
 	"source":{
 		"samples_per_pixel": 16,
+		"number_of_sources_per_example": 8,
 		"features":{
 			"use_composed": false,
 			"use_alpha": true,

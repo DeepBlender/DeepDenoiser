@@ -28,13 +28,14 @@ class TFRecordsCreator:
 
   def __init__(
       self, name, base_tfrecords_directory, base_render_directory, relative_render_directories,
-      source_samples_per_pixel, source_render_passes_usage,
+      source_samples_per_pixel, source_render_passes_usage, number_of_sources_per_example,
       target_samples_per_pixel, target_render_passes_usage,
       tiles_height_width, tiles_per_tfrecords):
     self.name = name
     self.base_tfrecords_directory = base_tfrecords_directory
     self.source_samples_per_pixel = source_samples_per_pixel
     self.source_render_passes_usage = source_render_passes_usage
+    self.number_of_sources_per_example = number_of_sources_per_example
     self.target_samples_per_pixel = target_samples_per_pixel
     self.target_render_passes_usage = target_render_passes_usage
     self.tiles_height_width = tiles_height_width
@@ -46,6 +47,7 @@ class TFRecordsCreator:
       
       # TODO: Certainly not the best way to perform the validity checks. (DeepBlender)
       assert new_render_directories.required_files_exist(self.source_samples_per_pixel, self.source_render_passes_usage)
+      assert self.number_of_sources_per_example == len(new_render_directories.samples_per_pixel_to_render_directories[self.source_samples_per_pixel])
       
       target_samples_per_pixel = self.target_samples_per_pixel
       if target_samples_per_pixel is 'best':
@@ -54,7 +56,7 @@ class TFRecordsCreator:
       
       self.render_directories_list.append(new_render_directories)
   
-  def create(self):
+  def create_tfrecords(self):
     tfrecords_writer = TFRecordsWriter(self.name, self.base_tfrecords_directory, self.tiles_per_tfrecords)
   
     for render_directories in self.render_directories_list:
@@ -70,7 +72,6 @@ class TFRecordsCreator:
       
       
       height, width = render_directories.size_of_loaded_images()
-      number_of_sources = len(render_directories.samples_per_pixel_to_render_directories[self.source_samples_per_pixel])
       
       # Split the images into tiles
       tiles_x_count = height // self.tiles_height_width
@@ -84,7 +85,6 @@ class TFRecordsCreator:
           y2 = (j + 1) * self.tiles_height_width
           
           features = {}
-          features['number_of_sources'] = self._int64_feature(number_of_sources)
           
           # Prepare the source image tile.
           source_index = 0
@@ -105,6 +105,17 @@ class TFRecordsCreator:
       render_directories.unload_images()
     tfrecords_writer.close()
   
+  def create_statistics(self):
+    statistics = {}
+    statistics['tiles_height_width'] = self.tiles_height_width
+    statistics['number_of_sources_per_example'] = self.number_of_sources_per_example
+    statistics['source_samples_per_pixel'] = self.source_samples_per_pixel
+    
+    statistics_json_filename = os.path.join(self.base_tfrecords_directory, self.name + '.json')
+    statistics_json_content = json.dumps(statistics, cls=DataStatisticsEncoder, sort_keys=True, indent=2)
+    with open(statistics_json_filename, 'w+', encoding='utf-8') as statistics_json_file:
+      statistics_json_file.write(statistics_json_content)
+  
   def _int64_feature(self, values):
     if not isinstance(values, (tuple, list)):
       values = [values]
@@ -117,6 +128,7 @@ class TFRecordsCreator:
     if not isinstance(values, (tuple, list)):
       values = [values]
     return tf.train.Feature(float_list=tf.train.FloatList(value=values))
+
 
 class TFRecordsWriter:
   def __init__(self, name, base_directory, tiles_per_tfrecords):
@@ -161,6 +173,14 @@ class TFRecordsWriter:
     if delete_uncompressed:
       os.remove(filename)
 
+
+class DataStatisticsEncoder(json.JSONEncoder):
+  def default(self, obj):
+    if hasattr(obj, '__json__'):
+      return obj.__json__()
+    return json.JSONEncoder.default(self, obj)
+
+
 def main(parsed_arguments):
   try:
     json_filename = parsed_arguments.json_filename
@@ -175,6 +195,7 @@ def main(parsed_arguments):
   
   source = parsed_json['source']
   source_samples_per_pixel = source['samples_per_pixel']
+  number_of_sources_per_example = source['number_of_sources_per_example']
   source_render_passes_usage = RenderPassesUsage()
   source_render_passes_usage.__dict__ = source['features']
   
@@ -188,14 +209,16 @@ def main(parsed_arguments):
     mode_settings = mode_name_to_mode_settings[mode_name]
     tfrecords_creator = TFRecordsCreator(
         mode_name, base_tfrecords_directory, base_render_directory, mode_settings['render_directories'],
-        source_samples_per_pixel, source_render_passes_usage,
+        source_samples_per_pixel, source_render_passes_usage, number_of_sources_per_example,
         target_samples_per_pixel, target_render_passes_usage,
         mode_settings['tiles_height_width'], mode_settings['tiles_per_tfrecords'])
     tfrecords_creators.append(tfrecords_creator)
     
   for tfrecords_creator in tfrecords_creators:
-    tfrecords_creator.create()
+    tfrecords_creator.create_tfrecords()
   
+  for tfrecords_creator in tfrecords_creators:
+    tfrecords_creator.create_statistics()
   
 if __name__ == '__main__':
   parsed_arguments, unparsed = parser.parse_known_args()
