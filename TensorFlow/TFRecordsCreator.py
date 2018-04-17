@@ -8,18 +8,15 @@ import os
 import cv2
 import numpy as np
 import tensorflow as tf
-import tensorflow.contrib.eager as tfe
-import multiprocessing
 
 import json
 import gzip
 
 from RenderPasses import RenderPasses
 from RenderPasses import RenderPassesUsage
-from FeatureStatistics import Statistics
-from FeatureStatistics import FeatureStatistics
+from TFRecordsStatistics import TFRecordsStatistics
 from RenderDirectories import RenderDirectories
-import Utilities
+
 
 parser = argparse.ArgumentParser(description='Create tfrecords files for the DeepDenoiser.')
 parser.add_argument('json_filename', help='The json specifying all the relevant details.')
@@ -108,189 +105,9 @@ class TFRecordsCreator:
       render_directories.unload_images()
     tfrecords_writer.close()
   
-  
   def create_statistics(self):
-    statistics = {}
-    statistics['tiles_height_width'] = self.tiles_height_width
-    statistics['number_of_sources_per_example'] = self.number_of_sources_per_example
-    statistics['source_samples_per_pixel'] = self.source_samples_per_pixel
-    
-    statistics = self._complete_statistics(statistics)
-    
-    statistics_json_filename = os.path.join(self.base_tfrecords_directory, self.name + '.json')
-    statistics_json_content = json.dumps(statistics, cls=DataStatisticsEncoder, sort_keys=True, indent=2)
-    with open(statistics_json_filename, 'w+', encoding='utf-8') as statistics_json_file:
-      statistics_json_file.write(statistics_json_content)
-  
-  def _complete_statistics(self, statistics):
-    minimums = {}
-    maximums = {}
-    means = {}
-    variances = {}
-    minimums_log1p = {}
-    maximums_log1p = {}
-    means_log1p = {}
-    variances_log1p = {}
-    
-    for source_render_pass in self.source_render_passes_usage.render_passes():
-      source_feature_name = RenderPasses.source_feature_name(source_render_pass)
-      minimums[source_feature_name] = []
-      maximums[source_feature_name] = []
-      means[source_feature_name] = []
-      variances[source_feature_name] = []
-      minimums_log1p[source_feature_name] = []
-      maximums_log1p[source_feature_name] = []
-      means_log1p[source_feature_name] = []
-      variances_log1p[source_feature_name] = []
-    
-    for target_render_pass in self.target_render_passes_usage.render_passes():
-      target_feature_name = RenderPasses.target_feature_name(target_render_pass)
-      minimums[target_feature_name] = []
-      maximums[target_feature_name] = []
-      means[target_feature_name] = []
-      variances[target_feature_name] = []
-      minimums_log1p[target_feature_name] = []
-      maximums_log1p[target_feature_name] = []
-      means_log1p[target_feature_name] = []
-      variances_log1p[target_feature_name] = []
-    
-    iterator = self._dataset_iterator()
-    while True:
-      try:
-        source_features, target_features = iterator.get_next()
-        
-        for source_index in range(self.number_of_sources_per_example):
-          for source_render_pass in self.source_render_passes_usage.render_passes():
-            source_feature_name = RenderPasses.source_feature_name(source_render_pass)
-            
-            source_feature = source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)]
-            minimums[source_feature_name].append(tf.reduce_min(source_feature))
-            maximums[source_feature_name].append(tf.reduce_max(source_feature))
-            means[source_feature_name].append(tf.reduce_mean(source_feature))
-            
-            source_feature_log1p = Utilities.signed_log1p(source_feature)
-            minimums_log1p[source_feature_name].append(tf.reduce_min(source_feature_log1p))
-            maximums_log1p[source_feature_name].append(tf.reduce_max(source_feature_log1p))
-            means_log1p[source_feature_name].append(tf.reduce_mean(source_feature_log1p))
-            
-        for target_render_pass in self.target_render_passes_usage.render_passes():
-          target_feature_name = RenderPasses.target_feature_name(target_render_pass)
-          
-          target_feature = target_features[RenderPasses.target_feature_name(target_render_pass)]
-          minimums[target_feature_name].append(tf.reduce_min(target_feature))
-          maximums[target_feature_name].append(tf.reduce_max(target_feature))
-          means[target_feature_name].append(tf.reduce_mean(target_feature))
-          
-          target_feature_log1p = Utilities.signed_log1p(target_feature)
-          minimums_log1p[target_feature_name].append(tf.reduce_min(target_feature_log1p))
-          maximums_log1p[target_feature_name].append(tf.reduce_max(target_feature_log1p))
-          means_log1p[target_feature_name].append(tf.reduce_mean(target_feature_log1p))
-          
-      except tf.errors.OutOfRangeError:
-        break
-    
-    for feature_name in minimums:
-      minimum = minimums[feature_name]
-      minimums[feature_name] = tf.reduce_min(minimum).numpy().item()
-      maximum = maximums[feature_name]
-      maximums[feature_name] = tf.reduce_max(maximum).numpy().item()
-      mean = means[feature_name]
-      means[feature_name] = tf.reduce_mean(mean).numpy().item()
-      
-      minimum_log1p = minimums_log1p[feature_name]
-      minimums_log1p[feature_name] = tf.reduce_min(minimum_log1p).numpy().item()
-      maximum_log1p = maximums_log1p[feature_name]
-      maximums_log1p[feature_name] = tf.reduce_max(maximum_log1p).numpy().item()
-      mean_log1p = means_log1p[feature_name]
-      means_log1p[feature_name] = tf.reduce_mean(mean_log1p).numpy().item()
-    
-    iterator = self._dataset_iterator()
-    while True:
-      try:
-        source_features, target_features = iterator.get_next()
-        
-        for source_index in range(self.number_of_sources_per_example):
-          for source_render_pass in self.source_render_passes_usage.render_passes():
-            source_feature_name = RenderPasses.source_feature_name(source_render_pass)
-            
-            mean = means[source_feature_name]
-            source_feature = source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)]
-            variances[source_feature_name].append(tf.reduce_mean(tf.square(tf.subtract(source_feature, mean))))
-            
-            mean_log1p = means_log1p[source_feature_name]
-            source_feature_log1p = Utilities.signed_log1p(source_feature)
-            variances_log1p[source_feature_name].append(tf.reduce_mean(tf.square(tf.subtract(source_feature_log1p, mean_log1p))))
-            
-        for target_render_pass in self.target_render_passes_usage.render_passes():
-          target_feature_name = RenderPasses.target_feature_name(target_render_pass)
-          
-          mean = means[target_feature_name]
-          target_feature = target_features[RenderPasses.target_feature_name(target_render_pass)]
-          variances[target_feature_name].append(tf.reduce_mean(tf.square(tf.subtract(target_feature, mean))))
-          
-          mean_log1p = means_log1p[target_feature_name]
-          target_feature_log1p = Utilities.signed_log1p(target_feature)
-          variances_log1p[target_feature_name].append(tf.reduce_mean(tf.square(tf.subtract(target_feature_log1p, mean_log1p))))
-        
-      except tf.errors.OutOfRangeError:
-        break
-    
-    for feature_name in variances:
-      variance = variances[feature_name]
-      variances[feature_name] = tf.reduce_mean(variance).numpy().item()
-      
-      variance_log1p = variances_log1p[feature_name]
-      variances_log1p[feature_name] = tf.reduce_min(variance_log1p).numpy().item()
-    
-    
-    # Integrate the results into statistics
-    for feature_name in minimums:
-      
-      # REMARK: The 'current_' prefix is only used to avoid a name clash.
-      current_statistics = Statistics(minimums[feature_name], maximums[feature_name], means[feature_name], variances[feature_name])
-      current_statistics_log1p = Statistics(minimums_log1p[feature_name], maximums_log1p[feature_name], means_log1p[feature_name], variances_log1p[feature_name])
-      feature_statistics = FeatureStatistics(RenderPasses.number_of_channels(feature_name.split('/')[-1]), current_statistics, current_statistics_log1p)
-      statistics[feature_name] = feature_statistics
-    
-    return statistics
-  
-  def _dataset_iterator(self):
-    directory = os.path.join(self.base_tfrecords_directory, self.name)
-    files = tf.data.Dataset.list_files(directory + '/*', shuffle=True)
-    
-    threads = multiprocessing.cpu_count()
-    dataset = tf.data.TFRecordDataset(files, compression_type='GZIP', buffer_size=None, num_parallel_reads=threads)
-    dataset = dataset.map(map_func=self._feature_parser, num_parallel_calls=threads)
-    iterator = tfe.Iterator(dataset)
-    return iterator
-  
-  def _feature_parser(self, serialized_example):
-      features = {}
-      for source_index in range(self.number_of_sources_per_example):
-        for source_render_pass in self.source_render_passes_usage.render_passes():
-          features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)] = tf.FixedLenFeature([], tf.string)
-      for target_render_pass in self.target_render_passes_usage.render_passes():
-        features[RenderPasses.target_feature_name(target_render_pass)] = tf.FixedLenFeature([], tf.string)
-      
-      parsed_features = tf.parse_single_example(serialized_example, features)
-      
-      source_features = {}
-      for source_index in range(self.number_of_sources_per_example):
-        for source_render_pass in self.source_render_passes_usage.render_passes():
-          source_feature = tf.decode_raw(parsed_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)], tf.float32)
-          number_of_channels = RenderPasses.number_of_channels(source_render_pass)
-          source_feature = tf.reshape(source_feature, [self.tiles_height_width, self.tiles_height_width, number_of_channels])
-          source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)] = source_feature
-      
-      target_features = {}
-      for target_render_pass in self.target_render_passes_usage.render_passes():
-        target_feature = tf.decode_raw(parsed_features[RenderPasses.target_feature_name(target_render_pass)], tf.float32)
-        number_of_channels = RenderPasses.number_of_channels(target_render_pass)
-        target_feature = tf.reshape(target_feature, [self.tiles_height_width, self.tiles_height_width, number_of_channels])
-        target_features[RenderPasses.target_feature_name(target_render_pass)] = target_feature
-      
-      return source_features, target_features
-  
+    tfrecords_statistics = TFRecordsStatistics(self)
+    tfrecords_statistics.compute_and_save_statistics()
   
   def _int64_feature(values):
     if not isinstance(values, (tuple, list)):
@@ -348,16 +165,6 @@ class TFRecordsWriter:
     original_file.close()
     if delete_uncompressed:
       os.remove(filename)
-
-
-class DataStatisticsEncoder(json.JSONEncoder):
-  def default(self, obj):
-    if hasattr(obj, '__json__'):
-      return obj.__json__()
-    if hasattr(obj, '__dict__'):
-      return obj.__dict__
-    return json.JSONEncoder.default(self, obj)
-
 
 def main(parsed_arguments):
   try:
