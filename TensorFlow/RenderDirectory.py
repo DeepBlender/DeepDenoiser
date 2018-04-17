@@ -20,7 +20,7 @@ class RenderDirectory:
     # TODO: Using missing_render_pass_files in this way is not the best idea. (DeepBlender)
     self.missing_render_pass_files = []
     required_render_passes = render_passes_usage.render_passes()
-    exr_files = self._exr_files(self.directory)
+    exr_files = RenderDirectory._exr_files(self.directory)
     for render_pass in required_render_passes:
       render_pass_exists = False
       for exr_file in exr_files:
@@ -35,15 +35,15 @@ class RenderDirectory:
     self.render_passes_usage = render_passes_usage
     self.render_pass_to_image = {}
     render_passes = self.render_passes_usage.render_passes()
-    exr_files = self._exr_files(self.directory)
+    exr_files = RenderDirectory._exr_files(self.directory)
     for render_pass in render_passes:
       exr_loaded = False
       for exr_file in exr_files:
         if render_pass in exr_file:
-          image = self._load_exr(exr_file)
+          image = RenderDirectory._load_exr(exr_file)
           
           # Special cases: Alpha and depth passes only have one channel.
-          if render_pass is RenderPasses.ALPHA or render_pass is RenderPasses.DEPTH:
+          if RenderPasses.number_of_channels(render_pass) == 1:
             image = image[:, :, 0]
           
           self.render_pass_to_image[render_pass] = image
@@ -81,14 +81,14 @@ class RenderDirectory:
     self.render_passes_usage = None
     self.render_pass_to_image = {}
 
-  def _exr_files(self, directory):
+  def _exr_files(directory):
     result = []
     for filename in os.listdir(directory):
       if filename.endswith('.exr'):
         result.append(os.path.join(directory, filename))
     return result
 
-  def _load_exr(self, exr_path):
+  def _load_exr(exr_path):
     try:
       image_type = cv2.IMREAD_UNCHANGED
       image = cv2.imread(exr_path, image_type)

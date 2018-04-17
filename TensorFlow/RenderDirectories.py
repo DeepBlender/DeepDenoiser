@@ -10,7 +10,7 @@ class RenderDirectories:
   def __init__(self, base_directory):
     self.base_directory = base_directory
     self.samples_per_pixel_to_render_directories = {}
-    subdirectories = self._subdirectories(self.base_directory)
+    subdirectories = RenderDirectories._subdirectories(self.base_directory)
     for subdirectory in subdirectories:
       render_directory = RenderDirectory(subdirectory)
       samples_per_pixel = render_directory.samples_per_pixel
@@ -78,5 +78,5 @@ class RenderDirectories:
         result = samples_per_pixel
     return result
   
-  def _subdirectories(self, directory):
+  def _subdirectories(directory):
     return filter(os.path.isdir, [os.path.join(directory, subdirectory) for subdirectory in os.listdir(directory)])
