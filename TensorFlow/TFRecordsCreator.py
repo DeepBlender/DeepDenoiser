@@ -30,7 +30,7 @@ class TFRecordsCreator:
       self, name, base_tfrecords_directory, base_render_directory, relative_render_directories,
       source_samples_per_pixel, source_render_passes_usage, number_of_sources_per_example,
       target_samples_per_pixel, target_render_passes_usage,
-      tiles_height_width, tiles_per_tfrecords):
+      tiles_height_width, examples_per_tfrecords):
     self.name = name
     self.base_tfrecords_directory = base_tfrecords_directory
     self.source_samples_per_pixel = source_samples_per_pixel
@@ -39,7 +39,7 @@ class TFRecordsCreator:
     self.target_samples_per_pixel = target_samples_per_pixel
     self.target_render_passes_usage = target_render_passes_usage
     self.tiles_height_width = tiles_height_width
-    self.tiles_per_tfrecords = tiles_per_tfrecords
+    self.examples_per_tfrecords = examples_per_tfrecords
     
     self.render_directories_list = []
     for render_directories in relative_render_directories:
@@ -57,7 +57,7 @@ class TFRecordsCreator:
       self.render_directories_list.append(new_render_directories)
   
   def create_tfrecords(self):
-    tfrecords_writer = TFRecordsWriter(self.name, self.base_tfrecords_directory, self.tiles_per_tfrecords)
+    tfrecords_writer = TFRecordsWriter(self.name, self.base_tfrecords_directory, self.examples_per_tfrecords)
   
     for render_directories in self.render_directories_list:
       target_samples_per_pixel = self.target_samples_per_pixel
@@ -127,10 +127,10 @@ class TFRecordsCreator:
 
 
 class TFRecordsWriter:
-  def __init__(self, name, base_directory, tiles_per_tfrecords):
+  def __init__(self, name, base_directory, examples_per_tfrecords):
     self.name = name
     self.base_directory = base_directory
-    self.tiles_per_tfrecords = tiles_per_tfrecords
+    self.examples_per_tfrecords = examples_per_tfrecords
     self.tfrecords_directory = os.path.join(self.base_directory, self.name)
     if not os.path.exists(self.tfrecords_directory):
       os.makedirs(self.tfrecords_directory)
@@ -147,7 +147,7 @@ class TFRecordsWriter:
     self.writer.write(example.SerializeToString())
     self.added_tiles = self.added_tiles + 1
     
-    if self.added_tiles >= self.tiles_per_tfrecords:
+    if self.added_tiles >= self.examples_per_tfrecords:
       self.close()
   
   def close(self):
@@ -200,7 +200,7 @@ def main(parsed_arguments):
         mode_name, base_tfrecords_directory, base_render_directory, mode_settings['render_directories'],
         source_samples_per_pixel, source_render_passes_usage, number_of_sources_per_example,
         target_samples_per_pixel, target_render_passes_usage,
-        mode_settings['tiles_height_width'], mode_settings['tiles_per_tfrecords'])
+        mode_settings['tiles_height_width'], mode_settings['examples_per_tfrecords'])
     tfrecords_creators.append(tfrecords_creator)
     
   for tfrecords_creator in tfrecords_creators:

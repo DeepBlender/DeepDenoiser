@@ -8,7 +8,7 @@
 	"modes":{
 		"training":{
 			"tiles_height_width": 64,
-			"tiles_per_tfrecords": 16,
+			"examples_per_tfrecords": 16,
 			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
 			"render_directories":[
 				"Training_Example_01",
@@ -18,7 +18,7 @@
 		},
 		"validation":{
 			"tiles_height_width": 64,
-			"tiles_per_tfrecords": 16,
+			"examples_per_tfrecords": 16,
 			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
 			"render_directories":[
 				"Validation_Example_01",
@@ -27,7 +27,7 @@
 		},
 		"testing":{
 			"tiles_height_width": 64,
-			"tiles_per_tfrecords": 16,
+			"examples_per_tfrecords": 16,
 			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
 			"render_directories":[
 				"Testing_Example_01",
