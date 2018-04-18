@@ -78,5 +78,6 @@ class RenderDirectories:
         result = samples_per_pixel
     return result
   
+  @staticmethod
   def _subdirectories(directory):
     return filter(os.path.isdir, [os.path.join(directory, subdirectory) for subdirectory in os.listdir(directory)])

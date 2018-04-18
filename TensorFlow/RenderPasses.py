@@ -32,15 +32,19 @@ class RenderPasses:
   VOLUME_DIRECT = 'Volume Direct'
   VOLUME_INDIRECT = 'Volume Indirect'
   
+  @staticmethod
   def source_feature_name(source_render_pass):
     return 'source_image/' + source_render_pass
   
+  @staticmethod
   def source_feature_name_indexed(source_render_pass, source_index):
     return 'source_image/' + str(source_index) + '/' + source_render_pass
   
+  @staticmethod
   def target_feature_name(target_render_pass):
     return 'target_image/' + target_render_pass
   
+  @staticmethod
   def number_of_channels(render_pass):
     result = 3
     if render_pass == RenderPasses.ALPHA or render_pass == RenderPasses.DEPTH:

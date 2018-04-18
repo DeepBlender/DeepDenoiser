@@ -73,7 +73,7 @@ class TFRecordsCreator:
       
       height, width = render_directories.size_of_loaded_images()
       
-      # Split the images into tiles
+      # Split the images into tiles.
       tiles_x_count = height // self.tiles_height_width
       tiles_y_count = width // self.tiles_height_width
       
@@ -109,14 +109,17 @@ class TFRecordsCreator:
     tfrecords_statistics = TFRecordsStatistics(self)
     tfrecords_statistics.compute_and_save_statistics()
   
+  @staticmethod
   def _int64_feature(values):
     if not isinstance(values, (tuple, list)):
       values = [values]
     return tf.train.Feature(int64_list=tf.train.Int64List(value=values))
 
+  @staticmethod
   def _bytes_feature(values):
     return tf.train.Feature(bytes_list=tf.train.BytesList(value=[values]))
 
+  @staticmethod
   def _float_feature(values):
     if not isinstance(values, (tuple, list)):
       values = [values]
@@ -156,6 +159,7 @@ class TFRecordsWriter:
     self.writer = None
     self.tfrecords_index = self.tfrecords_index + 1
   
+  @staticmethod
   def _compress(filename, delete_uncompressed=True):
     gzip_filename = filename + '.gz'
     original_file = open(filename, 'rb')

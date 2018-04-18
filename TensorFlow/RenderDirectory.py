@@ -81,6 +81,7 @@ class RenderDirectory:
     self.render_passes_usage = None
     self.render_pass_to_image = {}
 
+  @staticmethod
   def _exr_files(directory):
     result = []
     for filename in os.listdir(directory):
@@ -88,6 +89,7 @@ class RenderDirectory:
         result.append(os.path.join(directory, filename))
     return result
 
+  @staticmethod
   def _load_exr(exr_path):
     try:
       image_type = cv2.IMREAD_UNCHANGED
