@@ -14,7 +14,7 @@ import random
 from mathutils import Vector
 
 class RenderPasses:
-  COMPOSED = 'Composed'
+  COMBINED = 'Composed'
   ALPHA = 'Alpha'
   DEPTH = 'Depth'
   MIST = 'Mist'

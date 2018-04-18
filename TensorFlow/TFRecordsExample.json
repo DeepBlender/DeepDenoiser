@@ -3,7 +3,7 @@
 	"base_render_directory": "../OpenEXR",
 	
 	"base_tfrecords_directory_description": "The generated tfrecords files are stored in child directories named according to the mode.",
-	"base_tfrecords_directory": "../TFRecords",
+	"base_tfrecords_directory": "../TFRecords/Example",
 	
 	"modes":{
 		"training":{
@@ -40,7 +40,6 @@
 		"samples_per_pixel": 16,
 		"number_of_sources_per_example": 8,
 		"features":{
-			"use_composed": false,
 			"use_alpha": true,
 			"use_depth": true,
 			"use_mist": false,
@@ -73,7 +72,6 @@
 	"target":{
 		"samples_per_pixel": "best",
 		"features":{
-			"use_composed": false,
 			"use_alpha": false,
 			"use_depth": false,
 			"use_mist": false,

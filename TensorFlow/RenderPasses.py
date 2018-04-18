@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 class RenderPasses:
-  COMPOSED = 'Composed'
+  COMBINED = 'Composed'
   ALPHA = 'Alpha'
   DEPTH = 'Depth'
   MIST = 'Mist'
