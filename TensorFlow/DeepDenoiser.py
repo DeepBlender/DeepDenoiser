@@ -603,7 +603,7 @@ def train(tfrecords_directory, estimator, training_features_preparation, number_
   # Train the model
   estimator.train(input_fn=lambda: input_fn_tfrecords(files, training_features_preparation, number_of_epochs, number_of_sources_per_example, tiles_height_width, batch_size, threads))
 
-def evaluate(tfrecords_directory, estimator, training_features_preparation, tiles_height_width, batch_size, threads):
+def evaluate(tfrecords_directory, estimator, training_features_preparation, number_of_sources_per_example, tiles_height_width, batch_size, threads):
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Evaluate the model
