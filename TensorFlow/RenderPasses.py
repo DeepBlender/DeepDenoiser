@@ -33,16 +33,36 @@ class RenderPasses:
   VOLUME_INDIRECT = 'Volume Indirect'
   
   @staticmethod
-  def source_feature_name(source_render_pass):
-    return 'source_image/' + source_render_pass
+  def source_feature_name(render_pass_name):
+    return 'source_image/' + render_pass_name
   
   @staticmethod
-  def source_feature_name_indexed(source_render_pass, source_index):
-    return 'source_image/' + str(source_index) + '/' + source_render_pass
+  def source_feature_name_indexed(render_pass_name, source_index):
+    return 'source_image/' + str(source_index) + '/' + render_pass_name
   
   @staticmethod
-  def target_feature_name(target_render_pass):
-    return 'target_image/' + target_render_pass
+  def target_feature_name(render_pass_name):
+    return 'target_image/' + render_pass_name
+  
+  @staticmethod
+  def prediction_feature_name(render_pass_name):
+    return 'prediction/' + render_pass_name
+  
+  @staticmethod
+  def tensorboard_name(render_pass_name):
+    return render_pass_name.lower().replace(' ', '_')
+  
+  @staticmethod
+  def variation_name(render_pass_name):
+    return RenderPasses.tensorboard_name(render_pass_name) + '_variation'
+  
+  @staticmethod
+  def mean_name(render_pass_name):
+    return RenderPasses.tensorboard_name(render_pass_name) + '_mean'
+  
+  @staticmethod
+  def variation_mean_name(render_pass_name):
+    return FeatureName.variation_name(render_pass_name) + '_mean'
   
   @staticmethod
   def number_of_channels(render_pass):

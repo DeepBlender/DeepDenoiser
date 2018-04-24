@@ -1,0 +1,483 @@
+{
+	"model_directory": "../Models/Example",
+	
+	"base_tfrecords_directory": "../TFRecords/Example",
+	"modes": [
+		"training",
+		"validation",
+		"testing"
+	],
+	
+	"loss_difference_description": "Options: DIFFERENCE, ABSOLUTE, SMOOTH_ABSOLUTE, SQUARED.",
+	"loss_difference": "ABSOLUTE",
+	
+	"combined_image": {
+		"loss_weights": {
+			"mean": 100.0,
+			"variation_mean": 0.0
+		},
+		"statistics": {
+			"track_mean": true,
+			"track_variation_mean": false,
+			"track_difference_histogram": true,
+			"track_variation_difference_histogram": false
+		}
+	},
+	
+	"combined_features": {
+		"Diffuse": {
+			"loss_weights": {
+				"mean": 10.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": true,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Glossy": {
+			"loss_weights": {
+				"mean": 10.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": true,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Subsurface": {
+			"loss_weights": {
+				"mean": 10.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": true,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Transmission": {
+			"loss_weights": {
+				"mean": 10.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": true,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		}
+	},
+	
+	"features": {
+		"Alpha": {
+			"is_source": true,
+			"is_target": false,
+			"number_of_channels": 1,
+			"standardization": {
+				"use_log1p": false,
+				"mean": 0.0,
+				"variance": 1.0
+			},
+			"loss_weights": {
+				"mean": 0.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Depth": {
+			"is_source": true,
+			"is_target": false,
+			"number_of_channels": 1,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.0,
+				"variance": 23.0
+			},
+			"loss_weights": {
+				"mean": 0.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Normal": {
+			"is_source": false,
+			"is_target": false,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": false,
+				"mean": 0.0,
+				"variance": 1.0
+			},
+			"loss_weights": {
+				"mean": 0.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Screen Space Normal": {
+			"is_source": true,
+			"is_target": false,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": false,
+				"mean": 0.0,
+				"variance": 1.0
+			},
+			"loss_weights": {
+				"mean": 0.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		
+		"Ambient Occlusion": {
+			"is_source": false,
+			"is_target": false,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.0,
+				"variance": 1.0
+			},
+			"loss_weights": {
+				"mean": 0.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Shadow": {
+			"is_source": false,
+			"is_target": false,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.0,
+				"variance": 1.0
+			},
+			"loss_weights": {
+				"mean": 0.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		
+		"Emission": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.0,
+				"variance": 1.0
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Environment": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.0,
+				"variance": 1.0
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		
+		"Diffuse Color": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": false,
+				"mean": 0.25,
+				"variance": 0.1
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Diffuse Direct": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.3,
+				"variance": 0.001
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Diffuse Indirect": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.05,
+				"variance": 0.0003
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Glossy Color": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": false,
+				"mean": 0.25,
+				"variance": 0.1
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Glossy Direct": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.3,
+				"variance": 0.001
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Glossy Indirect": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.05,
+				"variance": 0.0003
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Subsurface Color": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": false,
+				"mean": 0.25,
+				"variance": 0.1
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Subsurface Direct": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.3,
+				"variance": 0.001
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Subsurface Indirect": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.05,
+				"variance": 0.0003
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Transmission Color": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": false,
+				"mean": 0.25,
+				"variance": 0.1
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Transmission Direct": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.3,
+				"variance": 0.001
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Transmission Indirect": {
+			"is_source": true,
+			"is_target": true,
+			"number_of_channels": 3,
+			"standardization": {
+				"use_log1p": true,
+				"mean": 0.05,
+				"variance": 0.0003
+			},
+			"loss_weights": {
+				"mean": 1.0,
+				"variation_mean": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation_mean": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		}
+	}
+}
