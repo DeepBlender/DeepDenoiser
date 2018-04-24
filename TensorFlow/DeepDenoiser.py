@@ -506,61 +506,66 @@ def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, n
   
   def feature_parser(serialized_example):
   
-    features = {}
+    # TODO: Split it up (DeepBlender)
+    # - Prepare, parse and deserialize them and create the datasets within a flat_map
+    # - Add and augmentation pass which uses map and is multithreaded
+  
+    dataset = None
     
-    # TODO: Create one example per index
-    index = 0
-    for training_feature_preparation in training_features_preparation:
-      training_feature_preparation.add_to_parse_dictionary(features, index)
+    for index in range(number_of_sources_per_example):
+      features = {}
     
-    parsed_features = tf.parse_single_example(serialized_example, features)
+      for training_feature_preparation in training_features_preparation:
+        training_feature_preparation.add_to_parse_dictionary(features, index)
     
-    for training_feature_preparation in training_features_preparation:
-      training_feature_preparation.deserialize(parsed_features, tiles_height_width, tiles_height_width, index)
-    
-    
-    # Data augmentation
-    
-    with tf.name_scope('data_augmentation'):
+      parsed_features = tf.parse_single_example(serialized_example, features)
       
-      # Flip the image randomly (REMARK: maxval is excluded in random_uniform!)
-      flip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
-      if flip != 0:
-        for training_feature_preparation in training_features_preparation:
-          training_feature_preparation.flip_left_right()
-          if training_feature_preparation.name == RenderPasses.SCREEN_SPACE_NORMAL:
-            screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(training_feature_preparation.source, [1, 1, 1], 2)
-            screen_space_normal_x = tf.negative(screen_space_normal_x)
-            training_feature_preparation.source = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
-            
-
-      # Rotate the image randomly (maxval is excluded!)
-      rotate = tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32)[0]
-      if rotate != 0:
-        for training_feature_preparation in training_features_preparation:
-          training_feature_preparation.rotate90(rotate)
-          if training_feature_preparation.name == RenderPasses.SCREEN_SPACE_NORMAL:
-            screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(training_feature_preparation.source, [1, 1, 1], 2)
-            if rotate == 1:
-              # x -> -y
-              # y -> x
-              temporary_screen_space_normal_x = screen_space_normal_x
-              screen_space_normal_x = tf.negative(screen_space_normal_y)
-              screen_space_normal_y = temporary_screen_space_normal_x
-            elif rotate == 2:
-              # x -> -x
-              # y -> -y
+      for training_feature_preparation in training_features_preparation:
+        training_feature_preparation.deserialize(parsed_features, tiles_height_width, tiles_height_width, index)
+      
+      
+      # Data augmentation
+      
+      with tf.name_scope('data_augmentation'):
+        
+        # Flip the image randomly (REMARK: maxval is excluded in random_uniform!)
+        flip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
+        if flip != 0:
+          for training_feature_preparation in training_features_preparation:
+            training_feature_preparation.flip_left_right()
+            if training_feature_preparation.name == RenderPasses.SCREEN_SPACE_NORMAL:
+              screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(training_feature_preparation.source, [1, 1, 1], 2)
               screen_space_normal_x = tf.negative(screen_space_normal_x)
-              screen_space_normal_y = tf.negative(screen_space_normal_y)
-            elif rotate == 3:
-              # x -> y
-              # y -> -x
-              temporary_screen_space_normal_y = screen_space_normal_y
-              screen_space_normal_y = tf.negative(screen_space_normal_x)
-              screen_space_normal_x = temporary_screen_space_normal_y
+              training_feature_preparation.source = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
               
-            training_feature_preparation.source = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
-      
+
+        # Rotate the image randomly (maxval is excluded!)
+        rotate = tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32)[0]
+        if rotate != 0:
+          for training_feature_preparation in training_features_preparation:
+            training_feature_preparation.rotate90(rotate)
+            if training_feature_preparation.name == RenderPasses.SCREEN_SPACE_NORMAL:
+              screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(training_feature_preparation.source, [1, 1, 1], 2)
+              if rotate == 1:
+                # x -> -y
+                # y -> x
+                temporary_screen_space_normal_x = screen_space_normal_x
+                screen_space_normal_x = tf.negative(screen_space_normal_y)
+                screen_space_normal_y = temporary_screen_space_normal_x
+              elif rotate == 2:
+                # x -> -x
+                # y -> -y
+                screen_space_normal_x = tf.negative(screen_space_normal_x)
+                screen_space_normal_y = tf.negative(screen_space_normal_y)
+              elif rotate == 3:
+                # x -> y
+                # y -> -x
+                temporary_screen_space_normal_y = screen_space_normal_y
+                screen_space_normal_y = tf.negative(screen_space_normal_x)
+                screen_space_normal_x = temporary_screen_space_normal_y
+                
+              training_feature_preparation.source = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
+        
       features = {}
       for training_feature_preparation in training_features_preparation:
         training_feature_preparation.add_to_features_dictionary(features)
@@ -569,7 +574,12 @@ def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, n
       for training_feature_preparation in training_features_preparation:
         training_feature_preparation.add_to_targets_dictionary(targets)
       
-    return features, targets 
+      if dataset == None:
+        dataset = tf.data.Dataset.from_tensors((features, targets))
+      else:
+        dataset = dataset.concatenate(tf.data.Dataset.from_tensors((features, targets)))
+    
+    return dataset
   
   
   # REMARK: Due to stability issues, it was not possible to follow all the suggestions from the documentation like using the fused versions.
@@ -579,7 +589,7 @@ def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, n
   files = files.shuffle(buffer_size=shuffle_buffer_size)
   
   dataset = tf.data.TFRecordDataset(files, compression_type='GZIP', buffer_size=None, num_parallel_reads=threads)
-  dataset = dataset.map(map_func=feature_parser, num_parallel_calls=threads)
+  dataset = dataset.flat_map(map_func=feature_parser)#, num_parallel_calls=threads)
   
   shuffle_buffer_size = 5 * batch_size
   dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
