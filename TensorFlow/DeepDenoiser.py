@@ -513,8 +513,13 @@ def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, n
     dataset = None
     
     for index in range(number_of_sources_per_example):
+      
+      # skip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
+      # if skip == 0:
+        # continue
+      
       features = {}
-    
+
       for training_feature_preparation in training_features_preparation:
         training_feature_preparation.add_to_parse_dictionary(features, index)
     
@@ -591,7 +596,7 @@ def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, n
   dataset = tf.data.TFRecordDataset(files, compression_type='GZIP', buffer_size=None, num_parallel_reads=threads)
   dataset = dataset.flat_map(map_func=feature_parser)#, num_parallel_calls=threads)
   
-  shuffle_buffer_size = 5 * batch_size
+  shuffle_buffer_size = 20 * batch_size
   dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
   
   dataset = dataset.batch(batch_size)
@@ -701,7 +706,7 @@ def main(parsed_arguments):
     else:
       session_config = tf.ConfigProto()
     session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
-    save_summary_steps = 500
+    save_summary_steps = 100
     save_checkpoints_step = 500
     run_config = tf.estimator.RunConfig(session_config=session_config, save_summary_steps=save_summary_steps, save_checkpoints_steps=save_checkpoints_step)
   
