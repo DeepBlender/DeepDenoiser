@@ -19,8 +19,14 @@ from RenderDirectories import RenderDirectories
 
 
 parser = argparse.ArgumentParser(description='Create tfrecords files for the DeepDenoiser.')
-parser.add_argument('json_filename', help='The json specifying all the relevant details.')
 
+parser.add_argument(
+    'json_filename',
+    help='The json specifying all the relevant details.')
+
+parser.add_argument(
+    '--statistics', action="store_true",
+    help='Only recalculate the statistics.')
 
 class TFRecordsCreator:
 
@@ -202,9 +208,10 @@ def main(parsed_arguments):
         target_samples_per_pixel, target_render_passes_usage,
         mode_settings['tiles_height_width'], mode_settings['examples_per_tfrecords'])
     tfrecords_creators.append(tfrecords_creator)
-    
-  for tfrecords_creator in tfrecords_creators:
-    tfrecords_creator.create_tfrecords()
+  
+  if not parsed_arguments.statistics:
+    for tfrecords_creator in tfrecords_creators:
+      tfrecords_creator.create_tfrecords()
   
   tf.enable_eager_execution()
   for tfrecords_creator in tfrecords_creators:

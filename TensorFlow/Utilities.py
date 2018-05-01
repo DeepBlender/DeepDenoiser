@@ -1,7 +1,7 @@
 import tensorflow as tf
 
-def signed_log1p(x):
-  return tf.multiply(tf.sign(x), tf.log1p(tf.abs(x)))
+def signed_log1p(inputs):
+  return tf.multiply(tf.sign(inputs), tf.log1p(tf.abs(inputs)))
 
-def signed_expm1(x):
-  return tf.multiply(tf.sign(x), tf.expm1(tf.abs(x)))
+def signed_expm1(inputs):
+  return tf.multiply(tf.sign(inputs), tf.expm1(tf.abs(inputs)))

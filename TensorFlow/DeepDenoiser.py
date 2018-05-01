@@ -15,6 +15,7 @@ import RefinementNet
 from LossDifference import LossDifference
 from LossDifference import LossDifferenceEnum
 from RenderPasses import RenderPasses
+import Conv2dUtilities
 
 parser = argparse.ArgumentParser(description='Training and inference for the DeepDenoiser.')
 
@@ -156,12 +157,23 @@ class BaseTrainingFeature:
           tf.layers.flatten(self.vertical_variation_difference())], axis=1)
     return result
   
-  
   def mean(self):
-    result = tf.reduce_mean(self.difference())
+    if RenderPasses.is_direct_or_indirect_render_pass(self.name):
+      result = tf.cond(
+          tf.greater(self.mask_sum, 0.),
+          lambda: tf.reduce_sum(tf.divide(tf.multiply(self.difference(), self.mask), self.mask_sum)),
+          lambda: tf.constant(0.))
+      
+      # if tf.greater(self.mask_sum, 0.):
+        # mask = tf.stack([self.mask, self.mask, self.mask], axis=2)
+        # result = tf.reduce_sum(tf.divide(tf.multiply(self.difference(), mask), self.mask_sum))
+    else:
+      result = tf.reduce_mean(self.difference())
     return result
   
   def variation_mean(self):
+    # TODO: Consider mask!
+  
     result = tf.reduce_mean(self.variation_difference())
     return result
   
@@ -258,6 +270,11 @@ class TrainingFeature(BaseTrainingFeature):
   def initialize(self, source_features, predicted_features, target_features):
     self.predicted = predicted_features[RenderPasses.prediction_feature_name(self.name)]
     self.target = target_features[RenderPasses.target_feature_name(self.name)]
+    if RenderPasses.is_direct_or_indirect_render_pass(self.name):
+      corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(self.name)
+      corresponding_target_feature = target_features[RenderPasses.target_feature_name(corresponding_color_pass)]
+      self.mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
+      self.mask_sum = tf.reduce_sum(self.mask)
 
 class TrainingFeaturePreparation:
 
@@ -344,7 +361,6 @@ def model(prediction_features, mode, use_CPU_only, data_format):
   with tf.name_scope('model'):
     _refinement_net = RefinementNet.RefinementNet(number_of_repetitions=0, number_of_blocks=3, number_of_convolutions_per_block=4, number_block_repetitions=0, number_of_filters_per_convolution=32, activation_function=tf.nn.relu, use_zero_padding=True, use_channel_weighting=False)
     outputs = _refinement_net.refinement_net(prediction_inputs, auxiliary_inputs, data_format=data_format)
-    
     reshape_output = False
     invert_standardize = True
   
@@ -358,11 +374,11 @@ def model(prediction_features, mode, use_CPU_only, data_format):
   if reshape_output:
     reshape_kernel_size = 3
     # Reshape to get the correct number of channels.
-    outputs = convolution2d(
+    outputs = Conv2dUtilities.convolution2d(
         inputs=outputs,
         filters=output_size,
         kernel_size=[reshape_kernel_size, reshape_kernel_size],
-        activation=activation_function,
+        activation=tf.nn.relu,
         data_format=data_format, name='reshape')
   
   if data_format == 'channels_first':

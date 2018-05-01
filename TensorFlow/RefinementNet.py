@@ -15,7 +15,7 @@ class RefinementNet:
     self.use_channel_weighting = use_channel_weighting
     
   def __convolution_block(self, inputs, number_of_output_filters, convolution_block_index, reuse, data_format):
-    concat_axis = Conv2dUtilities.channel_concat_axis(data_format)
+    concat_axis = Conv2dUtilities.channel_axis(inputs, data_format)
   
     # TODO: Dilation should also produce additional channels!
   
@@ -53,7 +53,7 @@ class RefinementNet:
   def refinement_net(self, prediction_inputs, auxiliary_inputs, data_format='channels_last'):
     # TODO: Try without intermediate prediction and store the result directly in the prediction instead
   
-    concat_axis = Conv2dUtilities.channel_concat_axis(data_format)
+    concat_axis = Conv2dUtilities.channel_axis(prediction_inputs, data_format)
     
     intermediate_prediction = prediction_inputs
     number_of_output_channels = intermediate_prediction.shape[concat_axis]

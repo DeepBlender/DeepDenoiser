@@ -14,7 +14,7 @@ import random
 from mathutils import Vector
 
 class RenderPasses:
-  COMBINED = 'Composed'
+  COMBINED = 'Combined'
   ALPHA = 'Alpha'
   DEPTH = 'Depth'
   MIST = 'Mist'
@@ -165,7 +165,7 @@ class DeepDenoiserDataGenerator:
     
     links = node_tree.links
     
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Image', output_node, RenderPasses.COMPOSED, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Image', output_node, RenderPasses.COMBINED, samples_per_pixel)
     DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Alpha', output_node, RenderPasses.ALPHA, samples_per_pixel)
     DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Depth', output_node, RenderPasses.DEPTH, samples_per_pixel)
     DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Normal', output_node, RenderPasses.NORMAL, samples_per_pixel)

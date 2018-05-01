@@ -1,17 +1,29 @@
 import tensorflow as tf
 
+def channel_axis(inputs, data_format):
+  assert len(inputs.shape) == 3 or len(inputs.shape) == 4
+  if len(inputs.shape) == 3:
+    if data_format == 'channels_first':
+      result = 0
+    else:
+      result = 2
+  elif len(inputs.shape) == 4:
+    if data_format == 'channels_first':
+      result = 1
+    else:
+      result = 3
+  return result
+
 def number_of_channels(inputs, data_format):
   assert len(inputs.shape) == 4
-  if data_format == 'channels_first':
-    return inputs.shape[1]
-  else:
-    return inputs.shape[3]
+  return inputs.shape[channel_axis(inputs, data_format)]
 
-def channel_concat_axis(data_format):
-  if data_format == 'channels_last':
-    return 3
-  else:
-    return 1
+def non_zero_mask(inputs, data_format):
+  channel_index = channel_axis(inputs, data_format)
+  inputs = tf.abs(inputs)
+  inputs = tf.reduce_sum(inputs, axis=channel_index)
+  inputs = tf.sign(inputs)
+  return inputs
 
 def downsample(inputs, use_max_pooling, kernel_size=None, use_zero_padding=True, activation=None, data_format='channels_last', name=None):
   if use_max_pooling:

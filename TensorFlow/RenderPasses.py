@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 class RenderPasses:
-  COMBINED = 'Composed'
+  COMBINED = 'Combined'
   ALPHA = 'Alpha'
   DEPTH = 'Depth'
   MIST = 'Mist'
@@ -50,6 +50,10 @@ class RenderPasses:
   
   @staticmethod
   def tensorboard_name(render_pass_name):
+    if render_pass_name.endswith(' Direct'):
+      render_pass_name = render_pass_name.replace(' Direct', ' Masked Direct')
+    if render_pass_name.endswith(' Indirect'):
+      render_pass_name = render_pass_name.replace(' Indirect', ' Masked Indirect')
     return render_pass_name.lower().replace(' ', '_')
   
   @staticmethod
@@ -65,12 +69,23 @@ class RenderPasses:
     return FeatureName.variation_name(render_pass_name) + '_mean'
   
   @staticmethod
-  def number_of_channels(render_pass):
+  def number_of_channels(render_pass_name):
     result = 3
-    if render_pass == RenderPasses.ALPHA or render_pass == RenderPasses.DEPTH:
+    if render_pass_name == RenderPasses.ALPHA or render_pass_name == RenderPasses.DEPTH:
       result = 1
     return result
 
+  @staticmethod
+  def is_direct_or_indirect_render_pass(render_pass_name):
+    return render_pass_name.endswith(' Direct') or render_pass_name.endswith(' Indirect')
+  
+  def direct_or_indirect_to_color_render_pass(render_pass_name):
+    result = None
+    if render_pass_name.endswith(' Direct'):
+      result = render_pass_name.replace(' Direct', ' Color')
+    elif render_pass_name.endswith(' Indirect'):
+      result = render_pass_name.replace(' Inirect', ' Color')
+    return result
 
 class RenderPassesUsage:
   def __init__(self,
