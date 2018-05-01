@@ -66,7 +66,7 @@ class RenderPasses:
   
   @staticmethod
   def variation_mean_name(render_pass_name):
-    return FeatureName.variation_name(render_pass_name) + '_mean'
+    return RenderPasses.variation_name(render_pass_name) + '_mean'
   
   @staticmethod
   def number_of_channels(render_pass_name):

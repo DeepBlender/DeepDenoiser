@@ -136,20 +136,6 @@ class BaseTrainingFeature:
       result = LossDifference.difference(self.predicted, self.target, self.loss_difference)
     return result
   
-  def horizontal_variation_difference(self):
-    with tf.name_scope('horizontal_variation_difference'):
-      predicted_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.predicted)
-      target_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.target)
-      result = LossDifference.difference(predicted_horizontal_variation, target_horizontal_variation, self.loss_difference)
-    return result
-  
-  def vertical_variation_difference(self):
-    with tf.name_scope('vertical_variation_difference'):
-      predicted_vertical_variation = BaseTrainingFeature.__vertical_variation(self.predicted)
-      target_vertical_variation = BaseTrainingFeature.__vertical_variation(self.target)
-      result = LossDifference.difference(predicted_vertical_variation, target_vertical_variation, self.loss_difference)
-    return result
-  
   def variation_difference(self):
     with tf.name_scope('variation_difference'):
       result = tf.concat(
@@ -163,18 +149,18 @@ class BaseTrainingFeature:
           tf.greater(self.mask_sum, 0.),
           lambda: tf.reduce_sum(tf.divide(tf.multiply(self.difference(), self.mask), self.mask_sum)),
           lambda: tf.constant(0.))
-      
-      # if tf.greater(self.mask_sum, 0.):
-        # mask = tf.stack([self.mask, self.mask, self.mask], axis=2)
-        # result = tf.reduce_sum(tf.divide(tf.multiply(self.difference(), mask), self.mask_sum))
     else:
       result = tf.reduce_mean(self.difference())
     return result
   
   def variation_mean(self):
-    # TODO: Consider mask!
-  
-    result = tf.reduce_mean(self.variation_difference())
+    if RenderPasses.is_direct_or_indirect_render_pass(self.name):
+      result = tf.cond(
+          tf.greater(self.mask_sum, 0.),
+          lambda: tf.image.total_variation(tf.divide(tf.multiply(self.difference(), self.mask), self.mask_sum)),
+          lambda: tf.constant(0.))
+    else:
+      result = tf.image.total_variation(self.difference())
     return result
   
   
@@ -207,50 +193,6 @@ class BaseTrainingFeature:
       dictionary[RenderPasses.mean_name(self.name)] = tf.metrics.mean(self.mean())
     if self.track_variation_mean:
       dictionary[RenderPasses.variation_mean_name(self.name)] = tf.metrics.mean(self.variation_mean())
-  
-  
-  @staticmethod
-  def __horizontal_variation(image_batch):
-    # 'channels_last' or NHWC
-    image_batch = tf.subtract(BaseTrainingFeature.__shift_left(image_batch), BaseTrainingFeature.__shift_right(image_batch))
-    return image_batch
-    
-  def __vertical_variation(image_batch):
-    # 'channels_last' or NHWC
-    image_batch = tf.subtract(BaseTrainingFeature.__shift_up(image_batch), BaseTrainingFeature.__shift_down(image_batch))
-    return image_batch
-    
-  @staticmethod
-  def __shift_left(image_batch):
-    # 'channels_last' or NHWC
-    axis = 2
-    width = tf.shape(image_batch)[axis]
-    image_batch = tf.slice(image_batch, [0, 0, 1, 0], [-1, -1, width - 1, -1])
-    return(image_batch)
-  
-  @staticmethod
-  def __shift_right(image_batch):
-    # 'channels_last' or NHWC
-    axis = 2
-    width = tf.shape(image_batch)[axis]
-    image_batch = tf.slice(image_batch, [0, 0, 0, 0], [-1, -1, width - 1, -1]) 
-    return(image_batch)
-  
-  @staticmethod
-  def __shift_up(image_batch):
-    # 'channels_last' or NHWC
-    axis = 1
-    height = tf.shape(image_batch)[axis]
-    image_batch = tf.slice(image_batch, [0, 1, 0, 0], [-1, height - 1, -1, -1]) 
-    return(image_batch)
-
-  @staticmethod
-  def __shift_down(image_batch):
-    # 'channels_last' or NHWC
-    axis = 1
-    height = tf.shape(image_batch)[axis]
-    image_batch = tf.slice(image_batch, [0, 0, 0, 0], [-1, height - 1, -1, -1]) 
-    return(image_batch)
 
 
 class TrainingFeature(BaseTrainingFeature):
@@ -593,7 +535,7 @@ def model_fn(features, labels, mode, params):
       eval_metric_ops=eval_metric_ops)
 
 
-def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, number_of_sources_per_example, tiles_height_width, batch_size, threads):
+def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, number_of_sources_per_example, tiles_height_width, batch_size, threads, use_data_augmentation=True):
   
   def feature_parser(serialized_example):
   
@@ -622,45 +564,46 @@ def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, n
       
       # Data augmentation
       
-      with tf.name_scope('data_augmentation'):
-        
-        # Flip the image randomly (REMARK: maxval is excluded in random_uniform!)
-        flip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
-        if flip != 0:
-          for training_feature_preparation in training_features_preparation:
-            training_feature_preparation.flip_left_right()
-            if training_feature_preparation.name == RenderPasses.SCREEN_SPACE_NORMAL:
-              screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(training_feature_preparation.source, [1, 1, 1], 2)
-              screen_space_normal_x = tf.negative(screen_space_normal_x)
-              training_feature_preparation.source = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
-              
-
-        # Rotate the image randomly (maxval is excluded!)
-        rotate = tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32)[0]
-        if rotate != 0:
-          for training_feature_preparation in training_features_preparation:
-            training_feature_preparation.rotate90(rotate)
-            if training_feature_preparation.name == RenderPasses.SCREEN_SPACE_NORMAL:
-              screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(training_feature_preparation.source, [1, 1, 1], 2)
-              if rotate == 1:
-                # x -> -y
-                # y -> x
-                temporary_screen_space_normal_x = screen_space_normal_x
-                screen_space_normal_x = tf.negative(screen_space_normal_y)
-                screen_space_normal_y = temporary_screen_space_normal_x
-              elif rotate == 2:
-                # x -> -x
-                # y -> -y
+      if use_data_augmentation:
+        with tf.name_scope('data_augmentation'):
+          
+          # Flip the image randomly (REMARK: maxval is excluded in random_uniform!)
+          flip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
+          if flip != 0:
+            for training_feature_preparation in training_features_preparation:
+              training_feature_preparation.flip_left_right()
+              if training_feature_preparation.name == RenderPasses.SCREEN_SPACE_NORMAL:
+                screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(training_feature_preparation.source, [1, 1, 1], 2)
                 screen_space_normal_x = tf.negative(screen_space_normal_x)
-                screen_space_normal_y = tf.negative(screen_space_normal_y)
-              elif rotate == 3:
-                # x -> y
-                # y -> -x
-                temporary_screen_space_normal_y = screen_space_normal_y
-                screen_space_normal_y = tf.negative(screen_space_normal_x)
-                screen_space_normal_x = temporary_screen_space_normal_y
+                training_feature_preparation.source = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
                 
-              training_feature_preparation.source = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
+
+          # Rotate the image randomly (maxval is excluded!)
+          rotate = tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32)[0]
+          if rotate != 0:
+            for training_feature_preparation in training_features_preparation:
+              training_feature_preparation.rotate90(rotate)
+              if training_feature_preparation.name == RenderPasses.SCREEN_SPACE_NORMAL:
+                screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(training_feature_preparation.source, [1, 1, 1], 2)
+                if rotate == 1:
+                  # x -> -y
+                  # y -> x
+                  temporary_screen_space_normal_x = screen_space_normal_x
+                  screen_space_normal_x = tf.negative(screen_space_normal_y)
+                  screen_space_normal_y = temporary_screen_space_normal_x
+                elif rotate == 2:
+                  # x -> -x
+                  # y -> -y
+                  screen_space_normal_x = tf.negative(screen_space_normal_x)
+                  screen_space_normal_y = tf.negative(screen_space_normal_y)
+                elif rotate == 3:
+                  # x -> y
+                  # y -> -x
+                  temporary_screen_space_normal_y = screen_space_normal_y
+                  screen_space_normal_y = tf.negative(screen_space_normal_x)
+                  screen_space_normal_x = temporary_screen_space_normal_y
+                  
+                training_feature_preparation.source = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
         
       features = {}
       for training_feature_preparation in training_features_preparation:
@@ -814,7 +757,7 @@ def main(parsed_arguments):
   # TODO: CPU only has to be configurable.
   # TODO: Learning rate has to be configurable.
   
-  learning_rate = 1e-3
+  learning_rate = 1e-4
   use_XLA = True
   use_CPU_only = False
   
