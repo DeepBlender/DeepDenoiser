@@ -79,6 +79,7 @@ class RenderPasses:
   def is_direct_or_indirect_render_pass(render_pass_name):
     return render_pass_name.endswith(' Direct') or render_pass_name.endswith(' Indirect')
   
+  @staticmethod
   def direct_or_indirect_to_color_render_pass(render_pass_name):
     result = None
     if render_pass_name.endswith(' Direct'):
@@ -86,6 +87,18 @@ class RenderPasses:
     elif render_pass_name.endswith(' Indirect'):
       result = render_pass_name.replace(' Inirect', ' Color')
     return result
+  
+  @staticmethod
+  def combined_to_color_render_pass(render_pass_name):
+    return render_pass_name + ' Color'
+  
+  @staticmethod
+  def combined_to_direct_render_pass(render_pass_name):
+    return render_pass_name + ' Direct'
+  
+  @staticmethod
+  def combined_to_indirect_render_pass(render_pass_name):
+    return render_pass_name + ' Indirect'
 
 class RenderPassesUsage:
   def __init__(self,
