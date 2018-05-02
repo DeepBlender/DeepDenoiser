@@ -136,6 +136,20 @@ class BaseTrainingFeature:
       result = LossDifference.difference(self.predicted, self.target, self.loss_difference)
     return result
   
+  def horizontal_variation_difference(self):
+    with tf.name_scope('horizontal_variation_difference'):
+      predicted_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.predicted)
+      target_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.target)
+      result = LossDifference.difference(predicted_horizontal_variation, target_horizontal_variation, self.loss_difference)
+    return result
+  
+  def vertical_variation_difference(self):
+    with tf.name_scope('vertical_variation_difference'):
+      predicted_vertical_variation = BaseTrainingFeature.__vertical_variation(self.predicted)
+      target_vertical_variation = BaseTrainingFeature.__vertical_variation(self.target)
+      result = LossDifference.difference(predicted_vertical_variation, target_vertical_variation, self.loss_difference)
+    return result
+  
   def variation_difference(self):
     with tf.name_scope('variation_difference'):
       result = tf.concat(
@@ -157,10 +171,10 @@ class BaseTrainingFeature:
     if RenderPasses.is_direct_or_indirect_render_pass(self.name):
       result = tf.cond(
           tf.greater(self.mask_sum, 0.),
-          lambda: tf.image.total_variation(tf.divide(tf.multiply(self.difference(), self.mask), self.mask_sum)),
+          lambda: tf.reduce_sum(tf.divide(tf.multiply(self.variation_difference(), self.mask), self.mask_sum)),
           lambda: tf.constant(0.))
     else:
-      result = tf.image.total_variation(self.difference())
+      result = tf.reduce_mean(self.variation_difference())
     return result
   
   
@@ -193,6 +207,49 @@ class BaseTrainingFeature:
       dictionary[RenderPasses.mean_name(self.name)] = tf.metrics.mean(self.mean())
     if self.track_variation_mean:
       dictionary[RenderPasses.variation_mean_name(self.name)] = tf.metrics.mean(self.variation_mean())
+
+  @staticmethod
+  def __horizontal_variation(image_batch):
+    # 'channels_last' or NHWC
+    image_batch = tf.subtract(BaseTrainingFeature.__shift_left(image_batch), BaseTrainingFeature.__shift_right(image_batch))
+    return image_batch
+    
+  def __vertical_variation(image_batch):
+    # 'channels_last' or NHWC
+    image_batch = tf.subtract(BaseTrainingFeature.__shift_up(image_batch), BaseTrainingFeature.__shift_down(image_batch))
+    return image_batch
+    
+  @staticmethod
+  def __shift_left(image_batch):
+    # 'channels_last' or NHWC
+    axis = 2
+    width = tf.shape(image_batch)[axis]
+    image_batch = tf.slice(image_batch, [0, 0, 1, 0], [-1, -1, width - 1, -1])
+    return(image_batch)
+  
+  @staticmethod
+  def __shift_right(image_batch):
+    # 'channels_last' or NHWC
+    axis = 2
+    width = tf.shape(image_batch)[axis]
+    image_batch = tf.slice(image_batch, [0, 0, 0, 0], [-1, -1, width - 1, -1]) 
+    return(image_batch)
+  
+  @staticmethod
+  def __shift_up(image_batch):
+    # 'channels_last' or NHWC
+    axis = 1
+    height = tf.shape(image_batch)[axis]
+    image_batch = tf.slice(image_batch, [0, 1, 0, 0], [-1, height - 1, -1, -1]) 
+    return(image_batch)
+
+  @staticmethod
+  def __shift_down(image_batch):
+    # 'channels_last' or NHWC
+    axis = 1
+    height = tf.shape(image_batch)[axis]
+    image_batch = tf.slice(image_batch, [0, 0, 0, 0], [-1, height - 1, -1, -1]) 
+    return(image_batch)
 
 
 class TrainingFeature(BaseTrainingFeature):
@@ -698,20 +755,17 @@ def main(parsed_arguments):
   # Training features.
 
   training_features = []
-  
   feature_name_to_training_feature = {}
   for feature_name in feature_names:
     feature = features[feature_name]
     if feature['is_source'] and feature['is_target']:
       statistics = feature['statistics']
       loss_weights = feature['loss_weights']
-      
       training_feature = TrainingFeature(
           feature_name, loss_difference,
           loss_weights['mean'], loss_weights['variation_mean'],
           statistics['track_mean'], statistics['track_variation_mean'],
           statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
-      
       training_features.append(training_feature)
       feature_name_to_training_feature[feature_name] = training_feature
 
@@ -723,12 +777,12 @@ def main(parsed_arguments):
   # Combined training features.
   
   combined_training_features = []
+  combined_feature_name_to_combined_training_feature = {}
   combined_feature_names = list(combined_features.keys())
   for combined_feature_name in combined_feature_names:
     combined_feature = combined_features[combined_feature_name]
     statistics = combined_feature['statistics']
     loss_weights = combined_feature['loss_weights']
-    
     if loss_weights['mean'] > 0. or loss_weights['variation_mean'] > 0:
       color_feature_name = RenderPasses.combined_to_color_render_pass(combined_feature_name)
       direct_feature_name = RenderPasses.combined_to_direct_render_pass(combined_feature_name)
@@ -742,6 +796,7 @@ def main(parsed_arguments):
           statistics['track_mean'], statistics['track_variation_mean'],
           statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
       combined_training_features.append(combined_training_feature)
+      combined_feature_name_to_combined_training_feature[combined_feature_name] = combined_training_feature
         
   if len(combined_training_features) == 0:
     combined_training_features = None
@@ -750,14 +805,26 @@ def main(parsed_arguments):
   # Combined image training feature.
   
   combined_image_training_feature = None
-  
-  
+  statistics = combined_image['statistics']
+  loss_weights = combined_image['loss_weights']
+  if loss_weights['mean'] > 0. or loss_weights['variation_mean'] > 0:
+    combined_image_training_feature = CombinedImageTrainingFeature(
+        RenderPasses.COMBINED, loss_difference,
+        combined_feature_name_to_combined_training_feature['Diffuse'],
+        combined_feature_name_to_combined_training_feature['Glossy'],
+        combined_feature_name_to_combined_training_feature['Subsurface'],
+        combined_feature_name_to_combined_training_feature['Transmission'],
+        feature_name_to_training_feature[RenderPasses.EMISSION],
+        feature_name_to_training_feature[RenderPasses.ENVIRONMENT],
+        loss_weights['mean'], loss_weights['variation_mean'],
+        statistics['track_mean'], statistics['track_variation_mean'],
+        statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
   
   
   # TODO: CPU only has to be configurable.
   # TODO: Learning rate has to be configurable.
   
-  learning_rate = 1e-4
+  learning_rate = 1e-3
   use_XLA = True
   use_CPU_only = False
   

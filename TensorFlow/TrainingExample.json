@@ -13,13 +13,13 @@
 	
 	"combined_image": {
 		"loss_weights": {
-			"mean": 100.0,
-			"variation_mean": 0.0
+			"mean": 10.0,
+			"variation_mean": 10.0
 		},
 		"statistics": {
 			"track_mean": true,
-			"track_variation_mean": false,
-			"track_difference_histogram": true,
+			"track_variation_mean": true,
+			"track_difference_histogram": false,
 			"track_variation_difference_histogram": false
 		}
 	},
@@ -103,7 +103,7 @@
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.0,
-				"variance": 23.0
+				"variance": 23.025850296020508
 			},
 			"loss_weights": {
 				"mean": 0.0,
@@ -142,8 +142,8 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": false,
-				"mean": 0.0,
-				"variance": 1.0
+				"mean": 0.25535839796066284,
+				"variance": 0.2170753926038742
 			},
 			"loss_weights": {
 				"mean": 0.0,
@@ -204,15 +204,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
+				"mean": 0.003993552643805742,
+				"variance": 1.4242718862078618e-05
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -224,15 +224,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
+				"mean": 0.019954385235905647,
+				"variance": 5.9947004046989605e-05
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -245,15 +245,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": false,
-				"mean": 0.25,
-				"variance": 0.1
+				"mean": 0.21192021667957306,
+				"variance": 0.08307310193777084
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -265,15 +265,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.3,
-				"variance": 0.001
+				"mean": 1.1019212007522583,
+				"variance": 0.032897911965847015
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -285,15 +285,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.05,
-				"variance": 0.0003
+				"mean": 0.19995230436325073,
+				"variance": 0.007162444293498993
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -305,15 +305,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": false,
-				"mean": 0.25,
-				"variance": 0.1
+				"mean": 0.19423390924930573,
+				"variance": 0.14815877377986908
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -325,15 +325,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.3,
-				"variance": 0.001
+				"mean": 0.6574652194976807,
+				"variance": 0.025908414274454117
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -345,15 +345,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.05,
-				"variance": 0.0003
+				"mean": 0.2160816639661789,
+				"variance": 0.006780911237001419
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -365,15 +365,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": false,
-				"mean": 0.25,
-				"variance": 0.1
+				"mean": 0.002540657529607415,
+				"variance": 0.0016044554067775607
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -385,15 +385,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.3,
-				"variance": 0.001
+				"mean": 0.44964927434921265,
+				"variance": 0.09192882478237152
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -405,15 +405,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.05,
-				"variance": 0.0003
+				"mean": 0.1317073255777359,
+				"variance": 0.02000107429921627
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -425,15 +425,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": false,
-				"mean": 0.25,
-				"variance": 0.1
+				"mean": 0.04961748421192169,
+				"variance": 0.03040217235684395
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -445,15 +445,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.3,
-				"variance": 0.001
+				"mean": 0.2579529881477356,
+				"variance": 0.030019637197256088
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
@@ -465,15 +465,15 @@
 			"number_of_channels": 3,
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.05,
-				"variance": 0.0003
+				"mean": 0.5192984938621521,
+				"variance": 0.06806652247905731
 			},
 			"loss_weights": {
 				"mean": 1.0,
 				"variation_mean": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation_mean": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
