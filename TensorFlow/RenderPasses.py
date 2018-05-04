@@ -58,15 +58,19 @@ class RenderPasses:
   
   @staticmethod
   def variation_name(render_pass_name):
-    return RenderPasses.tensorboard_name(render_pass_name) + '_variation'
+    result = render_pass_name
+    if RenderPasses.is_combined_render_pass(render_pass_name):
+      result = 'combined_' + render_pass_name
+    result = RenderPasses.tensorboard_name(result) + '_variation'
+    return result
   
   @staticmethod
   def mean_name(render_pass_name):
-    return RenderPasses.tensorboard_name(render_pass_name) + '_mean'
-  
-  @staticmethod
-  def variation_mean_name(render_pass_name):
-    return RenderPasses.variation_name(render_pass_name) + '_mean'
+    result = render_pass_name
+    if RenderPasses.is_combined_render_pass(render_pass_name):
+      result = 'combined_' + render_pass_name
+    result = RenderPasses.tensorboard_name(result) + '_mean'
+    return result
   
   @staticmethod
   def number_of_channels(render_pass_name):
@@ -75,6 +79,11 @@ class RenderPasses:
       result = 1
     return result
 
+  @staticmethod
+  def is_combined_render_pass(render_pass_name):
+    result = render_pass_name == 'Diffuse' or render_pass_name == 'Glossy' or render_pass_name == 'Subsurface' or render_pass_name == 'Transmission'
+    return result
+  
   @staticmethod
   def is_direct_or_indirect_render_pass(render_pass_name):
     return render_pass_name.endswith(' Direct') or render_pass_name.endswith(' Indirect')

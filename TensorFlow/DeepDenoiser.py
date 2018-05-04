@@ -115,18 +115,18 @@ class BaseTrainingFeature:
 
   def __init__(
       self, name, loss_difference,
-      mean_weight, variation_mean_weight,
-      track_mean, track_variation_mean,
+      mean_weight, variation_weight,
+      track_mean, track_variation,
       track_difference_histogram, track_variation_difference_histogram):
       
     self.name = name
     self.loss_difference = loss_difference
     
     self.mean_weight = mean_weight
-    self.variation_mean_weight = variation_mean_weight
+    self.variation_weight = variation_weight
     
     self.track_mean = track_mean
-    self.track_variation_mean = track_variation_mean
+    self.track_variation = track_variation
     self.track_difference_histogram = track_difference_histogram
     self.track_variation_difference_histogram = track_variation_difference_histogram
   
@@ -167,7 +167,7 @@ class BaseTrainingFeature:
       result = tf.reduce_mean(self.difference())
     return result
   
-  def variation_mean(self):
+  def variation(self):
     if RenderPasses.is_direct_or_indirect_render_pass(self.name):
       result = tf.cond(
           tf.greater(self.mask_sum, 0.),
@@ -184,17 +184,17 @@ class BaseTrainingFeature:
       if self.mean_weight > 0.0:
         with tf.name_scope('loss_' + RenderPasses.mean_name(self.name)):
           result = tf.add(result, tf.scalar_mul(self.mean_weight, self.mean()))
-      if self.variation_mean_weight > 0.0:
-        with tf.name_scope('loss_' + RenderPasses.variation_mean_name(self.name)):
-          result = tf.add(result, tf.scalar_mul(self.variation_mean_weight, self.variation_mean()))
+      if self.variation_weight > 0.0:
+        with tf.name_scope('loss_' + RenderPasses.variation_name(self.name)):
+          result = tf.add(result, tf.scalar_mul(self.variation_weight, self.variation()))
     return result
     
   
   def add_tracked_summaries(self):
     if self.track_mean:
       tf.summary.scalar(RenderPasses.mean_name(self.name), self.mean())
-    if self.track_variation_mean:
-      tf.summary.scalar(RenderPasses.variation_mean_name(self.name), self.variation_mean())
+    if self.track_variation:
+      tf.summary.scalar(RenderPasses.variation_name(self.name), self.variation())
   
   def add_tracked_histograms(self):
     if self.track_difference_histogram:
@@ -205,8 +205,8 @@ class BaseTrainingFeature:
   def add_tracked_metrics_to_dictionary(self, dictionary):
     if self.track_mean:
       dictionary[RenderPasses.mean_name(self.name)] = tf.metrics.mean(self.mean())
-    if self.track_variation_mean:
-      dictionary[RenderPasses.variation_mean_name(self.name)] = tf.metrics.mean(self.variation_mean())
+    if self.track_variation:
+      dictionary[RenderPasses.variation_name(self.name)] = tf.metrics.mean(self.variation())
 
   @staticmethod
   def __horizontal_variation(image_batch):
@@ -256,14 +256,14 @@ class TrainingFeature(BaseTrainingFeature):
 
   def __init__(
       self, name, loss_difference,
-      mean_weight, variation_mean_weight,
-      track_mean, track_variation_mean,
+      mean_weight, variation_weight,
+      track_mean, track_variation,
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
         self, name, loss_difference,
-        mean_weight, variation_mean_weight,
-        track_mean, track_variation_mean,
+        mean_weight, variation_weight,
+        track_mean, track_variation,
         track_difference_histogram, track_variation_difference_histogram)
   
   def initialize(self, source_features, predicted_features, target_features):
@@ -281,14 +281,14 @@ class CombinedTrainingFeature(BaseTrainingFeature):
   def __init__(
       self, name, loss_difference,
       color_training_feature, direct_training_feature, indirect_training_feature,
-      mean_weight, variation_mean_weight,
-      track_mean, track_variation_mean,
+      mean_weight, variation_weight,
+      track_mean, track_variation,
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
         self, name, loss_difference,
-        mean_weight, variation_mean_weight,
-        track_mean, track_variation_mean,
+        mean_weight, variation_weight,
+        track_mean, track_variation,
         track_difference_histogram, track_variation_difference_histogram)
     
     self.color_training_feature = color_training_feature
@@ -316,14 +316,14 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
       diffuse_training_feature, glossy_training_feature,
       subsurface_training_feature, transmission_training_feature,
       emission_training_feature, environment_training_feature,
-      mean_weight, variation_mean_weight,
-      track_mean, track_variation_mean,
+      mean_weight, variation_weight,
+      track_mean, track_variation,
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
         self, name, loss_difference,
-        mean_weight, variation_mean_weight,
-        track_mean, track_variation_mean,
+        mean_weight, variation_weight,
+        track_mean, track_variation,
         track_difference_histogram, track_variation_difference_histogram)
     
     self.diffuse_training_feature = diffuse_training_feature
@@ -763,8 +763,8 @@ def main(parsed_arguments):
       loss_weights = feature['loss_weights']
       training_feature = TrainingFeature(
           feature_name, loss_difference,
-          loss_weights['mean'], loss_weights['variation_mean'],
-          statistics['track_mean'], statistics['track_variation_mean'],
+          loss_weights['mean'], loss_weights['variation'],
+          statistics['track_mean'], statistics['track_variation'],
           statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
       training_features.append(training_feature)
       feature_name_to_training_feature[feature_name] = training_feature
@@ -783,7 +783,7 @@ def main(parsed_arguments):
     combined_feature = combined_features[combined_feature_name]
     statistics = combined_feature['statistics']
     loss_weights = combined_feature['loss_weights']
-    if loss_weights['mean'] > 0. or loss_weights['variation_mean'] > 0:
+    if loss_weights['mean'] > 0. or loss_weights['variation'] > 0:
       color_feature_name = RenderPasses.combined_to_color_render_pass(combined_feature_name)
       direct_feature_name = RenderPasses.combined_to_direct_render_pass(combined_feature_name)
       indirect_feature_name = RenderPasses.combined_to_indirect_render_pass(combined_feature_name)
@@ -792,8 +792,8 @@ def main(parsed_arguments):
           feature_name_to_training_feature[color_feature_name],
           feature_name_to_training_feature[direct_feature_name],
           feature_name_to_training_feature[indirect_feature_name],
-          loss_weights['mean'], loss_weights['variation_mean'],
-          statistics['track_mean'], statistics['track_variation_mean'],
+          loss_weights['mean'], loss_weights['variation'],
+          statistics['track_mean'], statistics['track_variation'],
           statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
       combined_training_features.append(combined_training_feature)
       combined_feature_name_to_combined_training_feature[combined_feature_name] = combined_training_feature
@@ -807,7 +807,7 @@ def main(parsed_arguments):
   combined_image_training_feature = None
   statistics = combined_image['statistics']
   loss_weights = combined_image['loss_weights']
-  if loss_weights['mean'] > 0. or loss_weights['variation_mean'] > 0:
+  if loss_weights['mean'] > 0. or loss_weights['variation'] > 0:
     combined_image_training_feature = CombinedImageTrainingFeature(
         RenderPasses.COMBINED, loss_difference,
         combined_feature_name_to_combined_training_feature['Diffuse'],
@@ -816,8 +816,8 @@ def main(parsed_arguments):
         combined_feature_name_to_combined_training_feature['Transmission'],
         feature_name_to_training_feature[RenderPasses.EMISSION],
         feature_name_to_training_feature[RenderPasses.ENVIRONMENT],
-        loss_weights['mean'], loss_weights['variation_mean'],
-        statistics['track_mean'], statistics['track_variation_mean'],
+        loss_weights['mean'], loss_weights['variation'],
+        statistics['track_mean'], statistics['track_variation'],
         statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
   
   

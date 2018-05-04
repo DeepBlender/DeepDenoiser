@@ -14,11 +14,11 @@
 	"combined_image": {
 		"loss_weights": {
 			"mean": 10.0,
-			"variation_mean": 10.0
+			"variation": 10.0
 		},
 		"statistics": {
 			"track_mean": true,
-			"track_variation_mean": true,
+			"track_variation": true,
 			"track_difference_histogram": false,
 			"track_variation_difference_histogram": false
 		}
@@ -28,11 +28,11 @@
 		"Diffuse": {
 			"loss_weights": {
 				"mean": 10.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -40,11 +40,11 @@
 		"Glossy": {
 			"loss_weights": {
 				"mean": 10.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -52,11 +52,11 @@
 		"Subsurface": {
 			"loss_weights": {
 				"mean": 10.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -64,11 +64,11 @@
 		"Transmission": {
 			"loss_weights": {
 				"mean": 10.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -87,11 +87,11 @@
 			},
 			"loss_weights": {
 				"mean": 0.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": false,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -107,11 +107,11 @@
 			},
 			"loss_weights": {
 				"mean": 0.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": false,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -127,11 +127,11 @@
 			},
 			"loss_weights": {
 				"mean": 0.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": false,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -147,11 +147,11 @@
 			},
 			"loss_weights": {
 				"mean": 0.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": false,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -168,11 +168,11 @@
 			},
 			"loss_weights": {
 				"mean": 0.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": false,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -188,11 +188,11 @@
 			},
 			"loss_weights": {
 				"mean": 0.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": false,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -209,11 +209,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -229,11 +229,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -250,11 +250,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -270,11 +270,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -290,11 +290,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -310,11 +310,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -330,11 +330,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -350,11 +350,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -370,11 +370,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -390,11 +390,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -410,11 +410,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -430,11 +430,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -450,11 +450,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
@@ -470,11 +470,11 @@
 			},
 			"loss_weights": {
 				"mean": 1.0,
-				"variation_mean": 0.0
+				"variation": 0.0
 			},
 			"statistics": {
 				"track_mean": true,
-				"track_variation_mean": false,
+				"track_variation": false,
 				"track_difference_histogram": false,
 				"track_variation_difference_histogram": false
 			}
