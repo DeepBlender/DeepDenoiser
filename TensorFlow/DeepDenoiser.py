@@ -433,8 +433,8 @@ def model(prediction_features, mode, use_CPU_only, data_format):
   invert_standardize = False
   
   with tf.name_scope('model'):
-    _refinement_net = RefinementNet.RefinementNet(number_of_repetitions=0, number_of_blocks=3, number_of_convolutions_per_block=4, number_block_repetitions=0, number_of_filters_per_convolution=32, activation_function=tf.nn.relu, use_zero_padding=True, use_channel_weighting=False)
-    outputs = _refinement_net.refinement_net(prediction_inputs, auxiliary_inputs, data_format=data_format)
+    _refinement_net = RefinementNet.RefinementNet(number_of_repetitions=0, number_of_blocks=3, number_of_convolutions_per_block=4, number_block_repetitions=0, number_of_temporary_data_filters=0, number_of_filters_per_convolution=30, activation_function=tf.nn.relu, use_zero_padding=True, use_channel_weighting=False)
+    outputs = _refinement_net.refinement_net(prediction_inputs, auxiliary_inputs, is_training, data_format=data_format)
     reshape_output = False
     invert_standardize = True
   
