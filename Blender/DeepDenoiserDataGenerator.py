@@ -283,7 +283,16 @@ class DeepDenoiserDataGeneratorPropertyGroup(bpy.types.PropertyGroup):
   target_folder = bpy.props.StringProperty(name='target_folder', description='Base directory for the rendered results.', default='//OpenEXR/', maxlen=1024, subtype='DIR_PATH')
   seed = bpy.props.IntProperty(name='seed', description='Seed used as basis for the rendering, such that there is a strong variation with deterministic results.', default=0, min=seed_min, max=seed_max)
   
-  
+
+class CreateWorldOperator(bpy.types.Operator):
+  bl_idname = "deep_blender.create_world"
+  bl_label = "Create world settings."
+
+  def execute(self, context):
+    world = bpy.data.worlds.new("")
+    context.scene.world = world
+    return {'FINISHED'}
+
 class RandomizeSeedOperator(bpy.types.Operator):
   bl_idname = "deep_blender.randomize_seed_operator"
   bl_label = "Randomize Seed Operator"
@@ -292,7 +301,6 @@ class RandomizeSeedOperator(bpy.types.Operator):
     random.seed(context.scene.deep_denoiser_generator_property_group.seed)
     context.scene.deep_denoiser_generator_property_group.seed = random.randint(seed_min, seed_max)
     return {'FINISHED'}
-
 
 class RENDER_JOB_OT_add(bpy.types.Operator):
   bl_idname = 'deep_blender.render_jobs_add'
@@ -390,36 +398,46 @@ class DeepDenoiserDataGeneratorPanel(bpy.types.Panel):
     scene = context.scene
     layout = self.layout
 
-    row = layout.row()
-    row.prop(scene.deep_denoiser_generator_property_group, 'seed', text='Seed')
-    row.operator('deep_blender.randomize_seed_operator', icon='FILE_REFRESH', text='')
     
-    render = scene.render
-    column = layout.column()
-    column.label(text="Resolution:")
-    column.prop(render, "resolution_x", text="X")
-    column.prop(render, "resolution_y", text="Y")
     
-    column.prop(scene.world.cycles, "sample_as_light", text="Multiple Importance Sampling")
-    
-    layout.prop(scene.deep_denoiser_generator_property_group, 'target_folder', text='Folder')
-    
-    row = layout.row()
-    row.template_list('DeepDenoiserItemUI', 'compact', scene, 'render_jobs', scene, 'selected_render_job_index')
-    col = row.column(align=True)
-    col.operator('deep_blender.render_jobs_add', icon='ZOOMIN', text='')
-    col.operator('deep_blender.render_jobs_remove', icon='ZOOMOUT', text='')
-    
-    if len(scene.render_jobs) > 1 and scene.selected_render_job_index >= 0:
-      col.separator()
-      col.operator('deep_blender.render_jobs_move_up', icon='TRIA_UP', text='')
-      col.operator('deep_blender.render_jobs_move_down', icon='TRIA_DOWN', text='')
+    if scene.world == None:
+      column = layout.column()
+      column.label(text="Error: World settings are missing.")
+      column.operator('deep_blender.create_world', text='Create')
+    else:
+      row = layout.row()
+      row.prop(scene.deep_denoiser_generator_property_group, 'seed', text='Seed')
+      row.operator('deep_blender.randomize_seed_operator', icon='FILE_REFRESH', text='')
+      
+      render = scene.render
+      column = layout.column()
+      column.label(text="Resolution:")
+      column.prop(render, "resolution_x", text="X")
+      column.prop(render, "resolution_y", text="Y")
+      
+      column.prop(scene.world.cycles, "sample_as_light", text="Multiple Importance Sampling")
+      
+      layout.prop(scene.deep_denoiser_generator_property_group, 'target_folder', text='Folder')
+      
+      row = layout.row()
+      row.template_list('DeepDenoiserItemUI', 'compact', scene, 'render_jobs', scene, 'selected_render_job_index')
+      col = row.column(align=True)
+      col.operator('deep_blender.render_jobs_add', icon='ZOOMIN', text='')
+      col.operator('deep_blender.render_jobs_remove', icon='ZOOMOUT', text='')
+      
+      if len(scene.render_jobs) > 1 and scene.selected_render_job_index >= 0:
+        col.separator()
+        col.operator('deep_blender.render_jobs_move_up', icon='TRIA_UP', text='')
+        col.operator('deep_blender.render_jobs_move_down', icon='TRIA_DOWN', text='')
 
-    row = layout.row()
-    row.operator('deep_blender.render', text='Render', icon='RENDER_STILL')
+      row = layout.row()
+      row.operator('deep_blender.render', text='Render', icon='RENDER_STILL')
 
 
-classes = (DeepDenoiserRenderJobPropertyGroup, DeepDenoiserDataGeneratorPropertyGroup, DeepDenoiserDataGeneratorPanel, DeepDenoiserItemUI, RandomizeSeedOperator, RENDER_JOB_OT_add, RENDER_JOB_OT_remove, RENDER_JOB_OT_move_up, RENDER_JOB_OT_move_down, RENDER_JOB_render)
+classes = (
+    DeepDenoiserRenderJobPropertyGroup, DeepDenoiserDataGeneratorPropertyGroup, DeepDenoiserDataGeneratorPanel,
+    DeepDenoiserItemUI, RandomizeSeedOperator, CreateWorldOperator,
+    RENDER_JOB_OT_add, RENDER_JOB_OT_remove, RENDER_JOB_OT_move_up, RENDER_JOB_OT_move_down, RENDER_JOB_render)
 
 def register():
   for i in classes:
