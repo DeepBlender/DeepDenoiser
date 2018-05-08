@@ -47,6 +47,13 @@ parser.add_argument(
          'with CPU. If left unspecified, the data format will be chosen '
          'automatically based on whether TensorFlow was built for CPU or GPU.')
 
+def global_activation_function(features, name=None):
+  # HACK: Quick way to experiment with other activation function.
+  return tf.nn.relu(features, name)
+  # return tf.nn.crelu(features, name)
+  # return tf.nn.elu(features, name)
+  # return tf.nn.selu(features, name)
+
 class FeatureStandardization:
 
   def __init__(self, use_log1p, mean, variance, name):
@@ -114,13 +121,14 @@ class PredictionFeature:
 class BaseTrainingFeature:
 
   def __init__(
-      self, name, loss_difference,
+      self, name, loss_difference, use_difference_of_log1p,
       mean_weight, variation_weight,
       track_mean, track_variation,
       track_difference_histogram, track_variation_difference_histogram):
       
     self.name = name
     self.loss_difference = loss_difference
+    self.use_difference_of_log1p = use_difference_of_log1p
     
     self.mean_weight = mean_weight
     self.variation_weight = variation_weight
@@ -133,7 +141,7 @@ class BaseTrainingFeature:
   
   def difference(self):
     with tf.name_scope('difference'):
-      result = LossDifference.difference(self.predicted, self.target, self.loss_difference)
+      result = LossDifference.difference(self.predicted, self.target, self.loss_difference, use_difference_of_log1p=self.use_difference_of_log1p)
     return result
   
   def horizontal_variation_difference(self):
@@ -255,13 +263,13 @@ class BaseTrainingFeature:
 class TrainingFeature(BaseTrainingFeature):
 
   def __init__(
-      self, name, loss_difference,
+      self, name, loss_difference, use_difference_of_log1p,
       mean_weight, variation_weight,
       track_mean, track_variation,
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
-        self, name, loss_difference,
+        self, name, loss_difference, use_difference_of_log1p,
         mean_weight, variation_weight,
         track_mean, track_variation,
         track_difference_histogram, track_variation_difference_histogram)
@@ -279,14 +287,14 @@ class TrainingFeature(BaseTrainingFeature):
 class CombinedTrainingFeature(BaseTrainingFeature):
 
   def __init__(
-      self, name, loss_difference,
+      self, name, loss_difference, use_difference_of_log1p,
       color_training_feature, direct_training_feature, indirect_training_feature,
       mean_weight, variation_weight,
       track_mean, track_variation,
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
-        self, name, loss_difference,
+        self, name, loss_difference, use_difference_of_log1p,
         mean_weight, variation_weight,
         track_mean, track_variation,
         track_difference_histogram, track_variation_difference_histogram)
@@ -312,7 +320,7 @@ class CombinedTrainingFeature(BaseTrainingFeature):
 class CombinedImageTrainingFeature(BaseTrainingFeature):
 
   def __init__(
-      self, name, loss_difference,
+      self, name, loss_difference, use_difference_of_log1p,
       diffuse_training_feature, glossy_training_feature,
       subsurface_training_feature, transmission_training_feature,
       emission_training_feature, environment_training_feature,
@@ -321,7 +329,7 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
-        self, name, loss_difference,
+        self, name, loss_difference, use_difference_of_log1p,
         mean_weight, variation_weight,
         track_mean, track_variation,
         track_difference_histogram, track_variation_difference_histogram)
@@ -433,7 +441,8 @@ def model(prediction_features, mode, use_CPU_only, data_format):
   invert_standardize = False
   
   with tf.name_scope('model'):
-    _refinement_net = RefinementNet.RefinementNet(number_of_repetitions=0, number_of_blocks=3, number_of_convolutions_per_block=4, number_block_repetitions=0, number_of_temporary_data_filters=0, number_of_filters_per_convolution=30, activation_function=tf.nn.relu, use_zero_padding=True, use_channel_weighting=False)
+    _refinement_net = RefinementNet.RefinementNet(
+        number_of_repetitions=0, number_of_blocks=1, number_of_convolutions_per_block=8, number_block_repetitions=0, number_of_temporary_data_filters=0, number_of_filters_per_convolution=32, activation_function=global_activation_function, use_zero_padding=True, use_channel_weighting=False)
     outputs = _refinement_net.refinement_net(prediction_inputs, auxiliary_inputs, is_training, data_format=data_format)
     reshape_output = False
     invert_standardize = True
@@ -452,7 +461,7 @@ def model(prediction_features, mode, use_CPU_only, data_format):
         inputs=outputs,
         filters=output_size,
         kernel_size=[reshape_kernel_size, reshape_kernel_size],
-        activation=tf.nn.relu,
+        activation=global_activation_function,
         data_format=data_format, name='reshape')
   
   if data_format == 'channels_first':
@@ -536,8 +545,8 @@ def model_fn(features, labels, mode, params):
     learning_rate = params['learning_rate']
     global_step = tf.train.get_or_create_global_step()
     first_decay_steps = 500
-    t_mul = 1.2 # Use t_mul more steps after each restart.
-    m_mul = 0.9 # Multiply the learning rate after each restart with this number.
+    t_mul = 1.3 # Use t_mul more steps after each restart.
+    m_mul = 0.8 # Multiply the learning rate after each restart with this number.
     alpha = 1 / 100. # Learning rate decays from 1 * learning_rate to alpha * learning_rate.
     learning_rate_decayed = tf.train.cosine_decay_restarts(learning_rate, global_step, first_decay_steps, t_mul=t_mul, m_mul=m_mul, alpha=alpha)
   
@@ -732,6 +741,7 @@ def main(parsed_arguments):
   
   loss_difference = parsed_json['loss_difference']
   loss_difference = LossDifferenceEnum[loss_difference]
+  use_difference_of_log1p = parsed_json['use_difference_of_log1p']
   
   features = parsed_json['features']
   combined_features = parsed_json['combined_features']
@@ -762,7 +772,7 @@ def main(parsed_arguments):
       statistics = feature['statistics']
       loss_weights = feature['loss_weights']
       training_feature = TrainingFeature(
-          feature_name, loss_difference,
+          feature_name, loss_difference, use_difference_of_log1p,
           loss_weights['mean'], loss_weights['variation'],
           statistics['track_mean'], statistics['track_variation'],
           statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
@@ -788,7 +798,7 @@ def main(parsed_arguments):
       direct_feature_name = RenderPasses.combined_to_direct_render_pass(combined_feature_name)
       indirect_feature_name = RenderPasses.combined_to_indirect_render_pass(combined_feature_name)
       combined_training_feature = CombinedTrainingFeature(
-          combined_feature_name, loss_difference,
+          combined_feature_name, loss_difference, use_difference_of_log1p,
           feature_name_to_training_feature[color_feature_name],
           feature_name_to_training_feature[direct_feature_name],
           feature_name_to_training_feature[indirect_feature_name],
@@ -809,7 +819,7 @@ def main(parsed_arguments):
   loss_weights = combined_image['loss_weights']
   if loss_weights['mean'] > 0. or loss_weights['variation'] > 0:
     combined_image_training_feature = CombinedImageTrainingFeature(
-        RenderPasses.COMBINED, loss_difference,
+        RenderPasses.COMBINED, loss_difference, use_difference_of_log1p,
         combined_feature_name_to_combined_training_feature['Diffuse'],
         combined_feature_name_to_combined_training_feature['Glossy'],
         combined_feature_name_to_combined_training_feature['Subsurface'],
@@ -824,7 +834,7 @@ def main(parsed_arguments):
   # TODO: CPU only has to be configurable.
   # TODO: Learning rate has to be configurable.
   
-  learning_rate = 1e-3
+  learning_rate = 1e-4
   use_XLA = True
   use_CPU_only = False
   

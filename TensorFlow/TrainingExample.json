@@ -10,6 +10,7 @@
 	
 	"loss_difference_description": "Options: DIFFERENCE, ABSOLUTE, SMOOTH_ABSOLUTE, SQUARED.",
 	"loss_difference": "ABSOLUTE",
+	"use_difference_of_log1p": true,
 	
 	"combined_image": {
 		"loss_weights": {

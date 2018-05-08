@@ -1,4 +1,5 @@
 import tensorflow as tf
+import Utilities
 from enum import Enum
 
 class LossDifferenceEnum(Enum):
@@ -10,7 +11,11 @@ class LossDifferenceEnum(Enum):
 class LossDifference:
   
   @staticmethod
-  def difference(predicted, target, loss_difference):
+  def difference(predicted, target, loss_difference, use_difference_of_log1p=False):
+    if use_difference_of_log1p:
+      predicted = Utilities.signed_log1p(predicted)
+      target = Utilities.signed_log1p(target)
+    
     if loss_difference == LossDifferenceEnum.DIFFERENCE:
       result = tf.subtract(predicted, target)
     elif loss_difference == LossDifferenceEnum.ABSOLUTE:

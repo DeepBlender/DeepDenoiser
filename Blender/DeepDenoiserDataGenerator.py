@@ -397,8 +397,6 @@ class DeepDenoiserDataGeneratorPanel(bpy.types.Panel):
   def draw(self, context):
     scene = context.scene
     layout = self.layout
-
-    
     
     if scene.world == None:
       column = layout.column()
