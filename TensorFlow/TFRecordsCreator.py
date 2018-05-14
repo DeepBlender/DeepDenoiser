@@ -5,8 +5,6 @@ from __future__ import print_function
 import argparse
 import os
 
-import cv2
-import numpy as np
 import tensorflow as tf
 
 import json

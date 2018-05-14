@@ -11,7 +11,10 @@ import tensorflow as tf
 import multiprocessing
 
 import Utilities
+
 import RefinementNet
+from UNet import UNet
+
 from LossDifference import LossDifference
 from LossDifference import LossDifferenceEnum
 from RenderPasses import RenderPasses
@@ -441,11 +444,17 @@ def model(prediction_features, mode, use_CPU_only, data_format):
   invert_standardize = False
   
   with tf.name_scope('model'):
-    _refinement_net = RefinementNet.RefinementNet(
-        number_of_repetitions=0, number_of_blocks=1, number_of_convolutions_per_block=8, number_block_repetitions=0, number_of_temporary_data_filters=0, number_of_filters_per_convolution=32, activation_function=global_activation_function, use_zero_padding=True, use_channel_weighting=False)
-    outputs = _refinement_net.refinement_net(prediction_inputs, auxiliary_inputs, is_training, data_format=data_format)
-    reshape_output = False
-    invert_standardize = True
+  
+    unet = UNet(number_of_initial_convolution_channels=256, number_of_sampling_steps=0, number_of_convolutions_per_block=2)
+    outputs = unet.u_net(prediction_inputs, auxiliary_inputs, data_format=data_format)
+    reshape_output = True
+    invert_standardize = False
+  
+    # _refinement_net = RefinementNet.RefinementNet(
+        # number_of_repetitions=0, number_of_blocks=1, number_of_convolutions_per_block=8, number_block_repetitions=0, number_of_temporary_data_filters=0, number_of_filters_per_convolution=32, activation_function=global_activation_function, use_zero_padding=True, use_channel_weighting=False)
+    # outputs = _refinement_net.refinement_net(prediction_inputs, auxiliary_inputs, is_training, data_format=data_format)
+    # reshape_output = False
+    # invert_standardize = True
   
   output_size = 0
   output_prediction_features = []
@@ -544,10 +553,10 @@ def model_fn(features, labels, mode, params):
   if mode == tf.estimator.ModeKeys.TRAIN:
     learning_rate = params['learning_rate']
     global_step = tf.train.get_or_create_global_step()
-    first_decay_steps = 500
+    first_decay_steps = 1000
     t_mul = 1.3 # Use t_mul more steps after each restart.
     m_mul = 0.8 # Multiply the learning rate after each restart with this number.
-    alpha = 1 / 100. # Learning rate decays from 1 * learning_rate to alpha * learning_rate.
+    alpha = 1 / 1000. # Learning rate decays from 1 * learning_rate to alpha * learning_rate.
     learning_rate_decayed = tf.train.cosine_decay_restarts(learning_rate, global_step, first_decay_steps, t_mul=t_mul, m_mul=m_mul, alpha=alpha)
   
     tf.summary.scalar('learning_rate', learning_rate_decayed)
@@ -696,7 +705,7 @@ def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, n
   dataset = tf.data.TFRecordDataset(files, compression_type='GZIP', buffer_size=None, num_parallel_reads=threads)
   dataset = dataset.flat_map(map_func=feature_parser)#, num_parallel_calls=threads)
   
-  shuffle_buffer_size = 20 * batch_size
+  shuffle_buffer_size = 40 * batch_size
   dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
   
   dataset = dataset.batch(batch_size)

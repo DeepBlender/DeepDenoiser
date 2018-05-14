@@ -14,8 +14,8 @@
 	
 	"combined_image": {
 		"loss_weights": {
-			"mean": 10.0,
-			"variation": 10.0
+			"mean": 1.0,
+			"variation": 1.0
 		},
 		"statistics": {
 			"track_mean": true,
@@ -28,7 +28,7 @@
 	"combined_features": {
 		"Diffuse": {
 			"loss_weights": {
-				"mean": 10.0,
+				"mean": 1.0,
 				"variation": 0.0
 			},
 			"statistics": {
@@ -40,7 +40,7 @@
 		},
 		"Glossy": {
 			"loss_weights": {
-				"mean": 10.0,
+				"mean": 1.0,
 				"variation": 0.0
 			},
 			"statistics": {
@@ -52,7 +52,7 @@
 		},
 		"Subsurface": {
 			"loss_weights": {
-				"mean": 10.0,
+				"mean": 1.0,
 				"variation": 0.0
 			},
 			"statistics": {
@@ -64,7 +64,7 @@
 		},
 		"Transmission": {
 			"loss_weights": {
-				"mean": 10.0,
+				"mean": 1.0,
 				"variation": 0.0
 			},
 			"statistics": {
