@@ -193,9 +193,11 @@ class BaseTrainingFeature:
   def ms_ssim(self):
     predicted = self.predicted
     target = self.target
-    if self.use_difference_of_log1p:
-      predicted = Utilities.signed_log1p(predicted)
-      target = Utilities.signed_log1p(target)
+    
+    # HACK: Deactivated to produce better results (DeepBlender)
+    # if self.use_difference_of_log1p:
+      # predicted = Utilities.signed_log1p(predicted)
+      # target = Utilities.signed_log1p(target)
     
     if len(predicted.shape) == 3:
       shape = tf.shape(predicted)
@@ -213,11 +215,14 @@ class BaseTrainingFeature:
     # 64 / 2 / 2 = 16 > 11
     
     # TODO: Calculate the number of factors (DeepBlender)
-    
-    maximum_value = tf.log1p(10e10)
+    # HACK: This is far away from the actual 1e10, but we are looking for better visual results. (DeepBlender)
+    # maximum_value = 1e10
+    # if self.use_difference_of_log1p:
+      # maximum_value = tf.log1p(maximum_value)
+    maximum_value = 1.
     ms_ssim = tf.image.ssim_multiscale(predicted, target, maximum_value, power_factors=(0.0448, 0.2856, 0.3001))
     
-    result = tf.reduce_mean(ms_ssim)
+    result = tf.subtract(1., tf.reduce_mean(ms_ssim))
     return result
   
   
@@ -255,6 +260,8 @@ class BaseTrainingFeature:
       dictionary[RenderPasses.mean_name(self.name)] = tf.metrics.mean(self.mean())
     if self.track_variation:
       dictionary[RenderPasses.variation_name(self.name)] = tf.metrics.mean(self.variation())
+    if self.track_ms_ssim:
+      dictionary[RenderPasses.ms_ssim_name(self.name)] = tf.metrics.mean(self.ms_ssim())
 
   @staticmethod
   def __horizontal_variation(image_batch):
