@@ -125,8 +125,8 @@ class BaseTrainingFeature:
 
   def __init__(
       self, name, loss_difference, use_difference_of_log1p,
-      mean_weight, variation_weight,
-      track_mean, track_variation,
+      mean_weight, variation_weight, ms_ssim_weight,
+      track_mean, track_variation, track_ms_ssim,
       track_difference_histogram, track_variation_difference_histogram):
       
     self.name = name
@@ -135,9 +135,11 @@ class BaseTrainingFeature:
     
     self.mean_weight = mean_weight
     self.variation_weight = variation_weight
+    self.ms_ssim_weight = ms_ssim_weight
     
     self.track_mean = track_mean
     self.track_variation = track_variation
+    self.track_ms_ssim = track_ms_ssim
     self.track_difference_histogram = track_difference_histogram
     self.track_variation_difference_histogram = track_variation_difference_histogram
   
@@ -188,6 +190,36 @@ class BaseTrainingFeature:
       result = tf.reduce_mean(self.variation_difference())
     return result
   
+  def ms_ssim(self):
+    predicted = self.predicted
+    target = self.target
+    if self.use_difference_of_log1p:
+      predicted = Utilities.signed_log1p(predicted)
+      target = Utilities.signed_log1p(target)
+    
+    if len(predicted.shape) == 3:
+      shape = tf.shape(predicted)
+      predicted = tf.reshape(predicted, [-1, shape[0], shape[1], shape[2]])
+      target = tf.reshape(target, [-1, shape[0], shape[1], shape[2]])
+    
+    # Move channels to last position if needed.
+    if predicted.shape[3] != 3:
+      predicted = tf.transpose(predicted, [0, 3, 1, 2])
+      target = tf.transpose(target, [0, 3, 1, 2])
+    
+    # Our tile size is not large enough for all power factors (0.0448, 0.2856, 0.3001, 0.2363, 0.1333)
+    # Starting with the second power factor, the size is scaled down by 2 after each one. The size after
+    # the downscaling has to be larger than 11 which is the filter size that is used by SSIM.
+    # 64 / 2 / 2 = 16 > 11
+    
+    # TODO: Calculate the number of factors (DeepBlender)
+    
+    maximum_value = tf.log1p(10e10)
+    ms_ssim = tf.image.ssim_multiscale(predicted, target, maximum_value, power_factors=(0.0448, 0.2856, 0.3001))
+    
+    result = tf.reduce_mean(ms_ssim)
+    return result
+  
   
   def loss(self):
     with tf.name_scope('loss_' + RenderPasses.tensorboard_name(self.name)):
@@ -198,6 +230,9 @@ class BaseTrainingFeature:
       if self.variation_weight > 0.0:
         with tf.name_scope('loss_' + RenderPasses.variation_name(self.name)):
           result = tf.add(result, tf.scalar_mul(self.variation_weight, self.variation()))
+      if self.ms_ssim_weight > 0.0:
+        with tf.name_scope('loss_' + RenderPasses.ms_ssim_name(self.name)):
+          result = tf.add(result, tf.scalar_mul(self.ms_ssim_weight, self.ms_ssim()))
     return result
     
   
@@ -206,6 +241,8 @@ class BaseTrainingFeature:
       tf.summary.scalar(RenderPasses.mean_name(self.name), self.mean())
     if self.track_variation:
       tf.summary.scalar(RenderPasses.variation_name(self.name), self.variation())
+    if self.track_ms_ssim:
+      tf.summary.scalar(RenderPasses.ms_ssim_name(self.name), self.ms_ssim())
   
   def add_tracked_histograms(self):
     if self.track_difference_histogram:
@@ -267,14 +304,14 @@ class TrainingFeature(BaseTrainingFeature):
 
   def __init__(
       self, name, loss_difference, use_difference_of_log1p,
-      mean_weight, variation_weight,
-      track_mean, track_variation,
+      mean_weight, variation_weight, ms_ssim_weight,
+      track_mean, track_variation, track_ms_ssim,
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
         self, name, loss_difference, use_difference_of_log1p,
-        mean_weight, variation_weight,
-        track_mean, track_variation,
+        mean_weight, variation_weight, ms_ssim_weight,
+        track_mean, track_variation, track_ms_ssim,
         track_difference_histogram, track_variation_difference_histogram)
   
   def initialize(self, source_features, predicted_features, target_features):
@@ -292,14 +329,14 @@ class CombinedTrainingFeature(BaseTrainingFeature):
   def __init__(
       self, name, loss_difference, use_difference_of_log1p,
       color_training_feature, direct_training_feature, indirect_training_feature,
-      mean_weight, variation_weight,
-      track_mean, track_variation,
+      mean_weight, variation_weight, ms_ssim_weight,
+      track_mean, track_variation, track_ms_ssim,
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
         self, name, loss_difference, use_difference_of_log1p,
-        mean_weight, variation_weight,
-        track_mean, track_variation,
+        mean_weight, variation_weight, ms_ssim_weight,
+        track_mean, track_variation, track_ms_ssim,
         track_difference_histogram, track_variation_difference_histogram)
     
     self.color_training_feature = color_training_feature
@@ -327,14 +364,14 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
       diffuse_training_feature, glossy_training_feature,
       subsurface_training_feature, transmission_training_feature,
       emission_training_feature, environment_training_feature,
-      mean_weight, variation_weight,
-      track_mean, track_variation,
+      mean_weight, variation_weight, ms_ssim_weight,
+      track_mean, track_variation, track_ms_ssim,
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
         self, name, loss_difference, use_difference_of_log1p,
-        mean_weight, variation_weight,
-        track_mean, track_variation,
+        mean_weight, variation_weight, ms_ssim_weight,
+        track_mean, track_variation, track_ms_ssim,
         track_difference_histogram, track_variation_difference_histogram)
     
     self.diffuse_training_feature = diffuse_training_feature
@@ -782,8 +819,8 @@ def main(parsed_arguments):
       loss_weights = feature['loss_weights']
       training_feature = TrainingFeature(
           feature_name, loss_difference, use_difference_of_log1p,
-          loss_weights['mean'], loss_weights['variation'],
-          statistics['track_mean'], statistics['track_variation'],
+          loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
+          statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
           statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
       training_features.append(training_feature)
       feature_name_to_training_feature[feature_name] = training_feature
@@ -811,8 +848,8 @@ def main(parsed_arguments):
           feature_name_to_training_feature[color_feature_name],
           feature_name_to_training_feature[direct_feature_name],
           feature_name_to_training_feature[indirect_feature_name],
-          loss_weights['mean'], loss_weights['variation'],
-          statistics['track_mean'], statistics['track_variation'],
+          loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
+          statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
           statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
       combined_training_features.append(combined_training_feature)
       combined_feature_name_to_combined_training_feature[combined_feature_name] = combined_training_feature
@@ -835,8 +872,8 @@ def main(parsed_arguments):
         combined_feature_name_to_combined_training_feature['Transmission'],
         feature_name_to_training_feature[RenderPasses.EMISSION],
         feature_name_to_training_feature[RenderPasses.ENVIRONMENT],
-        loss_weights['mean'], loss_weights['variation'],
-        statistics['track_mean'], statistics['track_variation'],
+        loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
+        statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
         statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
   
   

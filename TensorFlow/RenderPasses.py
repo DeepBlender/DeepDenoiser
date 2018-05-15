@@ -65,6 +65,14 @@ class RenderPasses:
     return result
   
   @staticmethod
+  def ms_ssim_name(render_pass_name):
+    result = render_pass_name
+    if RenderPasses.is_combined_render_pass(render_pass_name):
+      result = 'combined_' + render_pass_name
+    result = RenderPasses.tensorboard_name(result) + '_ms_ssim'
+    return result
+  
+  @staticmethod
   def mean_name(render_pass_name):
     result = render_pass_name
     if RenderPasses.is_combined_render_pass(render_pass_name):
