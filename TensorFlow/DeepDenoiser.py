@@ -27,7 +27,7 @@ parser.add_argument(
     help='The json specifying all the relevant details.')
 
 parser.add_argument(
-    '--batch_size', type=int, default=48,
+    '--batch_size', type=int, default=32,
     help='Number of tiles to process in a batch')
 
 parser.add_argument(
@@ -483,23 +483,6 @@ def model(prediction_features, mode, use_CPU_only, data_format):
     auxiliary_inputs = tf.transpose(auxiliary_inputs, [0, 3, 1, 2])
     concat_axis = 1
   
-  
-  reshape_output = True
-  invert_standardize = False
-  
-  with tf.name_scope('model'):
-  
-    unet = UNet(number_of_initial_convolution_channels=256, number_of_sampling_steps=0, number_of_convolutions_per_block=2)
-    outputs = unet.u_net(prediction_inputs, auxiliary_inputs, data_format=data_format)
-    reshape_output = True
-    invert_standardize = False
-  
-    # _refinement_net = RefinementNet.RefinementNet(
-        # number_of_repetitions=0, number_of_blocks=1, number_of_convolutions_per_block=8, number_block_repetitions=0, number_of_temporary_data_filters=0, number_of_filters_per_convolution=32, activation_function=global_activation_function, use_zero_padding=True, use_channel_weighting=False)
-    # outputs = _refinement_net.refinement_net(prediction_inputs, auxiliary_inputs, is_training, data_format=data_format)
-    # reshape_output = False
-    # invert_standardize = True
-  
   output_size = 0
   output_prediction_features = []
   for prediction_feature in prediction_features:
@@ -507,15 +490,26 @@ def model(prediction_features, mode, use_CPU_only, data_format):
       output_size = output_size + prediction_feature.number_of_channels
       output_prediction_features.append(prediction_feature)
   
-  if reshape_output:
-    reshape_kernel_size = 3
-    # Reshape to get the correct number of channels.
-    outputs = Conv2dUtilities.convolution2d(
-        inputs=outputs,
-        filters=output_size,
-        kernel_size=[reshape_kernel_size, reshape_kernel_size],
-        activation=global_activation_function,
-        data_format=data_format, name='reshape')
+  
+  invert_standardize = False
+  
+  
+  with tf.name_scope('model'):
+    
+    concat_axis = Conv2dUtilities.channel_axis(prediction_inputs, data_format)
+    outputs = tf.concat([prediction_inputs, auxiliary_inputs], concat_axis)
+    unet = UNet(
+        number_of_filters_for_convolution_blocks=[256, 512],
+        number_of_convolutions_per_block=2, number_of_output_filters=output_size,
+        activation_function=global_activation_function, data_format=data_format)
+    outputs = unet.u_net(outputs)
+    invert_standardize = False
+  
+    # _refinement_net = RefinementNet.RefinementNet(
+        # number_of_repetitions=0, number_of_blocks=1, number_of_convolutions_per_block=8, number_block_repetitions=0, number_of_temporary_data_filters=0, number_of_filters_per_convolution=32, activation_function=global_activation_function, use_zero_padding=True, use_channel_weighting=False)
+    # outputs = _refinement_net.refinement_net(prediction_inputs, auxiliary_inputs, is_training, data_format=data_format)
+    # invert_standardize = True
+  
   
   if data_format == 'channels_first':
     outputs = tf.transpose(outputs, [0, 2, 3, 1])
@@ -887,7 +881,7 @@ def main(parsed_arguments):
   # TODO: CPU only has to be configurable.
   # TODO: Learning rate has to be configurable.
   
-  learning_rate = 1e-4
+  learning_rate = 1e-5
   use_XLA = True
   use_CPU_only = False
   

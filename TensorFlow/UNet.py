@@ -1,66 +1,84 @@
 #
 # Based on: https://arxiv.org/abs/1505.04597
 # 
-# We are not using cropping which is one of the main differences to the original paper.
+# Contrary to the original paper, this implementation does not include
+# cropping, normalization or dropout.
 #
 
 import tensorflow as tf
 import Conv2dUtilities
 
-# TODO: Consider batch normalization, dropout, regularization
-
 class UNet:
 
-  def __init__(self, number_of_initial_convolution_channels=64, number_of_sampling_steps=4, sampling_filter_multiplier=2, number_of_convolutions_per_block=2, activation_function=tf.nn.relu, use_zero_padding=True, use_max_pooling=True):
-    self.number_of_initial_convolution_channels = number_of_initial_convolution_channels
-    self.number_of_sampling_steps = number_of_sampling_steps
-    self.sampling_filter_multiplier = sampling_filter_multiplier
+  def __init__(
+      self, number_of_filters_for_convolution_blocks,
+      number_of_convolutions_per_block, number_of_output_filters,
+      activation_function=tf.nn.relu, data_format='channels_last'):
+
+    self.number_of_filters_for_convolution_blocks = number_of_filters_for_convolution_blocks
     self.number_of_convolutions_per_block = number_of_convolutions_per_block
+    self.number_of_output_filters = number_of_output_filters
     self.activation_function = activation_function
-    self.use_zero_padding = use_zero_padding
-    self.use_max_pooling = use_max_pooling
-    
-  def __convolution_block(self, inputs, number_of_filters, data_format):
-    with tf.name_scope('convolution_block'):
+    self.data_format = data_format
+
+  def __convolution_block(self, inputs, number_of_filters, block_name):
+    with tf.name_scope('convolution_block_' + block_name):
       for i in range(self.number_of_convolutions_per_block):
-        with tf.name_scope('convolution_' + str(i + 1)):
-          inputs = Conv2dUtilities.convolution2d(inputs=inputs, filters=number_of_filters, kernel_size=(3, 3), use_zero_padding=self.use_zero_padding, activation=self.activation_function, data_format=data_format)
+        with tf.name_scope('convolution_' + block_name + '_' + str(i + 1)):
+          inputs = tf.layers.conv2d(
+              inputs=inputs, filters=number_of_filters, kernel_size=(3, 3), padding='same',
+              activation=self.activation_function, data_format=self.data_format)
     return inputs
 
-  def __downsample(self, inputs, data_format):
+  def __downsample(self, inputs):
+    number_of_filters = Conv2dUtilities.number_of_channels(inputs, self.data_format)
     with tf.name_scope('downsample'):
-      return Conv2dUtilities.downsample(inputs=inputs, use_max_pooling=self.use_max_pooling, kernel_size=(3, 3), use_zero_padding=self.use_zero_padding, activation=self.activation_function, data_format=data_format)
+      inputs = tf.layers.conv2d(
+          inputs=inputs, filters=number_of_filters, kernel_size=(3, 3), strides=(2, 2), padding='same',
+          activation=self.activation_function, data_format=self.data_format)
+    return inputs
 
-  def __upsample(self, inputs, number_of_filters, data_format):
+  def __upsample(self, inputs, number_of_filters):
     with tf.name_scope('upsample'):
-      return Conv2dUtilities.upsample(inputs=inputs, kernel_size=(3, 3), filters=number_of_filters, activation=self.activation_function, data_format=data_format)
+      inputs = tf.layers.conv2d_transpose(
+          inputs=inputs, filters=number_of_filters, kernel_size=(2, 2), strides=(2, 2), padding='same',
+          activation=self.activation_function, data_format=self.data_format)
+      return inputs
 
-  def u_net(self, prediction_inputs, auxiliary_inputs, data_format='channels_last'):
-    concat_axis = Conv2dUtilities.channel_axis(prediction_inputs, data_format)
-
-    inputs = tf.concat([prediction_inputs, auxiliary_inputs], concat_axis)
-    
+  def u_net(self, inputs):
     with tf.name_scope('U-Net'):
+      number_of_sampling_steps = len(self.number_of_filters_for_convolution_blocks) - 1
+      concat_axis = Conv2dUtilities.channel_axis(inputs, self.data_format)
       downsampling_tensors = []
       
+      # Downsampling
       with tf.name_scope('downsampling'):
-        # Downsampling
-        for i in range(self.number_of_sampling_steps):
-          number_of_channels = (self.sampling_filter_multiplier ** i) * self.number_of_initial_convolution_channels
-          inputs = self.__convolution_block(inputs, number_of_channels, data_format)
-          downsampling_tensors.append(inputs)
-          inputs = self.__downsample(inputs, data_format)
-      
-      with tf.name_scope('upsampling'):
-        # Upsampling
-        for i in range(self.number_of_sampling_steps):
-          number_of_channels = (2 ** (self.number_of_sampling_steps - i)) * self.number_of_initial_convolution_channels
-          inputs = self.__convolution_block(inputs, number_of_channels, data_format)
-          inputs = self.__upsample(inputs, number_of_channels // 2, data_format)
+        for i in range(number_of_sampling_steps):
+          index = i
+          number_of_filters = self.number_of_filters_for_convolution_blocks[index]
+          inputs = self.__convolution_block(inputs, number_of_filters, 'downsampling_' + str(index + 1))
           
-          downsampled_tensor = downsampling_tensors[self.number_of_sampling_steps - 1 - i]
+          downsampling_tensors.append(inputs)
+          inputs = self.__downsample(inputs)
+      
+      # Upsampling
+      with tf.name_scope('upsampling'):
+        for i in range(number_of_sampling_steps):
+          index = number_of_sampling_steps - i
+          number_of_filters = self.number_of_filters_for_convolution_blocks[index]
+          inputs = self.__convolution_block(inputs, number_of_filters, 'upsampling_' + str(index + 1))
+          
+          inputs = self.__upsample(inputs, self.number_of_filters_for_convolution_blocks[index - 1])
+          
+          downsampled_tensor = downsampling_tensors[index - 1]
           inputs = tf.concat([downsampled_tensor, inputs], concat_axis)
+        
+        inputs = self.__convolution_block(
+            inputs, self.number_of_filters_for_convolution_blocks[0], 'upsampling_1')
       
-      inputs = self.__convolution_block(inputs=inputs, number_of_filters=self.number_of_initial_convolution_channels, data_format=data_format)
-      
+      # Finalize the output to have the required number of channels.
+      inputs = tf.layers.conv2d(
+          inputs=inputs, filters=self.number_of_output_filters, kernel_size=(1, 1), padding='same',
+          activation=self.activation_function, data_format=self.data_format)
+    
     return inputs
