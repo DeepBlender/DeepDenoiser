@@ -198,8 +198,11 @@ class DeepDenoiserDataGenerator:
     links.new(input_node.outputs[RenderPasses.NORMAL], viewer_node.inputs[0])
 
   def prepare_world():
+    world = bpy.context.scene.world
+    world.light_settings.use_ambient_occlusion = False
+    
     # Settings for multi importance sampling
-    cycles = bpy.context.scene.world.cycles
+    cycles = world.cycles
     cycles.sample_map_resolution = 1024
     cycles.max_bounces = 1024
     
