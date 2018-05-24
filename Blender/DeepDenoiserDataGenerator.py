@@ -99,6 +99,8 @@ class DeepDenoiserDataGenerator:
     cycles.sample_clamp_indirect = 0.0
     cycles.light_sampling_threshold = 0.0
 
+    cycles.film_transparent = False
+    
     cycles_render_layer = bpy.context.scene.render.layers.active.cycles
     cycles_render_layer.use_denoising = False
     
