@@ -6,11 +6,13 @@ import argparse
 import os
 import sys
 import json
+import random
 
 import tensorflow as tf
 import multiprocessing
 
 import Utilities
+import ChannelWeighting
 
 import RefinementNet
 from UNet import UNet
@@ -71,8 +73,8 @@ class FeatureStandardization:
   def use_variance(self):
     return self.variance != 1.
 
-  def standardize(self, feature):
-    with tf.name_scope('standardize_' + RenderPasses.tensorboard_name(self.name)):
+  def standardize(self, feature, index):
+    with tf.name_scope('standardize_' + RenderPasses.tensorboard_name(RenderPasses.source_feature_name_indexed(self.name, index))):
       if self.use_log1p:
         feature = Utilities.signed_log1p(feature)
       if self.use_mean():
@@ -94,18 +96,23 @@ class FeatureStandardization:
 
 class PredictionFeature:
 
-  def __init__(self, is_target, feature_standardization, number_of_channels, name):
+  def __init__(self, number_of_sources, is_target, feature_standardization, number_of_channels, name):
+    self.number_of_sources = number_of_sources
     self.is_target = is_target
     self.feature_standardization = feature_standardization
     self.number_of_channels = number_of_channels
     self.name = name
 
-  def initialize_source_from_dictionary(self, dictionary):
-    self.source = dictionary[RenderPasses.source_feature_name(self.name)]
+  def initialize_sources_from_dictionary(self, dictionary):
+    self.source = []
+    for index in range(self.number_of_sources):
+      source_at_index = dictionary[RenderPasses.source_feature_name_indexed(self.name, index)]
+      self.source.append(source_at_index)
 
   def standardize(self):
     if self.feature_standardization != None:
-      self.source = self.feature_standardization.standardize(self.source)
+      for index in range(self.number_of_sources):
+        self.source[index] = self.feature_standardization.standardize(self.source[index], index)
 
   def prediction_invert_standardize(self):
     if self.feature_standardization != None:
@@ -405,37 +412,110 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
         self.emission_training_feature.target,
         self.environment_training_feature.target])
 
-class TrainingFeaturePreparation:
+class TrainingFeatureLoader:
 
   def __init__(self, is_target, number_of_channels, name):
     self.is_target = is_target
     self.number_of_channels = number_of_channels
     self.name = name
   
-  def add_to_parse_dictionary(self, dictionary, index):
-    dictionary[RenderPasses.source_feature_name_indexed(self.name, index)] = tf.FixedLenFeature([], tf.string)
+  def add_to_parse_dictionary(self, dictionary, required_indices):
+    for index in required_indices:
+      dictionary[RenderPasses.source_feature_name_indexed(self.name, index)] = tf.FixedLenFeature([], tf.string)
     if self.is_target:
       dictionary[RenderPasses.target_feature_name(self.name)] = tf.FixedLenFeature([], tf.string)
   
-  def deserialize(self, parsed_features, height, width, index):
-    self.source = tf.decode_raw(parsed_features[RenderPasses.source_feature_name_indexed(self.name, index)], tf.float32)
-    self.source = tf.reshape(self.source, [height, width, self.number_of_channels])
+  def deserialize(self, parsed_features, required_indices, height, width):
+    self.source = {}
+    for index in required_indices:
+      self.source[index] = tf.decode_raw(parsed_features[RenderPasses.source_feature_name_indexed(self.name, index)], tf.float32)
+      self.source[index] = tf.reshape(self.source[index], [height, width, self.number_of_channels])
     if self.is_target:
       self.target = tf.decode_raw(parsed_features[RenderPasses.target_feature_name(self.name)], tf.float32)
       self.target = tf.reshape(self.target, [height, width, self.number_of_channels])
   
-  def flip_left_right(self):
-    self.source = tf.image.flip_left_right(self.source)
+  def add_to_sources_dictionary(self, sources, index_tuple):
+    for i in range(len(index_tuple)):
+      index = index_tuple[i]
+      sources[RenderPasses.source_feature_name_indexed(self.name, i)] = self.source[index]
+    
+  def add_to_targets_dictionary(self, targets):
+    if self.is_target:
+      targets[RenderPasses.target_feature_name(self.name)] = self.target
+
+class TrainingFeatureAugmentation:
+
+  def __init__(self, number_of_sources, is_target, number_of_channels, name):
+    self.number_of_sources = number_of_sources
+    self.is_target = is_target
+    self.number_of_channels = number_of_channels
+    self.name = name
+  
+  def intialize_from_dictionaries(self, sources, targets):
+    self.source = {}
+    for index in range(self.number_of_sources):
+      self.source[index] = (sources[RenderPasses.source_feature_name_indexed(self.name, index)])
+    if self.is_target:
+      self.target = targets[RenderPasses.target_feature_name(self.name)]
+  
+  @staticmethod
+  def _flip_screen_space_normals(screen_space_normals, data_format):
+    # TODO: Implement different data_formats (DeepBlender)
+    screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(screen_space_normals, [1, 1, 1], 2)
+    screen_space_normal_x = tf.negative(screen_space_normal_x)
+    result = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
+    return(result)
+  
+  def flip_left_right(self, data_format):
+    if data_format != 'channels_last':
+      raise Exception('Channel last is the only supported format.')
+    for index in range(self.number_of_sources):
+      source = tf.image.flip_left_right(self.source[index])
+      if self.name == RenderPasses.SCREEN_SPACE_NORMAL:
+        source = TrainingFeatureAugmentation._flip_screen_space_normals(source, data_format)
+      self.source[index] = source
     if self.is_target:
       self.target = tf.image.flip_left_right(self.target)
+      if self.name == RenderPasses.SCREEN_SPACE_NORMAL:
+        self.target = TrainingFeatureAugmentation._flip_screen_space_normals(self.target, data_format)
   
-  def rotate90(self, k):
-    self.source = tf.image.rot90(self.source, k=k)
+  @staticmethod
+  def _rotate_screen_space_normals(screen_space_normals, rotate, data_format):
+    screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(screen_space_normals, [1, 1, 1], 2)
+    if rotate == 1:
+      # x -> -y
+      # y -> x
+      temporary_screen_space_normal_x = screen_space_normal_x
+      screen_space_normal_x = tf.negative(screen_space_normal_y)
+      screen_space_normal_y = temporary_screen_space_normal_x
+    elif rotate == 2:
+      # x -> -x
+      # y -> -y
+      screen_space_normal_x = tf.negative(screen_space_normal_x)
+      screen_space_normal_y = tf.negative(screen_space_normal_y)
+    elif rotate == 3:
+      # x -> y
+      # y -> -x
+      temporary_screen_space_normal_y = screen_space_normal_y
+      screen_space_normal_y = tf.negative(screen_space_normal_x)
+      screen_space_normal_x = temporary_screen_space_normal_y
+    result = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
+    return(result)
+  
+  def rotate90(self, k, data_format):
+    for index in range(self.number_of_sources):
+      source = tf.image.rot90(self.source[index], k=k)
+      if self.name == RenderPasses.SCREEN_SPACE_NORMAL:
+        source = TrainingFeatureAugmentation._rotate_screen_space_normals(source, k, data_format)
+      self.source[index] = source
     if self.is_target:
       self.target = tf.image.rot90(self.target, k=k)
+      if self.name == RenderPasses.SCREEN_SPACE_NORMAL:
+        self.target = TrainingFeatureAugmentation._rotate_screen_space_normals(self.target, k, data_format)
   
-  def add_to_features_dictionary(self, features):
-    features[RenderPasses.source_feature_name(self.name)] = self.source
+  def add_to_sources_dictionary(self, sources):
+    for index in range(self.number_of_sources):
+      sources[RenderPasses.source_feature_name_indexed(self.name, index)] = self.source[index]
     
   def add_to_targets_dictionary(self, targets):
     if self.is_target:
@@ -452,14 +532,23 @@ def model(prediction_features, mode, use_CPU_only, data_format):
   with tf.name_scope('concat_all_features'):
     concat_axis = 3
     prediction_inputs = []
+    auxiliary_prediction_inputs = []
     auxiliary_inputs = []
     for prediction_feature in prediction_features:
       if prediction_feature.is_target:
-        prediction_inputs.append(prediction_feature.source)
+        for index in range(prediction_feature.number_of_sources):
+          source = prediction_feature.source[index]
+          if index == 0:
+            prediction_inputs.append(source)
+          else:
+            auxiliary_prediction_inputs.append(source)
       else:
-        auxiliary_inputs.append(prediction_feature.source)
+        for index in range(prediction_feature.number_of_sources):
+          source = prediction_feature.source[index]
+          auxiliary_inputs.append(source)
     
     prediction_inputs = tf.concat(prediction_inputs, concat_axis)
+    auxiliary_prediction_inputs = tf.concat(auxiliary_prediction_inputs, concat_axis)
     auxiliary_inputs = tf.concat(auxiliary_inputs, concat_axis)
   
   
@@ -480,6 +569,7 @@ def model(prediction_features, mode, use_CPU_only, data_format):
   concat_axis = 3
   if data_format == 'channels_first':
     prediction_inputs = tf.transpose(prediction_inputs, [0, 3, 1, 2])
+    auxiliary_prediction_inputs = tf.transpose(auxiliary_prediction_inputs, [0, 3, 1, 2])
     auxiliary_inputs = tf.transpose(auxiliary_inputs, [0, 3, 1, 2])
     concat_axis = 1
   
@@ -496,14 +586,22 @@ def model(prediction_features, mode, use_CPU_only, data_format):
   
   with tf.name_scope('model'):
     
+    unet_output_size = output_size
     concat_axis = Conv2dUtilities.channel_axis(prediction_inputs, data_format)
-    outputs = tf.concat([prediction_inputs, auxiliary_inputs], concat_axis)
+    outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], concat_axis)
+    outputs = ChannelWeighting.learned_channel_weighting(outputs, data_format=data_format)
     unet = UNet(
-        number_of_filters_for_convolution_blocks=[256, 512],
-        number_of_convolutions_per_block=2, number_of_output_filters=output_size,
+        #number_of_filters_for_convolution_blocks=[256, 256, 256],
+        #number_of_convolutions_per_block=2, number_of_output_filters=unet_output_size,
+        number_of_filters_for_convolution_blocks=[320],
+        number_of_convolutions_per_block=2, number_of_output_filters=unet_output_size,
         activation_function=global_activation_function, data_format=data_format)
-    outputs = unet.u_net(outputs)
-    invert_standardize = False
+    outputs = unet.unet(outputs)
+    invert_standardize = True
+  
+    # Post processing
+    outputs = ChannelWeighting.learned_channel_weighting(outputs, data_format=data_format)
+    outputs = tf.add(prediction_inputs, outputs)
   
     # _refinement_net = RefinementNet.RefinementNet(
         # number_of_repetitions=0, number_of_blocks=1, number_of_convolutions_per_block=8, number_block_repetitions=0, number_of_temporary_data_filters=0, number_of_filters_per_convolution=32, activation_function=global_activation_function, use_zero_padding=True, use_channel_weighting=False)
@@ -539,7 +637,7 @@ def model_fn(features, labels, mode, params):
   prediction_features = params['prediction_features']
   
   for prediction_feature in prediction_features:
-    prediction_feature.initialize_source_from_dictionary(features)
+    prediction_feature.initialize_sources_from_dictionary(features)
   
   data_format = params['data_format']
   predictions = model(prediction_features, mode, params['use_CPU_only'], data_format)
@@ -648,90 +746,53 @@ def model_fn(features, labels, mode, params):
       eval_metric_ops=eval_metric_ops)
 
 
-def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, number_of_sources_per_example, tiles_height_width, batch_size, threads, use_data_augmentation=True):
+def input_fn_tfrecords(files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, tiles_height_width, batch_size, threads, data_format='channels_last', use_data_augmentation=False):
   
   def feature_parser(serialized_example):
-  
-    # TODO: Split it up (DeepBlender)
-    # - Prepare, parse and deserialize them and create the datasets within a flat_map
-    # - Add and augmentation pass which uses map and is multithreaded
-  
     dataset = None
     
-    for index in range(number_of_sources_per_example):
-      
-      # skip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
-      # if skip == 0:
-        # continue
-      
-      features = {}
-
-      for training_feature_preparation in training_features_preparation:
-        training_feature_preparation.add_to_parse_dictionary(features, index)
+    # Load all the required indices.
+    features = {}
+    for training_feature_loader in training_features_loader:
+      training_feature_loader.add_to_parse_dictionary(features, required_indices)
     
-      parsed_features = tf.parse_single_example(serialized_example, features)
-      
-      for training_feature_preparation in training_features_preparation:
-        training_feature_preparation.deserialize(parsed_features, tiles_height_width, tiles_height_width, index)
-      
-      
-      # Data augmentation
-      
-      if use_data_augmentation:
-        with tf.name_scope('data_augmentation'):
-          
-          # Flip the image randomly (REMARK: maxval is excluded in random_uniform!)
-          flip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
-          if flip != 0:
-            for training_feature_preparation in training_features_preparation:
-              training_feature_preparation.flip_left_right()
-              if training_feature_preparation.name == RenderPasses.SCREEN_SPACE_NORMAL:
-                screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(training_feature_preparation.source, [1, 1, 1], 2)
-                screen_space_normal_x = tf.negative(screen_space_normal_x)
-                training_feature_preparation.source = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
-                
-
-          # Rotate the image randomly (maxval is excluded!)
-          rotate = tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32)[0]
-          if rotate != 0:
-            for training_feature_preparation in training_features_preparation:
-              training_feature_preparation.rotate90(rotate)
-              if training_feature_preparation.name == RenderPasses.SCREEN_SPACE_NORMAL:
-                screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(training_feature_preparation.source, [1, 1, 1], 2)
-                if rotate == 1:
-                  # x -> -y
-                  # y -> x
-                  temporary_screen_space_normal_x = screen_space_normal_x
-                  screen_space_normal_x = tf.negative(screen_space_normal_y)
-                  screen_space_normal_y = temporary_screen_space_normal_x
-                elif rotate == 2:
-                  # x -> -x
-                  # y -> -y
-                  screen_space_normal_x = tf.negative(screen_space_normal_x)
-                  screen_space_normal_y = tf.negative(screen_space_normal_y)
-                elif rotate == 3:
-                  # x -> y
-                  # y -> -x
-                  temporary_screen_space_normal_y = screen_space_normal_y
-                  screen_space_normal_y = tf.negative(screen_space_normal_x)
-                  screen_space_normal_x = temporary_screen_space_normal_y
-                  
-                training_feature_preparation.source = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
-        
-      features = {}
-      for training_feature_preparation in training_features_preparation:
-        training_feature_preparation.add_to_features_dictionary(features)
-      
+    parsed_features = tf.parse_single_example(serialized_example, features)
+    
+    for training_feature_loader in training_features_loader:
+      training_feature_loader.deserialize(parsed_features, required_indices, tiles_height_width, tiles_height_width)
+    
+    # Prepare the examples.
+    for index_tuple in index_tuples:
+      sources = {}
       targets = {}
-      for training_feature_preparation in training_features_preparation:
-        training_feature_preparation.add_to_targets_dictionary(targets)
+      for training_feature_loader in training_features_loader:
+        training_feature_loader.add_to_sources_dictionary(sources, index_tuple)
+        training_feature_loader.add_to_targets_dictionary(targets)
       
       if dataset == None:
-        dataset = tf.data.Dataset.from_tensors((features, targets))
+        dataset = tf.data.Dataset.from_tensors((sources, targets))
       else:
-        dataset = dataset.concatenate(tf.data.Dataset.from_tensors((features, targets)))
+        dataset = dataset.concatenate(tf.data.Dataset.from_tensors((sources, targets)))
     
     return dataset
+  
+  def data_augmentation(sources, targets):
+    with tf.name_scope('data_augmentation'):
+      for training_feature_augmentation in training_features_augmentation:
+        training_feature_augmentation.intialize_from_dictionaries(sources, targets)
+        
+        flip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
+        if flip != 0:
+          training_feature_augmentation.flip_left_right(data_format)
+        
+        rotate = tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32)[0]
+        if rotate != 0:
+          training_feature_augmentation.rotate90(rotate, data_format)
+    
+        training_feature_augmentation.add_to_sources_dictionary(sources)
+        training_feature_augmentation.add_to_targets_dictionary(targets)
+    
+    return sources, targets
   
   
   # REMARK: Due to stability issues, it was not possible to follow all the suggestions from the documentation like using the fused versions.
@@ -741,9 +802,11 @@ def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, n
   files = files.shuffle(buffer_size=shuffle_buffer_size)
   
   dataset = tf.data.TFRecordDataset(files, compression_type='GZIP', buffer_size=None, num_parallel_reads=threads)
-  dataset = dataset.flat_map(map_func=feature_parser)#, num_parallel_calls=threads)
+  dataset = dataset.flat_map(map_func=feature_parser)
+  if use_data_augmentation:
+    dataset = dataset.map(map_func=data_augmentation, num_parallel_calls=threads)
   
-  shuffle_buffer_size = 40 * batch_size
+  shuffle_buffer_size = 20 * batch_size
   dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
   
   dataset = dataset.batch(batch_size)
@@ -759,17 +822,50 @@ def input_fn_tfrecords(files, training_features_preparation, number_of_epochs, n
   return features, targets
 
 
-def train(tfrecords_directory, estimator, training_features_preparation, number_of_epochs, number_of_sources_per_example, tiles_height_width, batch_size, threads):
+def train(tfrecords_directory, estimator, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, tiles_height_width, batch_size, threads):
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Train the model
-  estimator.train(input_fn=lambda: input_fn_tfrecords(files, training_features_preparation, number_of_epochs, number_of_sources_per_example, tiles_height_width, batch_size, threads))
+  estimator.train(input_fn=lambda: input_fn_tfrecords(files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, tiles_height_width, batch_size, threads, use_data_augmentation=True))
 
-def evaluate(tfrecords_directory, estimator, training_features_preparation, number_of_sources_per_example, tiles_height_width, batch_size, threads):
+def evaluate(tfrecords_directory, estimator, training_features_loader, training_features_augmentation, index_tuples, required_indices, tiles_height_width, batch_size, threads):
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Evaluate the model
-  estimator.evaluate(input_fn=lambda: input_fn_tfrecords(files, training_features_preparation, 1, number_of_sources_per_example, tiles_height_width, batch_size, threads))
+  estimator.evaluate(input_fn=lambda: input_fn_tfrecords(files, training_features_loader, training_features_augmentation, 1, index_tuples, required_indices, tiles_height_width, batch_size, threads, use_data_augmentation=False))
+
+def source_index_tuples(number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target):
+  if number_of_sources_per_example < number_of_sources_per_target:
+    raise Exception('The source index tuples contain unique indices. That is not possible if there are fewer source examples than indices per tuple.')
+  
+  index_tuples = []
+  if number_of_sources_per_target == 1:
+    number_of_complete_tuple_sets = number_of_source_index_tuples // number_of_sources_per_example
+    number_of_remaining_tuples = number_of_source_index_tuples % number_of_sources_per_example
+    for _ in range(number_of_complete_tuple_sets):
+      for index in range(number_of_sources_per_example):
+        index_tuples.append([index])
+    for _ in range(number_of_remaining_tuples):
+      index = random.randint(0, number_of_sources_per_example - 1)
+      index_tuples.append([index])
+  else:
+    for _ in range(number_of_source_index_tuples):
+      tuple = []
+      while len(tuple) < number_of_sources_per_target:
+        index = random.randint(0, number_of_sources_per_example - 1)
+        if not index in tuple:
+          tuple.append(index)
+      index_tuples.append(tuple)
+  
+  required_indices = []
+  for tuple in index_tuples:
+    for index in tuple:
+      if not index in required_indices:
+        required_indices.append(index)
+  required_indices.sort()
+  
+  return index_tuples, required_indices
+
 
 def main(parsed_arguments):
   if not isinstance(parsed_arguments.threads, int):
@@ -786,6 +882,9 @@ def main(parsed_arguments):
   base_tfrecords_directory = parsed_json['base_tfrecords_directory']
   modes = parsed_json['modes']
   
+  number_of_source_index_tuples = parsed_json['number_of_source_index_tuples']
+  number_of_sources_per_target = parsed_json['number_of_sources_per_target']
+  
   loss_difference = parsed_json['loss_difference']
   loss_difference = LossDifferenceEnum[loss_difference]
   use_difference_of_log1p = parsed_json['use_difference_of_log1p']
@@ -797,6 +896,28 @@ def main(parsed_arguments):
   # The names have to be sorted, otherwise the channels would be randomly mixed.
   feature_names = sorted(list(features.keys()))
   
+  
+  training_tfrecords_directory = os.path.join(base_tfrecords_directory, 'training')
+  validation_tfrecords_directory = os.path.join(base_tfrecords_directory, 'validation')
+  
+  if not 'training' in modes:
+    raise Exception('No training mode found.')
+  if not 'validation' in modes:
+    raise Exception('No validation mode found.')
+  training_statistics_filename = os.path.join(base_tfrecords_directory, 'training.json')
+  validation_statistics_filename = os.path.join(base_tfrecords_directory, 'validation.json')
+  
+  training_statistics_content = open(training_statistics_filename, 'r').read()
+  training_statistics = json.loads(training_statistics_content)
+  validation_statistics_content = open(validation_statistics_filename, 'r').read()
+  validation_statistics = json.loads(validation_statistics_content)
+  
+  training_tiles_height_width = training_statistics['tiles_height_width']
+  training_number_of_sources_per_example = training_statistics['number_of_sources_per_example']
+  validation_tiles_height_width = validation_statistics['tiles_height_width']
+  validation_number_of_sources_per_example = validation_statistics['number_of_sources_per_example']
+  
+  
   prediction_features = []
   for feature_name in feature_names:
     feature = features[feature_name]
@@ -805,7 +926,7 @@ def main(parsed_arguments):
     if feature['is_source']:
       feature_standardization = feature['standardization']
       feature_standardization = FeatureStandardization(feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'], feature_name)
-      prediction_feature = PredictionFeature(feature['is_target'], feature_standardization, feature['number_of_channels'], feature_name)
+      prediction_feature = PredictionFeature(number_of_sources_per_target, feature['is_target'], feature_standardization, feature['number_of_channels'], feature_name)
       prediction_features.append(prediction_feature)
   
   
@@ -826,9 +947,11 @@ def main(parsed_arguments):
       training_features.append(training_feature)
       feature_name_to_training_feature[feature_name] = training_feature
 
-  training_features_preparation = []
+  training_features_loader = []
+  training_features_augmentation = []
   for prediction_feature in prediction_features:
-    training_features_preparation.append(TrainingFeaturePreparation(prediction_feature.is_target, prediction_feature.number_of_channels, prediction_feature.name))
+    training_features_loader.append(TrainingFeatureLoader(prediction_feature.is_target, prediction_feature.number_of_channels, prediction_feature.name))
+    training_features_augmentation.append(TrainingFeatureAugmentation(number_of_sources_per_target, prediction_feature.is_target, prediction_feature.number_of_channels, prediction_feature.name))
 
   
   # Combined training features.
@@ -910,36 +1033,21 @@ def main(parsed_arguments):
           'combined_training_features': combined_training_features,
           'combined_image_training_feature': combined_image_training_feature})
   
-  training_tfrecords_directory = os.path.join(base_tfrecords_directory, 'training')
-  validation_tfrecords_directory = os.path.join(base_tfrecords_directory, 'validation')
-  
-  if not 'training' in modes:
-    raise Exception('No training mode found.')
-  if not 'validation' in modes:
-    raise Exception('No validation mode found.')
-  training_statistics_filename = os.path.join(base_tfrecords_directory, 'training.json')
-  validation_statistics_filename = os.path.join(base_tfrecords_directory, 'validation.json')
-  
-  training_statistics_content = open(training_statistics_filename, 'r').read()
-  training_statistics = json.loads(training_statistics_content)
-  validation_statistics_content = open(validation_statistics_filename, 'r').read()
-  validation_statistics = json.loads(validation_statistics_content)
-  
-  training_tiles_height_width = training_statistics['tiles_height_width']
-  training_number_of_sources_per_example = training_statistics['number_of_sources_per_example']
-  validation_tiles_height_width = validation_statistics['tiles_height_width']
-  validation_number_of_sources_per_example = validation_statistics['number_of_sources_per_example']
-  
-  remaining_epochs = parsed_arguments.train_epochs
-  while remaining_epochs > 0:
-    current_epochs = parsed_arguments.validation_interval
-    if remaining_epochs < current_epochs:
-      current_epochs = remaining_epochs
+  remaining_number_of_epochs = parsed_arguments.train_epochs
+  while remaining_number_of_epochs > 0:
+    number_of_training_epochs = parsed_arguments.validation_interval
+    if remaining_number_of_epochs < number_of_training_epochs:
+      number_of_training_epochs = remaining_number_of_epochs
     
-    train(training_tfrecords_directory, estimator, training_features_preparation, current_epochs, training_number_of_sources_per_example, training_tiles_height_width, parsed_arguments.batch_size, parsed_arguments.threads)
-    evaluate(validation_tfrecords_directory, estimator, training_features_preparation, validation_number_of_sources_per_example, training_tiles_height_width, parsed_arguments.batch_size, parsed_arguments.threads)
+    for _ in range(number_of_training_epochs):
+      epochs_to_train = 1
+      index_tuples, required_indices = source_index_tuples(training_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
+      train(training_tfrecords_directory, estimator, training_features_loader, training_features_augmentation, epochs_to_train, index_tuples, required_indices, training_tiles_height_width, parsed_arguments.batch_size, parsed_arguments.threads)
     
-    remaining_epochs = remaining_epochs - current_epochs
+    index_tuples, required_indices = source_index_tuples(validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
+    evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation, index_tuples, required_indices, training_tiles_height_width, parsed_arguments.batch_size, parsed_arguments.threads)
+    
+    remaining_number_of_epochs = remaining_number_of_epochs - number_of_training_epochs
 
 
 if __name__ == '__main__':

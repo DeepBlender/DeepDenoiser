@@ -8,6 +8,9 @@
 		"testing"
 	],
 	
+	"number_of_source_index_tuples": 8,
+	"number_of_sources_per_target": 2,
+	
 	"loss_difference_description": "Options: DIFFERENCE, ABSOLUTE, SMOOTH_ABSOLUTE, SQUARED.",
 	"loss_difference": "ABSOLUTE",
 	"use_difference_of_log1p": false,

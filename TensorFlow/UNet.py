@@ -45,7 +45,7 @@ class UNet:
           activation=self.activation_function, data_format=self.data_format)
       return inputs
 
-  def u_net(self, inputs):
+  def unet(self, inputs):
     with tf.name_scope('U-Net'):
       number_of_sampling_steps = len(self.number_of_filters_for_convolution_blocks) - 1
       concat_axis = Conv2dUtilities.channel_axis(inputs, self.data_format)
