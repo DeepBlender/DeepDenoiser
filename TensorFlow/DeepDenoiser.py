@@ -129,14 +129,13 @@ class PredictionFeature:
 class BaseTrainingFeature:
 
   def __init__(
-      self, name, loss_difference, use_difference_of_log1p,
+      self, name, loss_difference,
       mean_weight, variation_weight, ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
       track_difference_histogram, track_variation_difference_histogram):
       
     self.name = name
     self.loss_difference = loss_difference
-    self.use_difference_of_log1p = use_difference_of_log1p
     
     self.mean_weight = mean_weight
     self.variation_weight = variation_weight
@@ -151,7 +150,7 @@ class BaseTrainingFeature:
   
   def difference(self):
     with tf.name_scope('difference'):
-      result = LossDifference.difference(self.predicted, self.target, self.loss_difference, use_difference_of_log1p=self.use_difference_of_log1p)
+      result = LossDifference.difference(self.predicted, self.target, self.loss_difference)
     return result
   
   def horizontal_variation_difference(self):
@@ -199,11 +198,6 @@ class BaseTrainingFeature:
     predicted = self.predicted
     target = self.target
     
-    # HACK: Deactivated to produce better results (DeepBlender)
-    # if self.use_difference_of_log1p:
-      # predicted = Utilities.signed_log1p(predicted)
-      # target = Utilities.signed_log1p(target)
-    
     if len(predicted.shape) == 3:
       shape = tf.shape(predicted)
       predicted = tf.reshape(predicted, [-1, shape[0], shape[1], shape[2]])
@@ -222,8 +216,6 @@ class BaseTrainingFeature:
     # TODO: Calculate the number of factors (DeepBlender)
     # HACK: This is far away from the actual 1e10, but we are looking for better visual results. (DeepBlender)
     # maximum_value = 1e10
-    # if self.use_difference_of_log1p:
-      # maximum_value = tf.log1p(maximum_value)
     maximum_value = 1.
     ms_ssim = tf.image.ssim_multiscale(predicted, target, maximum_value, power_factors=(0.0448, 0.2856, 0.3001))
     
@@ -315,13 +307,13 @@ class BaseTrainingFeature:
 class TrainingFeature(BaseTrainingFeature):
 
   def __init__(
-      self, name, loss_difference, use_difference_of_log1p,
+      self, name, loss_difference,
       mean_weight, variation_weight, ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
-        self, name, loss_difference, use_difference_of_log1p,
+        self, name, loss_difference,
         mean_weight, variation_weight, ms_ssim_weight,
         track_mean, track_variation, track_ms_ssim,
         track_difference_histogram, track_variation_difference_histogram)
@@ -339,14 +331,14 @@ class TrainingFeature(BaseTrainingFeature):
 class CombinedTrainingFeature(BaseTrainingFeature):
 
   def __init__(
-      self, name, loss_difference, use_difference_of_log1p,
+      self, name, loss_difference,
       color_training_feature, direct_training_feature, indirect_training_feature,
       mean_weight, variation_weight, ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
-        self, name, loss_difference, use_difference_of_log1p,
+        self, name, loss_difference,
         mean_weight, variation_weight, ms_ssim_weight,
         track_mean, track_variation, track_ms_ssim,
         track_difference_histogram, track_variation_difference_histogram)
@@ -372,7 +364,7 @@ class CombinedTrainingFeature(BaseTrainingFeature):
 class CombinedImageTrainingFeature(BaseTrainingFeature):
 
   def __init__(
-      self, name, loss_difference, use_difference_of_log1p,
+      self, name, loss_difference,
       diffuse_training_feature, glossy_training_feature,
       subsurface_training_feature, transmission_training_feature,
       emission_training_feature, environment_training_feature,
@@ -381,7 +373,7 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
       track_difference_histogram, track_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
-        self, name, loss_difference, use_difference_of_log1p,
+        self, name, loss_difference,
         mean_weight, variation_weight, ms_ssim_weight,
         track_mean, track_variation, track_ms_ssim,
         track_difference_histogram, track_variation_difference_histogram)
@@ -892,7 +884,6 @@ def main(parsed_arguments):
   
   loss_difference = parsed_json['loss_difference']
   loss_difference = LossDifferenceEnum[loss_difference]
-  use_difference_of_log1p = parsed_json['use_difference_of_log1p']
   
   features = parsed_json['features']
   combined_features = parsed_json['combined_features']
@@ -945,7 +936,7 @@ def main(parsed_arguments):
       statistics = feature['statistics']
       loss_weights = feature['loss_weights']
       training_feature = TrainingFeature(
-          feature_name, loss_difference, use_difference_of_log1p,
+          feature_name, loss_difference,
           loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
           statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
           statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
@@ -973,7 +964,7 @@ def main(parsed_arguments):
       direct_feature_name = RenderPasses.combined_to_direct_render_pass(combined_feature_name)
       indirect_feature_name = RenderPasses.combined_to_indirect_render_pass(combined_feature_name)
       combined_training_feature = CombinedTrainingFeature(
-          combined_feature_name, loss_difference, use_difference_of_log1p,
+          combined_feature_name, loss_difference,
           feature_name_to_training_feature[color_feature_name],
           feature_name_to_training_feature[direct_feature_name],
           feature_name_to_training_feature[indirect_feature_name],
@@ -994,7 +985,7 @@ def main(parsed_arguments):
   loss_weights = combined_image['loss_weights']
   if loss_weights['mean'] > 0. or loss_weights['variation'] > 0:
     combined_image_training_feature = CombinedImageTrainingFeature(
-        RenderPasses.COMBINED, loss_difference, use_difference_of_log1p,
+        RenderPasses.COMBINED, loss_difference,
         combined_feature_name_to_combined_training_feature['Diffuse'],
         combined_feature_name_to_combined_training_feature['Glossy'],
         combined_feature_name_to_combined_training_feature['Subsurface'],

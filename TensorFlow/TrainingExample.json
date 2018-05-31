@@ -13,7 +13,6 @@
 	
 	"loss_difference_description": "Options: DIFFERENCE, ABSOLUTE, SMOOTH_ABSOLUTE, SQUARED, SMAPE.",
 	"loss_difference": "SMAPE",
-	"use_difference_of_log1p": false,
 	
 	"combined_image": {
 		"loss_weights": {
