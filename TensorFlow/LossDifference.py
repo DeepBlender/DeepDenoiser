@@ -6,7 +6,8 @@ class LossDifferenceEnum(Enum):
   DIFFERENCE = 1
   ABSOLUTE = 2
   SMOOTH_ABSOLUTE = 3
-  SQUARED = 4
+  SQUARED = 4,
+  SMAPE = 5
 
 class LossDifference:
   
@@ -30,5 +31,10 @@ class LossDifference:
           tf.subtract(absolute_difference, 0.5))
     elif loss_difference == LossDifferenceEnum.SQUARED:
       result = tf.squared_difference(predicted, target)
+    elif loss_difference == LossDifferenceEnum.SMAPE:
+      # https://en.wikipedia.org/wiki/Symmetric_mean_absolute_percentage_error
+      absolute_difference = tf.abs(tf.subtract(predicted, target))
+      denominator = tf.add(tf.add(tf.abs(predicted), tf.abs(target)), 1e-2)
+      result = tf.divide(absolute_difference, denominator)
     result = tf.reduce_sum(result, axis=3)
     return result
