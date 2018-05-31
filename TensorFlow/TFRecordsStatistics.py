@@ -13,12 +13,12 @@ from FeatureStatistics import FeatureStatistics
 import Utilities
 import Conv2dUtilities
 
+
 class TFRecordsStatistics:
   def __init__(self, tfrecords_creator):
     self.tfrecords_creator = tfrecords_creator
   
   def compute_and_save_statistics(self):
-  
     statistics = {}
     statistics['tiles_height_width'] = self.tfrecords_creator.tiles_height_width
     statistics['number_of_sources_per_example'] = self.tfrecords_creator.number_of_sources_per_example

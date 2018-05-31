@@ -31,11 +31,15 @@ class UNet:
     return inputs
 
   def __downsample(self, inputs):
+    # TODO: Make the downsampling configurable (DeepBlender)
     number_of_filters = Conv2dUtilities.number_of_channels(inputs, self.data_format)
     with tf.name_scope('downsample'):
-      inputs = tf.layers.conv2d(
-          inputs=inputs, filters=number_of_filters, kernel_size=(3, 3), strides=(2, 2), padding='same',
-          activation=self.activation_function, data_format=self.data_format)
+      inputs = tf.layers.max_pooling2d(
+          inputs=inputs, pool_size=(2, 2), strides=(2, 2), padding='same',
+          data_format=self.data_format)
+      # inputs = tf.layers.conv2d(
+          # inputs=inputs, filters=number_of_filters, kernel_size=(3, 3), strides=(2, 2), padding='same',
+          # activation=self.activation_function, data_format=self.data_format)
     return inputs
 
   def __upsample(self, inputs, number_of_filters):
@@ -79,6 +83,6 @@ class UNet:
       # Finalize the output to have the required number of channels.
       inputs = tf.layers.conv2d(
           inputs=inputs, filters=self.number_of_output_filters, kernel_size=(1, 1), padding='same',
-          activation=self.activation_function, data_format=self.data_format)
+          activation=None, data_format=self.data_format)
     
     return inputs

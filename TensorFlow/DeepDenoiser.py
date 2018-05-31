@@ -12,15 +12,12 @@ import tensorflow as tf
 import multiprocessing
 
 import Utilities
-import ChannelWeighting
-
-import RefinementNet
+import Conv2dUtilities
 from UNet import UNet
 
 from LossDifference import LossDifference
 from LossDifference import LossDifferenceEnum
 from RenderPasses import RenderPasses
-import Conv2dUtilities
 
 parser = argparse.ArgumentParser(description='Training and inference for the DeepDenoiser.')
 
@@ -29,7 +26,7 @@ parser.add_argument(
     help='The json specifying all the relevant details.')
 
 parser.add_argument(
-    '--batch_size', type=int, default=32,
+    '--batch_size', type=int, default=48,
     help='Number of tiles to process in a batch')
 
 parser.add_argument(
@@ -54,10 +51,11 @@ parser.add_argument(
 
 def global_activation_function(features, name=None):
   # HACK: Quick way to experiment with other activation function.
-  return tf.nn.relu(features, name)
-  # return tf.nn.crelu(features, name)
-  # return tf.nn.elu(features, name)
-  # return tf.nn.selu(features, name)
+  return tf.nn.relu(features, name=name)
+  # return tf.nn.leaky_relu(features, name=name)
+  # return tf.nn.crelu(features, name=name)
+  # return tf.nn.elu(features, name=name)
+  # return tf.nn.selu(features, name=name)
 
 class FeatureStandardization:
 
@@ -548,8 +546,14 @@ def model(prediction_features, mode, use_CPU_only, data_format):
           auxiliary_inputs.append(source)
     
     prediction_inputs = tf.concat(prediction_inputs, concat_axis)
-    auxiliary_prediction_inputs = tf.concat(auxiliary_prediction_inputs, concat_axis)
-    auxiliary_inputs = tf.concat(auxiliary_inputs, concat_axis)
+    if len(auxiliary_prediction_inputs) > 0:
+      auxiliary_prediction_inputs = tf.concat(auxiliary_prediction_inputs, concat_axis)
+    else:
+      auxiliary_prediction_inputs = None
+    if len(auxiliary_inputs) > 0:
+      auxiliary_inputs = tf.concat(auxiliary_inputs, concat_axis)
+    else:
+      auxiliary_inputs = None
   
   
   is_training = False
@@ -569,8 +573,10 @@ def model(prediction_features, mode, use_CPU_only, data_format):
   concat_axis = 3
   if data_format == 'channels_first':
     prediction_inputs = tf.transpose(prediction_inputs, [0, 3, 1, 2])
-    auxiliary_prediction_inputs = tf.transpose(auxiliary_prediction_inputs, [0, 3, 1, 2])
-    auxiliary_inputs = tf.transpose(auxiliary_inputs, [0, 3, 1, 2])
+    if auxiliary_prediction_inputs != None:
+      auxiliary_prediction_inputs = tf.transpose(auxiliary_prediction_inputs, [0, 3, 1, 2])
+    if auxiliary_inputs != None:
+      auxiliary_inputs = tf.transpose(auxiliary_inputs, [0, 3, 1, 2])
     concat_axis = 1
   
   output_size = 0
@@ -588,25 +594,22 @@ def model(prediction_features, mode, use_CPU_only, data_format):
     
     unet_output_size = output_size
     concat_axis = Conv2dUtilities.channel_axis(prediction_inputs, data_format)
-    outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], concat_axis)
-    outputs = ChannelWeighting.learned_channel_weighting(outputs, data_format=data_format)
+    
+    if auxiliary_prediction_inputs == None and auxiliary_inputs == None:
+      outputs = prediction_inputs
+    elif auxiliary_prediction_inputs == None:
+      outputs = tf.concat([prediction_inputs, auxiliary_inputs], concat_axis)
+    elif auxiliary_inputs == None:
+      outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs], concat_axis)
+    else:
+      outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], concat_axis)
+    
     unet = UNet(
-        #number_of_filters_for_convolution_blocks=[256, 256, 256],
-        #number_of_convolutions_per_block=2, number_of_output_filters=unet_output_size,
-        number_of_filters_for_convolution_blocks=[320],
-        number_of_convolutions_per_block=2, number_of_output_filters=unet_output_size,
+        number_of_filters_for_convolution_blocks=[64, 128, 256],
+        number_of_convolutions_per_block=3, number_of_output_filters=unet_output_size,
         activation_function=global_activation_function, data_format=data_format)
     outputs = unet.unet(outputs)
     invert_standardize = True
-  
-    # Post processing
-    outputs = ChannelWeighting.learned_channel_weighting(outputs, data_format=data_format)
-    outputs = tf.add(prediction_inputs, outputs)
-  
-    # _refinement_net = RefinementNet.RefinementNet(
-        # number_of_repetitions=0, number_of_blocks=1, number_of_convolutions_per_block=8, number_block_repetitions=0, number_of_temporary_data_filters=0, number_of_filters_per_convolution=32, activation_function=global_activation_function, use_zero_padding=True, use_channel_weighting=False)
-    # outputs = _refinement_net.refinement_net(prediction_inputs, auxiliary_inputs, is_training, data_format=data_format)
-    # invert_standardize = True
   
   
   if data_format == 'channels_first':
@@ -692,7 +695,7 @@ def model_fn(features, labels, mode, params):
     first_decay_steps = 1000
     t_mul = 1.3 # Use t_mul more steps after each restart.
     m_mul = 0.8 # Multiply the learning rate after each restart with this number.
-    alpha = 1 / 1000. # Learning rate decays from 1 * learning_rate to alpha * learning_rate.
+    alpha = 1 / 100. # Learning rate decays from 1 * learning_rate to alpha * learning_rate.
     learning_rate_decayed = tf.train.cosine_decay_restarts(learning_rate, global_step, first_decay_steps, t_mul=t_mul, m_mul=m_mul, alpha=alpha)
   
     tf.summary.scalar('learning_rate', learning_rate_decayed)
@@ -826,13 +829,15 @@ def train(tfrecords_directory, estimator, training_features_loader, training_fea
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Train the model
-  estimator.train(input_fn=lambda: input_fn_tfrecords(files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, tiles_height_width, batch_size, threads, use_data_augmentation=True))
+  use_data_augmentation = True
+  estimator.train(input_fn=lambda: input_fn_tfrecords(files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, tiles_height_width, batch_size, threads, use_data_augmentation=use_data_augmentation))
 
 def evaluate(tfrecords_directory, estimator, training_features_loader, training_features_augmentation, index_tuples, required_indices, tiles_height_width, batch_size, threads):
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Evaluate the model
-  estimator.evaluate(input_fn=lambda: input_fn_tfrecords(files, training_features_loader, training_features_augmentation, 1, index_tuples, required_indices, tiles_height_width, batch_size, threads, use_data_augmentation=False))
+  use_data_augmentation = True
+  estimator.evaluate(input_fn=lambda: input_fn_tfrecords(files, training_features_loader, training_features_augmentation, 1, index_tuples, required_indices, tiles_height_width, batch_size, threads, use_data_augmentation=use_data_augmentation))
 
 def source_index_tuples(number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target):
   if number_of_sources_per_example < number_of_sources_per_target:
@@ -1004,7 +1009,7 @@ def main(parsed_arguments):
   # TODO: CPU only has to be configurable.
   # TODO: Learning rate has to be configurable.
   
-  learning_rate = 1e-5
+  learning_rate = 1e-3
   use_XLA = True
   use_CPU_only = False
   
