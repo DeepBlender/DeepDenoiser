@@ -13,7 +13,9 @@ import multiprocessing
 
 import Utilities
 import Conv2dUtilities
+
 from UNet import UNet
+from Tiramisu import Tiramisu
 
 from LossDifference import LossDifference
 from LossDifference import LossDifferenceEnum
@@ -596,11 +598,19 @@ def model(prediction_features, mode, use_CPU_only, data_format):
     else:
       outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], concat_axis)
     
-    unet = UNet(
-        number_of_filters_for_convolution_blocks=[64, 128, 256],
-        number_of_convolutions_per_block=3, number_of_output_filters=unet_output_size,
+    # unet = UNet(
+        # number_of_filters_for_convolution_blocks=[32, 64, 128],
+        # number_of_convolutions_per_block=2, number_of_output_filters=unet_output_size,
+        # activation_function=global_activation_function, data_format=data_format)
+    # outputs = unet.unet(outputs)
+    # invert_standardize = True
+    
+    tiramisu = Tiramisu(
+        number_of_preprocessing_convolution_filters=24,
+        number_of_filters_for_convolution_blocks=[16, 16, 16],
+        number_of_convolutions_per_block=2, number_of_output_filters=unet_output_size,
         activation_function=global_activation_function, data_format=data_format)
-    outputs = unet.unet(outputs)
+    outputs = tiramisu.tiramisu(outputs)
     invert_standardize = True
   
   
