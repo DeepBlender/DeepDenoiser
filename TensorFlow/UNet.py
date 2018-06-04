@@ -1,5 +1,7 @@
 #
-# Based on: https://arxiv.org/abs/1505.04597
+# Based on:
+#   U-Net: Convolutional Networks for Biomedical Image Segmentation
+#   https://arxiv.org/abs/1505.04597
 # 
 # Contrary to the original paper, this implementation does not include
 # cropping, normalization or dropout.

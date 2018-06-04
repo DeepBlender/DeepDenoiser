@@ -1,5 +1,7 @@
 #
-# Based on: https://arxiv.org/abs/1611.09326
+# Based on:
+#   The One Hundred Layers Tiramisu: Fully Convolutional DenseNets for Semantic Segmentation
+#   https://arxiv.org/abs/1611.09326
 #
 # Contrary to the original paper, this implementation does not include
 # normalization or dropout.
