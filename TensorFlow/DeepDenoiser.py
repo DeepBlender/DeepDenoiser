@@ -13,6 +13,7 @@ import multiprocessing
 
 import Utilities
 import Conv2dUtilities
+from KernelPrediction import KernelPrediction
 
 from UNet import UNet
 from Tiramisu import Tiramisu
@@ -28,7 +29,7 @@ parser.add_argument(
     help='The json specifying all the relevant details.')
 
 parser.add_argument(
-    '--batch_size', type=int, default=48,
+    '--batch_size', type=int, default=24,
     help='Number of tiles to process in a batch')
 
 parser.add_argument(
@@ -514,7 +515,7 @@ class TrainingFeatureAugmentation:
       targets[RenderPasses.target_feature_name(self.name)] = self.target
 
 
-def model(prediction_features, mode, use_CPU_only, data_format):
+def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_CPU_only, data_format):
   
   # Standardization of the data
   with tf.name_scope('standardize'):
@@ -549,7 +550,6 @@ def model(prediction_features, mode, use_CPU_only, data_format):
     else:
       auxiliary_inputs = None
   
-  
   is_training = False
   if mode == tf.estimator.ModeKeys.TRAIN:
     is_training = True
@@ -577,7 +577,10 @@ def model(prediction_features, mode, use_CPU_only, data_format):
   output_prediction_features = []
   for prediction_feature in prediction_features:
     if prediction_feature.is_target:
-      output_size = output_size + prediction_feature.number_of_channels
+      if use_kernel_predicion:
+        output_size = output_size + (kernel_size ** 2)
+      else:
+        output_size = output_size + prediction_feature.number_of_channels
       output_prediction_features.append(prediction_feature)
   
   
@@ -586,7 +589,6 @@ def model(prediction_features, mode, use_CPU_only, data_format):
   
   with tf.name_scope('model'):
     
-    unet_output_size = output_size
     concat_axis = Conv2dUtilities.channel_axis(prediction_inputs, data_format)
     
     if auxiliary_prediction_inputs == None and auxiliary_inputs == None:
@@ -598,36 +600,46 @@ def model(prediction_features, mode, use_CPU_only, data_format):
     else:
       outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], concat_axis)
     
-    # unet = UNet(
-        # number_of_filters_for_convolution_blocks=[32, 64, 128],
-        # number_of_convolutions_per_block=2, number_of_output_filters=unet_output_size,
-        # activation_function=global_activation_function, data_format=data_format)
-    # outputs = unet.unet(outputs)
-    # invert_standardize = True
-    
-    tiramisu = Tiramisu(
-        number_of_preprocessing_convolution_filters=24,
-        number_of_filters_for_convolution_blocks=[16, 16, 16],
-        number_of_convolutions_per_block=2, number_of_output_filters=unet_output_size,
+    unet = UNet(
+        number_of_filters_for_convolution_blocks=[256, 256, 256],
+        number_of_convolutions_per_block=2, number_of_output_filters=output_size,
         activation_function=global_activation_function, data_format=data_format)
-    outputs = tiramisu.tiramisu(outputs)
+    outputs = unet.unet(outputs)
     invert_standardize = True
+    
+    # tiramisu = Tiramisu(
+        # number_of_preprocessing_convolution_filters=32,
+        # number_of_filters_for_convolution_blocks=[16, 32, 64],
+        # number_of_convolutions_per_block=2, number_of_output_filters=output_size,
+        # activation_function=global_activation_function, data_format=data_format)
+    # outputs = tiramisu.tiramisu(outputs)
+    # invert_standardize = True
   
   
   if data_format == 'channels_first':
     outputs = tf.transpose(outputs, [0, 2, 3, 1])
   
   
+  # TODO: Perform operations before the transpose! Might help for kernel prediction? (DeepBlender)
+  
   concat_axis = 3
   size_splits = []
   for prediction_feature in output_prediction_features:
-    size_splits.append(prediction_feature.number_of_channels)
+    if use_kernel_predicion:
+      size_splits.append(kernel_size ** 2)
+    else:
+      size_splits.append(prediction_feature.number_of_channels)
   
   with tf.name_scope('split'):
     prediction_tuple = tf.split(outputs, size_splits, concat_axis)
   for index, prediction in enumerate(prediction_tuple):
-    output_prediction_features[index].add_prediction(prediction)
+    if use_kernel_predicion:
+      prediction = KernelPrediction.kernel_prediction(output_prediction_features[index].source[0], prediction, kernel_size, data_format='channels_last')
+      output_prediction_features[index].add_prediction(prediction)
+    else:
+      output_prediction_features[index].add_prediction(prediction)
   
+  # TODO: Check whether this makes sense here with kernel prediction. (DeepBlender)
   if invert_standardize:
     for prediction_feature in output_prediction_features:
       prediction_feature.prediction_invert_standardize()
@@ -645,7 +657,7 @@ def model_fn(features, labels, mode, params):
     prediction_feature.initialize_sources_from_dictionary(features)
   
   data_format = params['data_format']
-  predictions = model(prediction_features, mode, params['use_CPU_only'], data_format)
+  predictions = model(prediction_features, mode, params['use_kernel_predicion'], params['kernel_size'], params['use_CPU_only'], data_format)
 
   if mode == tf.estimator.ModeKeys.PREDICT:
     return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
@@ -895,6 +907,9 @@ def main(parsed_arguments):
   loss_difference = parsed_json['loss_difference']
   loss_difference = LossDifferenceEnum[loss_difference]
   
+  use_kernel_predicion = parsed_json['use_kernel_predicion']
+  kernel_size = parsed_json['kernel_size']
+  
   features = parsed_json['features']
   combined_features = parsed_json['combined_features']
   combined_image = parsed_json['combined_image']
@@ -1007,10 +1022,10 @@ def main(parsed_arguments):
         statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
   
   
-  # TODO: CPU only has to be configurable.
-  # TODO: Learning rate has to be configurable.
+  # TODO: CPU only has to be configurable. (DeepBlender)
+  # TODO: Learning rate has to be configurable. (DeepBlender)
   
-  learning_rate = 1e-3
+  learning_rate = 1e-4
   use_XLA = True
   use_CPU_only = False
   
@@ -1035,6 +1050,8 @@ def main(parsed_arguments):
           'data_format': parsed_arguments.data_format,
           'learning_rate': learning_rate,
           'batch_size': parsed_arguments.batch_size,
+          'use_kernel_predicion': use_kernel_predicion,
+          'kernel_size': kernel_size,
           'training_features': training_features,
           'combined_training_features': combined_training_features,
           'combined_image_training_feature': combined_image_training_feature})
