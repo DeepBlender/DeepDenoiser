@@ -44,7 +44,7 @@ class KernelPrediction:
               input_stack.append(padded_input[:, i:padded_input.shape[height_axis] - 2 * pad + i, j:padded_input.shape[width_axis] - 2 * pad + j])
       
       input_stack = tf.concat(input_stack, axis=channel_axis)
-      input = tf.reduce_mean(tf.multiply(input_stack, kernel_inputs), axis=channel_axis, keepdims=True)
+      input = tf.reduce_sum(tf.multiply(input_stack, kernel_inputs), axis=channel_axis, keepdims=True)
       
       inputs_split[index] = input
     inputs = tf.concat(inputs_split, axis=channel_axis)
