@@ -12,12 +12,13 @@ import tensorflow as tf
 import multiprocessing
 
 import Utilities
-import Conv2dUtilities
+from Conv2dUtilities import Conv2dUtilities
 from KernelPrediction import KernelPrediction
 
 from UNet import UNet
 from Tiramisu import Tiramisu
 
+from DataAugmentation import DataAugmentation
 from LossDifference import LossDifference
 from LossDifference import LossDifferenceEnum
 from RenderPasses import RenderPasses
@@ -451,60 +452,19 @@ class TrainingFeatureAugmentation:
     if self.is_target:
       self.target = targets[RenderPasses.target_feature_name(self.name)]
   
-  @staticmethod
-  def _flip_screen_space_normals(screen_space_normals, data_format):
-    # TODO: Implement different data_formats (DeepBlender)
-    screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(screen_space_normals, [1, 1, 1], 2)
-    screen_space_normal_x = tf.negative(screen_space_normal_x)
-    result = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
-    return(result)
-  
   def flip_left_right(self, data_format):
     if data_format != 'channels_last':
       raise Exception('Channel last is the only supported format.')
     for index in range(self.number_of_sources):
-      source = tf.image.flip_left_right(self.source[index])
-      if self.name == RenderPasses.SCREEN_SPACE_NORMAL:
-        source = TrainingFeatureAugmentation._flip_screen_space_normals(source, data_format)
-      self.source[index] = source
+      self.source[index] = DataAugmentation.flip_left_right(self.source[index], self.name)
     if self.is_target:
-      self.target = tf.image.flip_left_right(self.target)
-      if self.name == RenderPasses.SCREEN_SPACE_NORMAL:
-        self.target = TrainingFeatureAugmentation._flip_screen_space_normals(self.target, data_format)
-  
-  @staticmethod
-  def _rotate_screen_space_normals(screen_space_normals, rotate, data_format):
-    screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(screen_space_normals, [1, 1, 1], 2)
-    if rotate == 1:
-      # x -> -y
-      # y -> x
-      temporary_screen_space_normal_x = screen_space_normal_x
-      screen_space_normal_x = tf.negative(screen_space_normal_y)
-      screen_space_normal_y = temporary_screen_space_normal_x
-    elif rotate == 2:
-      # x -> -x
-      # y -> -y
-      screen_space_normal_x = tf.negative(screen_space_normal_x)
-      screen_space_normal_y = tf.negative(screen_space_normal_y)
-    elif rotate == 3:
-      # x -> y
-      # y -> -x
-      temporary_screen_space_normal_y = screen_space_normal_y
-      screen_space_normal_y = tf.negative(screen_space_normal_x)
-      screen_space_normal_x = temporary_screen_space_normal_y
-    result = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], 2)
-    return(result)
+      self.target = DataAugmentation.flip_left_right(self.target, self.name)
   
   def rotate90(self, k, data_format):
     for index in range(self.number_of_sources):
-      source = tf.image.rot90(self.source[index], k=k)
-      if self.name == RenderPasses.SCREEN_SPACE_NORMAL:
-        source = TrainingFeatureAugmentation._rotate_screen_space_normals(source, k, data_format)
-      self.source[index] = source
+      self.source[index] = DataAugmentation.rotate90(self.source[index], k, self.name)
     if self.is_target:
-      self.target = tf.image.rot90(self.target, k=k)
-      if self.name == RenderPasses.SCREEN_SPACE_NORMAL:
-        self.target = TrainingFeatureAugmentation._rotate_screen_space_normals(self.target, k, data_format)
+      self.target = DataAugmentation.rotate90(self.target, k, self.name)
   
   def add_to_sources_dictionary(self, sources):
     for index in range(self.number_of_sources):
@@ -600,20 +560,25 @@ def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_CPU_
     else:
       outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], concat_axis)
     
-    unet = UNet(
-        number_of_filters_for_convolution_blocks=[256, 256, 256],
-        number_of_convolutions_per_block=2, number_of_output_filters=output_size,
-        activation_function=global_activation_function, data_format=data_format)
-    outputs = unet.unet(outputs)
-    invert_standardize = True
-    
-    # tiramisu = Tiramisu(
-        # number_of_preprocessing_convolution_filters=32,
-        # number_of_filters_for_convolution_blocks=[16, 32, 64],
+    # TODO: Make it configurable (DeepBlender)
+    use_batch_normalization = True
+    dropout_rate = 0.1
+    # unet = UNet(
+        # number_of_filters_for_convolution_blocks=[64, 128, 128],
         # number_of_convolutions_per_block=2, number_of_output_filters=output_size,
-        # activation_function=global_activation_function, data_format=data_format)
-    # outputs = tiramisu.tiramisu(outputs)
+        # activation_function=global_activation_function, use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
+        # data_format=data_format)
+    # outputs = unet.unet(outputs, is_training)
     # invert_standardize = True
+    
+    tiramisu = Tiramisu(
+        number_of_preprocessing_convolution_filters=32,
+        number_of_filters_for_convolution_blocks=[16, 32, 64],
+        number_of_convolutions_per_block=2, number_of_output_filters=output_size,
+        activation_function=global_activation_function, use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
+        data_format=data_format)
+    outputs = tiramisu.tiramisu(outputs, is_training)
+    invert_standardize = True
   
   
   if data_format == 'channels_first':
@@ -1025,7 +990,7 @@ def main(parsed_arguments):
   # TODO: CPU only has to be configurable. (DeepBlender)
   # TODO: Learning rate has to be configurable. (DeepBlender)
   
-  learning_rate = 1e-4
+  learning_rate = 1e-3
   use_XLA = True
   use_CPU_only = False
   

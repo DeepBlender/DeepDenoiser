@@ -3,7 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
-import Conv2dUtilities
+from Conv2dUtilities import Conv2dUtilities
 
 class KernelPrediction:
 

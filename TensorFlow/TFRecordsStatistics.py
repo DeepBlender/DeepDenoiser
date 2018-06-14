@@ -11,7 +11,7 @@ from RenderPasses import RenderPassesUsage
 from FeatureStatistics import Statistics
 from FeatureStatistics import FeatureStatistics
 import Utilities
-import Conv2dUtilities
+from Conv2dUtilities import Conv2dUtilities
 
 
 class TFRecordsStatistics:

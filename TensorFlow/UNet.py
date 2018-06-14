@@ -5,7 +5,7 @@
 #
 
 import tensorflow as tf
-import Conv2dUtilities
+from Conv2dUtilities import Conv2dUtilities
 
 class UNet:
 
