@@ -12,11 +12,7 @@ class LossDifferenceEnum(Enum):
 class LossDifference:
   
   @staticmethod
-  def difference(predicted, target, loss_difference, use_difference_of_log1p=False):
-    if use_difference_of_log1p:
-      predicted = Utilities.signed_log1p(predicted)
-      target = Utilities.signed_log1p(target)
-    
+  def difference(predicted, target, loss_difference, epsilon=1e-2):
     if loss_difference == LossDifferenceEnum.DIFFERENCE:
       result = tf.subtract(predicted, target)
     elif loss_difference == LossDifferenceEnum.ABSOLUTE:
@@ -34,7 +30,7 @@ class LossDifference:
     elif loss_difference == LossDifferenceEnum.SMAPE:
       # https://en.wikipedia.org/wiki/Symmetric_mean_absolute_percentage_error
       absolute_difference = tf.abs(tf.subtract(predicted, target))
-      denominator = tf.add(tf.add(tf.abs(predicted), tf.abs(target)), 1e-2)
+      denominator = tf.add(tf.add(tf.abs(predicted), tf.abs(target)), epsilon)
       result = tf.divide(absolute_difference, denominator)
     result = tf.reduce_sum(result, axis=3)
     return result
