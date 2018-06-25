@@ -45,16 +45,16 @@ class FeatureEngineering:
     
     return inputs
   
-  def variance(inputs, relative=False, one_output_channel=False, epsilon=1e-5, data_format='channels_last'):
+  def variance(inputs, relative_variance=False, compress_to_one_channel=False, epsilon=1e-5, data_format='channels_last'):
     mean_of_inputs = FeatureEngineering._local_mean(inputs, data_format)
     squared_mean_of_inputs = tf.square(mean_of_inputs)
     mean_of_squared_inputs = FeatureEngineering._local_mean(tf.square(inputs), data_format)
     result = tf.subtract(mean_of_squared_inputs, squared_mean_of_inputs)
     
-    if relative:
+    if relative_variance:
       result = tf.divide(result, tf.maximum(squared_mean_of_inputs, epsilon))
     
-    if one_output_channel:
+    if compress_to_one_channel:
       channel_axis = Conv2dUtilities.channel_axis(inputs, data_format)
       result = tf.reduce_mean(result, axis=channel_axis, keepdims=True)
     

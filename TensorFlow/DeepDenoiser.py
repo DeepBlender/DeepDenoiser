@@ -22,6 +22,7 @@ from DataAugmentation import DataAugmentation
 from LossDifference import LossDifference
 from LossDifference import LossDifferenceEnum
 from RenderPasses import RenderPasses
+from FeatureEngineering import FeatureEngineering
 
 parser = argparse.ArgumentParser(description='Training and inference for the DeepDenoiser.')
 
@@ -96,26 +97,56 @@ class FeatureStandardization:
     return feature
 
 
+class FeatureVariance:
+
+  def __init__(self, use_variance, relative_variance, compute_before_standardization, compress_to_one_channel, name):
+    self.use_variance = use_variance
+    self.relative_variance = relative_variance
+    self.compute_before_standardization = compute_before_standardization
+    self.compress_to_one_channel = compress_to_one_channel
+    self.name = name
+  
+  def variance(self, inputs, epsilon=1e-5, data_format='channels_last'):
+    assert self.use_variance
+    with tf.name_scope('variance_' + RenderPasses.tensorboard_name(self.name)):
+      result = FeatureEngineering.variance(inputs, relative_variance=self.relative_variance, compress_to_one_channel=self.compress_to_one_channel, epsilon=epsilon, data_format=data_format)
+    return result
+  
+
 class PredictionFeature:
 
-  def __init__(self, number_of_sources, is_target, feature_standardization, number_of_channels, name):
+  def __init__(self, number_of_sources, is_target, feature_standardization, feature_variance, number_of_channels, name):
     self.number_of_sources = number_of_sources
     self.is_target = is_target
     self.feature_standardization = feature_standardization
+    self.feature_variance = feature_variance
     self.number_of_channels = number_of_channels
     self.name = name
 
   def initialize_sources_from_dictionary(self, dictionary):
     self.source = []
+    self.variance = []
     for index in range(self.number_of_sources):
       source_at_index = dictionary[RenderPasses.source_feature_name_indexed(self.name, index)]
       self.source.append(source_at_index)
 
   def standardize(self):
+    if self.feature_variance.use_variance and self.feature_variance.compute_before_standardization:
+      for index in range(self.number_of_sources):
+        assert len(self.variance) == index
+        variance = self.feature_variance.variance(self.source[index], data_format='channels_last')
+        self.variance.append(variance)
+    
     if self.feature_standardization != None:
       for index in range(self.number_of_sources):
         self.source[index] = self.feature_standardization.standardize(self.source[index], index)
-
+    
+    if self.feature_variance.use_variance and not self.feature_variance.compute_before_standardization:
+      for index in range(self.number_of_sources):
+        assert len(self.variance) == index
+        variance = self.feature_variance.variance(self.source[index], data_format='channels_last')
+        self.variance.append(variance)
+  
   def prediction_invert_standardize(self):
     if self.feature_standardization != None:
       self.prediction = self.feature_standardization.invert_standardize(self.prediction)
@@ -493,14 +524,24 @@ def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_CPU_
           source = prediction_feature.source[index]
           if index == 0:
             prediction_inputs.append(source)
+            if prediction_feature.feature_variance.use_variance:
+              source_variance = prediction_feature.variance[index]
+              prediction_inputs.append(source_variance)
           else:
             auxiliary_prediction_inputs.append(source)
+            if prediction_feature.feature_variance.use_variance:
+              source_variance = prediction_feature.variance[index]
+              auxiliary_prediction_inputs.append(source_variance)
       else:
         for index in range(prediction_feature.number_of_sources):
           source = prediction_feature.source[index]
           auxiliary_inputs.append(source)
-    
+          if prediction_feature.feature_variance.use_variance:
+            source_variance = prediction_feature.variance[index]
+            auxiliary_inputs.append(source_variance)
+          
     prediction_inputs = tf.concat(prediction_inputs, concat_axis)
+    
     if len(auxiliary_prediction_inputs) > 0:
       auxiliary_prediction_inputs = tf.concat(auxiliary_prediction_inputs, concat_axis)
     else:
@@ -561,24 +602,24 @@ def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_CPU_
       outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], concat_axis)
     
     # TODO: Make it configurable (DeepBlender)
-    use_batch_normalization = True
-    dropout_rate = 0.1
-    # unet = UNet(
-        # number_of_filters_for_convolution_blocks=[64, 128, 128],
-        # number_of_convolutions_per_block=2, number_of_output_filters=output_size,
-        # activation_function=global_activation_function, use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
-        # data_format=data_format)
-    # outputs = unet.unet(outputs, is_training)
-    # invert_standardize = True
-    
-    tiramisu = Tiramisu(
-        number_of_preprocessing_convolution_filters=32,
-        number_of_filters_for_convolution_blocks=[16, 32, 64],
+    use_batch_normalization = False
+    dropout_rate = 0.0
+    unet = UNet(
+        number_of_filters_for_convolution_blocks=[64, 128, 128],
         number_of_convolutions_per_block=2, number_of_output_filters=output_size,
         activation_function=global_activation_function, use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
         data_format=data_format)
-    outputs = tiramisu.tiramisu(outputs, is_training)
+    outputs = unet.unet(outputs, is_training)
     invert_standardize = True
+    
+    # tiramisu = Tiramisu(
+        # number_of_preprocessing_convolution_filters=32,
+        # number_of_filters_for_convolution_blocks=[16, 32, 64],
+        # number_of_convolutions_per_block=2, number_of_output_filters=output_size,
+        # activation_function=global_activation_function, use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
+        # data_format=data_format)
+    # outputs = tiramisu.tiramisu(outputs, is_training)
+    # invert_standardize = True
   
   
   if data_format == 'channels_first':
@@ -910,9 +951,11 @@ def main(parsed_arguments):
     
     # REMARK: It is assumed that there are no features which are only a target, without also being a source.
     if feature['is_source']:
+      feature_variance = feature['feature_variance']
+      feature_variance = FeatureVariance(feature_variance['use_variance'], feature_variance['relative_variance'], feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'], feature_name)
       feature_standardization = feature['standardization']
-      feature_standardization = FeatureStandardization(feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'], feature_name)
-      prediction_feature = PredictionFeature(number_of_sources_per_target, feature['is_target'], feature_standardization, feature['number_of_channels'], feature_name)
+      feature_standardization = FeatureStandardization(feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'], feature_name)      
+      prediction_feature = PredictionFeature(number_of_sources_per_target, feature['is_target'], feature_standardization, feature_variance, feature['number_of_channels'], feature_name)
       prediction_features.append(prediction_feature)
   
   

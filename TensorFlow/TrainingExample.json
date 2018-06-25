@@ -97,6 +97,12 @@
 			"is_source": true,
 			"is_target": false,
 			"number_of_channels": 1,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": false,
 				"mean": 0.0,
@@ -119,6 +125,12 @@
 			"is_source": true,
 			"is_target": false,
 			"number_of_channels": 1,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.0,
@@ -141,6 +153,12 @@
 			"is_source": false,
 			"is_target": false,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": false,
 				"mean": 0.0,
@@ -163,6 +181,12 @@
 			"is_source": true,
 			"is_target": false,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": false,
 				"mean": 0.25535839796066284,
@@ -186,6 +210,12 @@
 			"is_source": false,
 			"is_target": false,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.0,
@@ -208,6 +238,12 @@
 			"is_source": false,
 			"is_target": false,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.0,
@@ -231,6 +267,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.003993552643805742,
@@ -253,6 +295,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.019954385235905647,
@@ -276,6 +324,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": false,
 				"mean": 0.21192021667957306,
@@ -298,6 +352,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 1.1019212007522583,
@@ -320,6 +380,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.19995230436325073,
@@ -342,6 +408,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": false,
 				"mean": 0.19423390924930573,
@@ -364,6 +436,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.6574652194976807,
@@ -386,6 +464,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.2160816639661789,
@@ -408,6 +492,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": false,
 				"mean": 0.002540657529607415,
@@ -430,6 +520,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.44964927434921265,
@@ -452,6 +548,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.1317073255777359,
@@ -474,6 +576,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": false,
 				"mean": 0.04961748421192169,
@@ -496,6 +604,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.2579529881477356,
@@ -518,6 +632,12 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_variance": {
+				"use_variance": true,
+				"relative_variance": true,
+				"compute_before_standardization": true,
+				"compress_to_one_channel": true
+			},
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.5192984938621521,
