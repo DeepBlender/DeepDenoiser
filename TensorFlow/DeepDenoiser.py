@@ -115,8 +115,9 @@ class FeatureVariance:
 
 class PredictionFeature:
 
-  def __init__(self, number_of_sources, is_target, feature_standardization, feature_variance, number_of_channels, name):
+  def __init__(self, number_of_sources, preserve_source, is_target, feature_standardization, feature_variance, number_of_channels, name):
     self.number_of_sources = number_of_sources
+    self.preserve_source = preserve_source
     self.is_target = is_target
     self.feature_standardization = feature_standardization
     self.feature_variance = feature_variance
@@ -137,6 +138,8 @@ class PredictionFeature:
         variance = self.feature_variance.variance(self.source[index], data_format='channels_last')
         self.variance.append(variance)
     
+    if self.preserve_source:
+      self.preserved_source = self.source[0]
     if self.feature_standardization != None:
       for index in range(self.number_of_sources):
         self.source[index] = self.feature_standardization.standardize(self.source[index], index)
@@ -587,7 +590,6 @@ def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_CPU_
   
   invert_standardize = False
   
-  
   with tf.name_scope('model'):
     
     concat_axis = Conv2dUtilities.channel_axis(prediction_inputs, data_format)
@@ -639,16 +641,17 @@ def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_CPU_
   with tf.name_scope('split'):
     prediction_tuple = tf.split(outputs, size_splits, concat_axis)
   for index, prediction in enumerate(prediction_tuple):
-    if use_kernel_predicion:
-      prediction = KernelPrediction.kernel_prediction(output_prediction_features[index].source[0], prediction, kernel_size, data_format='channels_last')
-      output_prediction_features[index].add_prediction(prediction)
-    else:
-      output_prediction_features[index].add_prediction(prediction)
+    output_prediction_features[index].add_prediction(prediction)
   
-  # TODO: Check whether this makes sense here with kernel prediction. (DeepBlender)
   if invert_standardize:
     for prediction_feature in output_prediction_features:
       prediction_feature.prediction_invert_standardize()
+  
+  if use_kernel_predicion:
+    for prediction_feature in output_prediction_features:
+      assert prediction_feature.preserve_source
+      prediction = KernelPrediction.kernel_prediction(prediction_feature.preserved_source, prediction_feature.prediction, kernel_size, data_format='channels_last')
+      prediction_feature.add_prediction(prediction)
   
   prediction_dictionary = {}
   for prediction_feature in output_prediction_features:
@@ -951,11 +954,12 @@ def main(parsed_arguments):
     
     # REMARK: It is assumed that there are no features which are only a target, without also being a source.
     if feature['is_source']:
+      preserve_source = use_kernel_predicion
       feature_variance = feature['feature_variance']
       feature_variance = FeatureVariance(feature_variance['use_variance'], feature_variance['relative_variance'], feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'], feature_name)
       feature_standardization = feature['standardization']
       feature_standardization = FeatureStandardization(feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'], feature_name)      
-      prediction_feature = PredictionFeature(number_of_sources_per_target, feature['is_target'], feature_standardization, feature_variance, feature['number_of_channels'], feature_name)
+      prediction_feature = PredictionFeature(number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, feature_variance, feature['number_of_channels'], feature_name)
       prediction_features.append(prediction_feature)
   
   
