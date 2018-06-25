@@ -16,6 +16,7 @@ class FeatureEngineering:
     channel_axis = Conv2dUtilities.channel_axis(inputs, data_format)
     height_axis, width_axis = Conv2dUtilities.height_width_axis(inputs, data_format)
     number_of_channels = Conv2dUtilities.number_of_channels(inputs, data_format)
+    is_batched = Conv2dUtilities.is_batched(inputs)
     pad = (kernel_size - 1) // 2
     
     if data_format == 'channels_last':
@@ -28,14 +29,16 @@ class FeatureEngineering:
     joined_inputs = []
     for index in range(number_of_channels):
       padded_input = padded_inputs_split[index]
-      padded_input = tf.stack([padded_input])
+      if not is_batched:
+        padded_input = tf.stack([padded_input])
       
       filter = tf.ones([kernel_size, kernel_size, 1, 1])
       filter = tf.divide(filter, tf.cast(kernel_size**2, tf.float32))
       
-      batched_input = tf.nn.conv2d(padded_input, filter=filter, strides=[1, 1, 1, 1], padding='VALID', data_format=short_data_format)
+      input = tf.nn.conv2d(padded_input, filter=filter, strides=[1, 1, 1, 1], padding='VALID', data_format=short_data_format)
       
-      input = batched_input[0]
+      if not is_batched:
+        input = input[0]
       joined_inputs.append(input)
     
     inputs = tf.concat(joined_inputs, axis=channel_axis)
