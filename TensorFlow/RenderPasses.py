@@ -57,35 +57,39 @@ class RenderPasses:
     return 'prediction/' + render_pass_name
   
   @staticmethod
-  def tensorboard_name(render_pass_name):
-    if render_pass_name.endswith(' Direct'):
-      render_pass_name = render_pass_name.replace(' Direct', ' Masked Direct')
-    if render_pass_name.endswith(' Indirect'):
-      render_pass_name = render_pass_name.replace(' Indirect', ' Masked Indirect')
+  def tensorboard_name(render_pass_name, masked=False):
+    if masked:
+      render_pass_name = render_pass_name + ' Masked'
     return render_pass_name.lower().replace(' ', '_')
   
   @staticmethod
-  def variation_name(render_pass_name):
+  def variation_name(render_pass_name, masked=False):
     result = render_pass_name
     if RenderPasses.is_combined_render_pass(render_pass_name):
       result = 'combined_' + render_pass_name
     result = RenderPasses.tensorboard_name(result) + '_variation'
+    if masked:
+      result = result + '_masked'
     return result
   
   @staticmethod
-  def ms_ssim_name(render_pass_name):
+  def ms_ssim_name(render_pass_name, masked=False):
     result = render_pass_name
     if RenderPasses.is_combined_render_pass(render_pass_name):
       result = 'combined_' + render_pass_name
     result = RenderPasses.tensorboard_name(result) + '_ms_ssim'
+    if masked:
+      result = result + '_masked'
     return result
   
   @staticmethod
-  def mean_name(render_pass_name):
+  def mean_name(render_pass_name, masked=False):
     result = render_pass_name
     if RenderPasses.is_combined_render_pass(render_pass_name):
       result = 'combined_' + render_pass_name
     result = RenderPasses.tensorboard_name(result) + '_mean'
+    if masked:
+      result = result + '_masked'
     return result
   
   @staticmethod

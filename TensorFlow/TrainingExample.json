@@ -368,8 +368,20 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
 				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
+				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -396,8 +408,20 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
 				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
+				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -452,8 +476,20 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
 				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
+				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -480,8 +516,20 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
 				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
+				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -536,8 +584,20 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
 				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
+				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -564,8 +624,20 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
 				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
+				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -620,8 +692,20 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
 				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
+				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -648,8 +732,20 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
 				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
+				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,

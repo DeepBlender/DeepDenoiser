@@ -169,8 +169,11 @@ class BaseTrainingFeature:
   def __init__(
       self, name, loss_difference,
       mean_weight, variation_weight, ms_ssim_weight,
+      masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
-      track_difference_histogram, track_variation_difference_histogram):
+      track_difference_histogram, track_variation_difference_histogram,
+      track_masked_mean, track_masked_variation, track_masked_ms_ssim,
+      track_masked_difference_histogram, track_masked_variation_difference_histogram):
       
     self.name = name
     self.loss_difference = loss_difference
@@ -178,12 +181,20 @@ class BaseTrainingFeature:
     self.mean_weight = mean_weight
     self.variation_weight = variation_weight
     self.ms_ssim_weight = ms_ssim_weight
+    self.masked_mean_weight = masked_mean_weight
+    self.masked_variation_weight = masked_variation_weight
+    self.masked_ms_ssim_weight = masked_ms_ssim_weight
     
     self.track_mean = track_mean
     self.track_variation = track_variation
     self.track_ms_ssim = track_ms_ssim
     self.track_difference_histogram = track_difference_histogram
     self.track_variation_difference_histogram = track_variation_difference_histogram
+    self.track_masked_mean = track_masked_mean
+    self.track_masked_variation = track_masked_variation
+    self.track_masked_ms_ssim = track_masked_ms_ssim
+    self.track_masked_difference_histogram = track_masked_difference_histogram
+    self.track_masked_variation_difference_histogram = track_masked_variation_difference_histogram
   
   
   def difference(self):
@@ -212,24 +223,20 @@ class BaseTrainingFeature:
           tf.layers.flatten(self.vertical_variation_difference())], axis=1)
     return result
   
+  def masked_difference(self):
+    result = tf.multiply(self.difference(), self.mask)
+    return result
+  
+  def masked_variation_difference(self):
+    result = tf.multiply(self.variation_difference(), self.mask)
+    return result
+  
   def mean(self):
-    if RenderPasses.is_direct_or_indirect_render_pass(self.name):
-      result = tf.cond(
-          tf.greater(self.mask_sum, 0.),
-          lambda: tf.reduce_sum(tf.divide(tf.multiply(self.difference(), self.mask), self.mask_sum)),
-          lambda: tf.constant(0.))
-    else:
-      result = tf.reduce_mean(self.difference())
+    result = tf.reduce_mean(self.difference())
     return result
   
   def variation(self):
-    if RenderPasses.is_direct_or_indirect_render_pass(self.name):
-      result = tf.cond(
-          tf.greater(self.mask_sum, 0.),
-          lambda: tf.reduce_sum(tf.divide(tf.multiply(self.variation_difference(), self.mask), self.mask_sum)),
-          lambda: tf.constant(0.))
-    else:
-      result = tf.reduce_mean(self.variation_difference())
+    result = tf.reduce_mean(self.variation_difference())
     return result
   
   def ms_ssim(self):
@@ -260,10 +267,28 @@ class BaseTrainingFeature:
     result = tf.subtract(1., tf.reduce_mean(ms_ssim))
     return result
   
+  def masked_mean(self):
+    result = tf.cond(
+        tf.greater(self.mask_sum, 0.),
+        lambda: tf.reduce_sum(tf.divide(tf.multiply(self.difference(), self.mask), self.mask_sum)),
+        lambda: tf.constant(0.))
+    return result
+  
+  def masked_variation(self):
+    result = tf.cond(
+        tf.greater(self.mask_sum, 0.),
+        lambda: tf.reduce_sum(tf.divide(tf.multiply(self.variation_difference(), self.mask), self.mask_sum)),
+        lambda: tf.constant(0.))
+    return result
+  
+  def masked_ms_ssim(self):
+    raise Exception('Not implemented')
+  
   
   def loss(self):
     with tf.name_scope('loss_' + RenderPasses.tensorboard_name(self.name)):
       result = 0.0
+      
       if self.mean_weight > 0.0:
         with tf.name_scope('loss_' + RenderPasses.mean_name(self.name)):
           result = tf.add(result, tf.scalar_mul(self.mean_weight, self.mean()))
@@ -273,6 +298,16 @@ class BaseTrainingFeature:
       if self.ms_ssim_weight > 0.0:
         with tf.name_scope('loss_' + RenderPasses.ms_ssim_name(self.name)):
           result = tf.add(result, tf.scalar_mul(self.ms_ssim_weight, self.ms_ssim()))
+      
+      if self.masked_mean_weight > 0.0:
+        with tf.name_scope('loss_' + RenderPasses.mean_name(self.name, True)):
+          result = tf.add(result, tf.scalar_mul(self.masked_mean_weight, self.masked_mean()))
+      if self.masked_variation_weight > 0.0:
+        with tf.name_scope('loss_' + RenderPasses.variation_name(self.name, True)):
+          result = tf.add(result, tf.scalar_mul(self.masked_variation_weight, self.masked_variation()))
+      if self.masked_ms_ssim_weight > 0.0:
+        with tf.name_scope('loss_' + RenderPasses.ms_ssim_name(self.name, True)):
+          result = tf.add(result, tf.scalar_mul(self.masked_ms_ssim_weight, self.masked_ms_ssim()))
     return result
     
   
@@ -283,12 +318,24 @@ class BaseTrainingFeature:
       tf.summary.scalar(RenderPasses.variation_name(self.name), self.variation())
     if self.track_ms_ssim:
       tf.summary.scalar(RenderPasses.ms_ssim_name(self.name), self.ms_ssim())
+    
+    if self.track_masked_mean:
+      tf.summary.scalar(RenderPasses.mean_name(self.name, True), self.masked_mean())
+    if self.track_masked_variation:
+      tf.summary.scalar(RenderPasses.variation_name(self.name, True), self.masked_variation())
+    if self.track_masked_ms_ssim:
+      tf.summary.scalar(RenderPasses.ms_ssim_name(self.name, True), self.masked_ms_ssim())
   
   def add_tracked_histograms(self):
     if self.track_difference_histogram:
       tf.summary.histogram(RenderPasses.tensorboard_name(self.name), self.difference())
     if self.track_variation_difference_histogram:
       tf.summary.histogram(RenderPasses.variation_name(self.name), self.variation_difference())
+    
+    if self.track_masked_difference_histogram:
+      tf.summary.histogram(RenderPasses.tensorboard_name(self.name, True), self.masked_difference())
+    if self.track_masked_variation_difference_histogram:
+      tf.summary.histogram(RenderPasses.variation_name(self.name, True), self.masked_variation_difference())
     
   def add_tracked_metrics_to_dictionary(self, dictionary):
     if self.track_mean:
@@ -297,6 +344,13 @@ class BaseTrainingFeature:
       dictionary[RenderPasses.variation_name(self.name)] = tf.metrics.mean(self.variation())
     if self.track_ms_ssim:
       dictionary[RenderPasses.ms_ssim_name(self.name)] = tf.metrics.mean(self.ms_ssim())
+    
+    if self.track_masked_mean:
+      dictionary[RenderPasses.mean_name(self.name, True)] = tf.metrics.mean(self.masked_mean())
+    if self.track_masked_variation:
+      dictionary[RenderPasses.variation_name(self.name, True)] = tf.metrics.mean(self.masked_variation())
+    if self.track_masked_ms_ssim:
+      dictionary[RenderPasses.ms_ssim_name(self.name, True)] = tf.metrics.mean(self.masked_ms_ssim())
 
   @staticmethod
   def __horizontal_variation(image_batch):
@@ -347,14 +401,20 @@ class TrainingFeature(BaseTrainingFeature):
   def __init__(
       self, name, loss_difference,
       mean_weight, variation_weight, ms_ssim_weight,
+      masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
-      track_difference_histogram, track_variation_difference_histogram):
+      track_difference_histogram, track_variation_difference_histogram,
+      track_masked_mean, track_masked_variation, track_masked_ms_ssim,
+      track_masked_difference_histogram, track_masked_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
         self, name, loss_difference,
         mean_weight, variation_weight, ms_ssim_weight,
+        masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
         track_mean, track_variation, track_ms_ssim,
-        track_difference_histogram, track_variation_difference_histogram)
+        track_difference_histogram, track_variation_difference_histogram,
+        track_masked_mean, track_masked_variation, track_masked_ms_ssim,
+        track_masked_difference_histogram, track_masked_variation_difference_histogram)
   
   def initialize(self, source_features, predicted_features, target_features):
     self.predicted = predicted_features[RenderPasses.prediction_feature_name(self.name)]
@@ -372,14 +432,20 @@ class CombinedTrainingFeature(BaseTrainingFeature):
       self, name, loss_difference,
       color_training_feature, direct_training_feature, indirect_training_feature,
       mean_weight, variation_weight, ms_ssim_weight,
+      masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
-      track_difference_histogram, track_variation_difference_histogram):
+      track_difference_histogram, track_variation_difference_histogram,
+      track_masked_mean, track_masked_variation, track_masked_ms_ssim,
+      track_masked_difference_histogram, track_masked_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
         self, name, loss_difference,
         mean_weight, variation_weight, ms_ssim_weight,
+        masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
         track_mean, track_variation, track_ms_ssim,
-        track_difference_histogram, track_variation_difference_histogram)
+        track_difference_histogram, track_variation_difference_histogram,
+        track_masked_mean, track_masked_variation, track_masked_ms_ssim,
+        track_masked_difference_histogram, track_masked_variation_difference_histogram)
     
     self.color_training_feature = color_training_feature
     self.direct_training_feature = direct_training_feature
@@ -407,14 +473,20 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
       subsurface_training_feature, transmission_training_feature,
       emission_training_feature, environment_training_feature,
       mean_weight, variation_weight, ms_ssim_weight,
+      masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
-      track_difference_histogram, track_variation_difference_histogram):
+      track_difference_histogram, track_variation_difference_histogram,
+      track_masked_mean, track_masked_variation, track_masked_ms_ssim,
+      track_masked_difference_histogram, track_masked_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
         self, name, loss_difference,
         mean_weight, variation_weight, ms_ssim_weight,
+        masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
         track_mean, track_variation, track_ms_ssim,
-        track_difference_histogram, track_variation_difference_histogram)
+        track_difference_histogram, track_variation_difference_histogram,
+        track_masked_mean, track_masked_variation, track_masked_ms_ssim,
+        track_masked_difference_histogram, track_masked_variation_difference_histogram)
     
     self.diffuse_training_feature = diffuse_training_feature
     self.glossy_training_feature = glossy_training_feature
@@ -970,13 +1042,40 @@ def main(parsed_arguments):
   for feature_name in feature_names:
     feature = features[feature_name]
     if feature['is_source'] and feature['is_target']:
-      statistics = feature['statistics']
+      
+      # Training loss
+      
       loss_weights = feature['loss_weights']
+      if 'loss_weights_masked' in feature:
+        loss_weights_masked = feature['loss_weights_masked']
+      else:
+        loss_weights_masked = {}
+        loss_weights_masked['mean'] = 0.0
+        loss_weights_masked['variation'] = 0.0
+        loss_weights_masked['ms_ssim'] = 0.0
+      
+      
+      # Training metrics
+      
+      statistics = feature['statistics']
+      if 'statistics_masked' in feature:
+        statistics_masked = feature['statistics_masked']
+      else:
+        statistics_masked = {}
+        statistics_masked['track_mean'] = False
+        statistics_masked['track_variation'] = False
+        statistics_masked['track_ms_ssim'] = False
+        statistics_masked['track_difference_histogram'] = False
+        statistics_masked['track_variation_difference_histogram'] = False
+        
       training_feature = TrainingFeature(
           feature_name, loss_difference,
           loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
+          loss_weights_masked['mean'], loss_weights_masked['variation'], loss_weights_masked['ms_ssim'],
           statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
-          statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
+          statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'],
+          statistics_masked['track_mean'], statistics_masked['track_variation'], statistics_masked['track_ms_ssim'],
+          statistics_masked['track_difference_histogram'], statistics_masked['track_variation_difference_histogram'])
       training_features.append(training_feature)
       feature_name_to_training_feature[feature_name] = training_feature
 
@@ -1006,8 +1105,11 @@ def main(parsed_arguments):
           feature_name_to_training_feature[direct_feature_name],
           feature_name_to_training_feature[indirect_feature_name],
           loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
+          0.0, 0.0, 0.0,
           statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
-          statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
+          statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'],
+          0.0, 0.0, 0.0,
+          0.0, 0.0)
       combined_training_features.append(combined_training_feature)
       combined_feature_name_to_combined_training_feature[combined_feature_name] = combined_training_feature
         
@@ -1030,8 +1132,11 @@ def main(parsed_arguments):
         feature_name_to_training_feature[RenderPasses.EMISSION],
         feature_name_to_training_feature[RenderPasses.ENVIRONMENT],
         loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
+        0.0, 0.0, 0.0,
         statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
-        statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'])
+        statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'],
+        0.0, 0.0, 0.0,
+        0.0, 0.0)
   
   
   # TODO: CPU only has to be configurable. (DeepBlender)
