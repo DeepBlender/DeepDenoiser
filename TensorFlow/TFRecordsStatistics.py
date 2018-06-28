@@ -27,36 +27,58 @@ class TFRecordsStatistics:
   
     # Prepare the data structures.
   
-    minimums = {}
-    maximums = {}
-    means = {}
-    variances = {}
-    minimums_log1p = {}
-    maximums_log1p = {}
-    means_log1p = {}
-    variances_log1p = {}
+    self.minimums = {}
+    self.maximums = {}
+    self.means = {}
+    self.variances = {}
+    self.minimums_log1p = {}
+    self.maximums_log1p = {}
+    self.means_log1p = {}
+    self.variances_log1p = {}
     
     for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
       source_feature_name = RenderPasses.source_feature_name(source_render_pass)
-      minimums[source_feature_name] = []
-      maximums[source_feature_name] = []
-      means[source_feature_name] = []
-      variances[source_feature_name] = []
-      minimums_log1p[source_feature_name] = []
-      maximums_log1p[source_feature_name] = []
-      means_log1p[source_feature_name] = []
-      variances_log1p[source_feature_name] = []
+      self.minimums[source_feature_name] = []
+      self.maximums[source_feature_name] = []
+      self.means[source_feature_name] = []
+      self.variances[source_feature_name] = []
+      self.minimums_log1p[source_feature_name] = []
+      self.maximums_log1p[source_feature_name] = []
+      self.means_log1p[source_feature_name] = []
+      self.variances_log1p[source_feature_name] = []
+      
+      if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
+        source_feature_name = RenderPasses.source_feature_name_masked(source_render_pass)
+        self.minimums[source_feature_name] = []
+        self.maximums[source_feature_name] = []
+        self.means[source_feature_name] = []
+        self.variances[source_feature_name] = []
+        self.minimums_log1p[source_feature_name] = []
+        self.maximums_log1p[source_feature_name] = []
+        self.means_log1p[source_feature_name] = []
+        self.variances_log1p[source_feature_name] = []
     
     for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
       target_feature_name = RenderPasses.target_feature_name(target_render_pass)
-      minimums[target_feature_name] = []
-      maximums[target_feature_name] = []
-      means[target_feature_name] = []
-      variances[target_feature_name] = []
-      minimums_log1p[target_feature_name] = []
-      maximums_log1p[target_feature_name] = []
-      means_log1p[target_feature_name] = []
-      variances_log1p[target_feature_name] = []
+      self.minimums[target_feature_name] = []
+      self.maximums[target_feature_name] = []
+      self.means[target_feature_name] = []
+      self.variances[target_feature_name] = []
+      self.minimums_log1p[target_feature_name] = []
+      self.maximums_log1p[target_feature_name] = []
+      self.means_log1p[target_feature_name] = []
+      self.variances_log1p[target_feature_name] = []
+      
+      if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
+        target_feature_name = RenderPasses.target_feature_name_masked(target_render_pass)
+        self.minimums[target_feature_name] = []
+        self.maximums[target_feature_name] = []
+        self.means[target_feature_name] = []
+        self.variances[target_feature_name] = []
+        self.minimums_log1p[target_feature_name] = []
+        self.maximums_log1p[target_feature_name] = []
+        self.means_log1p[target_feature_name] = []
+        self.variances_log1p[target_feature_name] = []
     
     
     # Iterate through the tfrecords to compute the usual and log1p statistics for minimum, maximum and mean.
@@ -67,74 +89,21 @@ class TFRecordsStatistics:
         source_features, target_features = iterator.get_next()
         
         for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
-        
           for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
             source_feature_name = RenderPasses.source_feature_name(source_render_pass)
-            
-            # For direct and indirect passes, we only care about the relevant pixels. We create a mask for this.
-            # It depends on the corresponding ground truth color pass. Whenever that one is not black, the pixels
-            # of the direct and indirect passes matter.
-            
-            use_mask = False
-            if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
-              corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(source_render_pass)
-              corresponding_target_feature = target_features[RenderPasses.target_feature_name(corresponding_color_pass)]
-              mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
-              mask_sum = tf.reduce_sum(mask)
-              use_mask = True
-              
-              # Adjust the mask, such that it can be multiplied with the feature.
-              mask = tf.stack([mask, mask, mask], axis=2)
-            
             source_feature = source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)]
-            minimums[source_feature_name].append(tf.reduce_min(source_feature))
-            maximums[source_feature_name].append(tf.reduce_max(source_feature))
-            if use_mask:
-              if tf.greater(mask_sum, 0.):
-                means[source_feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(source_feature, mask), mask_sum)))
-            else:
-              means[source_feature_name].append(tf.reduce_mean(source_feature))
-            
-            source_feature_log1p = Utilities.signed_log1p(source_feature)
-            minimums_log1p[source_feature_name].append(tf.reduce_min(source_feature_log1p))
-            maximums_log1p[source_feature_name].append(tf.reduce_max(source_feature_log1p))
-            if use_mask:
-              if tf.greater(mask_sum, 0.):
-                means_log1p[source_feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(source_feature_log1p, mask), mask_sum)))
-            else:
-              means_log1p[source_feature_name].append(tf.reduce_mean(source_feature_log1p))
+            self._calculate_mean(source_feature, source_render_pass, source_feature_name, False, target_features)
+            if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
+              source_feature_name = RenderPasses.source_feature_name_masked(source_render_pass)
+              self._calculate_mean(source_feature, source_render_pass, source_feature_name, True, target_features)
             
         for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
           target_feature_name = RenderPasses.target_feature_name(target_render_pass)
-          
-          use_mask = False
-          if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
-            corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(target_render_pass)
-            corresponding_target_feature = target_features[RenderPasses.target_feature_name(corresponding_color_pass)]
-            mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
-            mask_sum = tf.reduce_sum(mask)
-            use_mask = True
-            
-            # Adjust the mask, such that it can be multiplied with the feature.
-            mask = tf.stack([mask, mask, mask], axis=2)
-          
           target_feature = target_features[RenderPasses.target_feature_name(target_render_pass)]
-          minimums[target_feature_name].append(tf.reduce_min(target_feature))
-          maximums[target_feature_name].append(tf.reduce_max(target_feature))
-          if use_mask:
-            if tf.greater(mask_sum, 0.):
-              means[target_feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(target_feature, mask), mask_sum)))
-          else:
-            means[target_feature_name].append(tf.reduce_mean(target_feature))
-          
-          target_feature_log1p = Utilities.signed_log1p(target_feature)
-          minimums_log1p[target_feature_name].append(tf.reduce_min(target_feature_log1p))
-          maximums_log1p[target_feature_name].append(tf.reduce_max(target_feature_log1p))
-          if use_mask:
-            if tf.greater(mask_sum, 0.):
-              means_log1p[target_feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(target_feature_log1p, mask), mask_sum)))
-          else:
-            means_log1p[target_feature_name].append(tf.reduce_mean(target_feature_log1p))
+          self._calculate_mean(source_feature, target_render_pass, target_feature_name, False, target_features)
+          if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
+            target_feature_name = RenderPasses.target_feature_name_masked(target_render_pass)
+            self._calculate_mean(target_feature, target_render_pass, target_feature_name, True, target_features)
           
       except tf.errors.OutOfRangeError:
         break
@@ -142,20 +111,20 @@ class TFRecordsStatistics:
     
     # The arrays of values need to be joined to get one number.
     
-    for feature_name in minimums:
-      minimum = minimums[feature_name]
-      minimums[feature_name] = tf.reduce_min(minimum).numpy().item()
-      maximum = maximums[feature_name]
-      maximums[feature_name] = tf.reduce_max(maximum).numpy().item()
-      mean = means[feature_name]
-      means[feature_name] = tf.reduce_mean(mean).numpy().item()
+    for feature_name in self.minimums:
+      minimum = self.minimums[feature_name]
+      self.minimums[feature_name] = tf.reduce_min(minimum).numpy().item()
+      maximum = self.maximums[feature_name]
+      self.maximums[feature_name] = tf.reduce_max(maximum).numpy().item()
+      mean = self.means[feature_name]
+      self.means[feature_name] = tf.reduce_mean(mean).numpy().item()
       
-      minimum_log1p = minimums_log1p[feature_name]
-      minimums_log1p[feature_name] = tf.reduce_min(minimum_log1p).numpy().item()
-      maximum_log1p = maximums_log1p[feature_name]
-      maximums_log1p[feature_name] = tf.reduce_max(maximum_log1p).numpy().item()
-      mean_log1p = means_log1p[feature_name]
-      means_log1p[feature_name] = tf.reduce_mean(mean_log1p).numpy().item()
+      minimum_log1p = self.minimums_log1p[feature_name]
+      self.minimums_log1p[feature_name] = tf.reduce_min(minimum_log1p).numpy().item()
+      maximum_log1p = self.maximums_log1p[feature_name]
+      self.maximums_log1p[feature_name] = tf.reduce_max(maximum_log1p).numpy().item()
+      mean_log1p = self.means_log1p[feature_name]
+      self.means_log1p[feature_name] = tf.reduce_mean(mean_log1p).numpy().item()
     
     
     # Iterate again through all the tfrecords to compute the variance, based on the mean.
@@ -168,63 +137,19 @@ class TFRecordsStatistics:
         for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
           for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
             source_feature_name = RenderPasses.source_feature_name(source_render_pass)
-            
-            use_mask = False
-            if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
-              corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(source_render_pass)
-              corresponding_target_feature = target_features[RenderPasses.target_feature_name(corresponding_color_pass)]
-              mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
-              mask_sum = tf.reduce_sum(mask)
-              use_mask = True
-              
-              # Adjust the mask, such that it can be multiplied with the feature.
-              mask = tf.stack([mask, mask, mask], axis=2)
-            
-            mean = means[source_feature_name]
             source_feature = source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)]
-            if use_mask:
-              if tf.greater(mask_sum, 0.):
-                variances[source_feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(tf.square(tf.subtract(source_feature, mean)), mask), mask_sum)))
-            else:
-              variances[source_feature_name].append(tf.reduce_mean(tf.square(tf.subtract(source_feature, mean))))
-            
-            mean_log1p = means_log1p[source_feature_name]
-            source_feature_log1p = Utilities.signed_log1p(source_feature)
-            if use_mask:
-              if tf.greater(mask_sum, 0.):
-                variances_log1p[source_feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(tf.square(tf.subtract(source_feature_log1p, mean_log1p)), mask), mask_sum)))
-            else:
-              variances_log1p[source_feature_name].append(tf.reduce_mean(tf.square(tf.subtract(source_feature_log1p, mean_log1p))))
+            self._calculate_variance(source_feature, source_render_pass, source_feature_name, False, target_features)
+            if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
+              source_feature_name = RenderPasses.source_feature_name_masked(source_render_pass)
+              self._calculate_variance(source_feature, source_render_pass, source_feature_name, True, target_features)
             
         for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
           target_feature_name = RenderPasses.target_feature_name(target_render_pass)
-          
-          use_mask = False
-          if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
-            corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(target_render_pass)
-            corresponding_target_feature = target_features[RenderPasses.target_feature_name(corresponding_color_pass)]
-            mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
-            mask_sum = tf.reduce_sum(mask)
-            use_mask = True
-            
-            # Adjust the mask, such that it can be multiplied with the feature.
-            mask = tf.stack([mask, mask, mask], axis=2)
-          
-          mean = means[target_feature_name]
           target_feature = target_features[RenderPasses.target_feature_name(target_render_pass)]
-          if use_mask:
-            if tf.greater(mask_sum, 0.):
-              variances[target_feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(tf.square(tf.subtract(target_feature, mean)), mask), mask_sum)))
-          else:
-            variances[target_feature_name].append(tf.reduce_mean(tf.square(tf.subtract(target_feature, mean))))
-          
-          mean_log1p = means_log1p[target_feature_name]
-          target_feature_log1p = Utilities.signed_log1p(target_feature)
-          if use_mask:
-            if tf.greater(mask_sum, 0.):
-              variances_log1p[target_feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(tf.square(tf.subtract(target_feature_log1p, mean_log1p)), mask), mask_sum)))
-          else:
-            variances_log1p[target_feature_name].append(tf.reduce_mean(tf.square(tf.subtract(target_feature_log1p, mean_log1p))))
+          self._calculate_variance(source_feature, target_render_pass, target_feature_name, False, target_features)
+          if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
+            target_feature_name = RenderPasses.target_feature_name_masked(target_render_pass)
+            self._calculate_variance(target_feature, target_render_pass, target_feature_name, True, target_features)
         
       except tf.errors.OutOfRangeError:
         break
@@ -232,21 +157,21 @@ class TFRecordsStatistics:
     
     # Join the results again.
     
-    for feature_name in variances:
-      variance = variances[feature_name]
-      variances[feature_name] = tf.reduce_mean(variance).numpy().item()
+    for feature_name in self.variances:
+      variance = self.variances[feature_name]
+      self.variances[feature_name] = tf.reduce_mean(variance).numpy().item()
       
-      variance_log1p = variances_log1p[feature_name]
-      variances_log1p[feature_name] = tf.reduce_min(variance_log1p).numpy().item()
+      variance_log1p = self.variances_log1p[feature_name]
+      self.variances_log1p[feature_name] = tf.reduce_min(variance_log1p).numpy().item()
     
     
     # Integrate the results into statistics.
     
-    for feature_name in minimums:
+    for feature_name in self.minimums:
       
       # REMARK: The 'current_' prefix is only used to avoid a name clash.
-      current_statistics = Statistics(minimums[feature_name], maximums[feature_name], means[feature_name], variances[feature_name])
-      current_statistics_log1p = Statistics(minimums_log1p[feature_name], maximums_log1p[feature_name], means_log1p[feature_name], variances_log1p[feature_name])
+      current_statistics = Statistics(self.minimums[feature_name], self.maximums[feature_name], self.means[feature_name], self.variances[feature_name])
+      current_statistics_log1p = Statistics(self.minimums_log1p[feature_name], self.maximums_log1p[feature_name], self.means_log1p[feature_name], self.variances_log1p[feature_name])
       feature_statistics = FeatureStatistics(RenderPasses.number_of_channels(feature_name.split('/')[-1]), current_statistics, current_statistics_log1p)
       statistics[feature_name] = feature_statistics
     
@@ -257,7 +182,74 @@ class TFRecordsStatistics:
     statistics_json_content = json.dumps(statistics, cls=DataStatisticsEncoder, sort_keys=True, indent=2)
     with open(statistics_json_filename, 'w+', encoding='utf-8') as statistics_json_file:
       statistics_json_file.write(statistics_json_content)
+
+      
+  def _calculate_mean(self, feature, render_pass_name, feature_name, use_mask, target_features):
+    
+    feature_log1p = Utilities.signed_log1p(feature)
+    
+    if use_mask:
+      # For direct and indirect passes, we only care about the relevant pixels. We create a mask for this.
+      # It depends on the corresponding ground truth color pass. Whenever that one is not black, the pixels
+      # of the direct and indirect passes matter.
+      
+      corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(render_pass_name)
+      corresponding_target_feature = target_features[RenderPasses.target_feature_name(corresponding_color_pass)]
+      mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
+      mask_sum = tf.reduce_sum(mask)
+      
+      # Adjust the mask, such that it can be multiplied with the feature.
+      mask = tf.stack([mask, mask, mask], axis=2)
+      
+      
+      self.minimums[feature_name].append(tf.reduce_min(feature))
+      self.maximums[feature_name].append(tf.reduce_max(feature))
+      if tf.greater(mask_sum, 0.):
+        self.means[feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(feature, mask), mask_sum)))
+      
+      self.minimums_log1p[feature_name].append(tf.reduce_min(feature_log1p))
+      self.maximums_log1p[feature_name].append(tf.reduce_max(feature_log1p))
+      if tf.greater(mask_sum, 0.):
+        self.means_log1p[feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(feature_log1p, mask), mask_sum)))
+      
+    else:
+      self.minimums[feature_name].append(tf.reduce_min(feature))
+      self.maximums[feature_name].append(tf.reduce_max(feature))
+      self.means[feature_name].append(tf.reduce_mean(feature))
+      
+      self.minimums_log1p[feature_name].append(tf.reduce_min(feature_log1p))
+      self.maximums_log1p[feature_name].append(tf.reduce_max(feature_log1p))
+      self.means_log1p[feature_name].append(tf.reduce_mean(feature_log1p))
   
+  def _calculate_variance(self, feature, render_pass_name, feature_name, use_mask, target_features):
+    
+    mean = self.means[feature_name]
+    mean_log1p = self.means_log1p[feature_name]
+    feature_log1p = Utilities.signed_log1p(feature)
+    
+    if use_mask:
+      # For direct and indirect passes, we only care about the relevant pixels. We create a mask for this.
+      # It depends on the corresponding ground truth color pass. Whenever that one is not black, the pixels
+      # of the direct and indirect passes matter.
+      
+      corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(render_pass_name)
+      corresponding_target_feature = target_features[RenderPasses.target_feature_name(corresponding_color_pass)]
+      mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
+      mask_sum = tf.reduce_sum(mask)
+      
+      # Adjust the mask, such that it can be multiplied with the feature.
+      mask = tf.stack([mask, mask, mask], axis=2)
+      
+      
+      if tf.greater(mask_sum, 0.):
+        self.variances[feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(tf.square(tf.subtract(feature, mean)), mask), mask_sum)))
+      if tf.greater(mask_sum, 0.):
+        self.variances_log1p[feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(tf.square(tf.subtract(feature_log1p, mean_log1p)), mask), mask_sum)))
+      
+    else:
+      self.variances[feature_name].append(tf.reduce_mean(tf.square(tf.subtract(feature, mean))))
+      self.variances_log1p[feature_name].append(tf.reduce_mean(tf.square(tf.subtract(feature_log1p, mean_log1p))))
+    
   def _dataset_iterator(self):
     directory = os.path.join(self.tfrecords_creator.base_tfrecords_directory, self.tfrecords_creator.name)
     files = tf.data.Dataset.list_files(directory + '/*')

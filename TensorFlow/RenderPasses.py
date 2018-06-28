@@ -41,8 +41,16 @@ class RenderPasses:
     return 'source_image/' + str(source_index) + '/' + render_pass_name
   
   @staticmethod
+  def source_feature_name_masked(render_pass_name):
+    return 'source_image/' + render_pass_name + ' Masked'
+  
+  @staticmethod
   def target_feature_name(render_pass_name):
     return 'target_image/' + render_pass_name
+  
+  @staticmethod
+  def target_feature_name_masked(render_pass_name):
+    return 'target_image/' + render_pass_name + ' Masked'
   
   @staticmethod
   def prediction_feature_name(render_pass_name):
@@ -95,6 +103,10 @@ class RenderPasses:
   @staticmethod
   def is_direct_or_indirect_render_pass(render_pass_name):
     return render_pass_name.endswith(' Direct') or render_pass_name.endswith(' Indirect')
+  
+  @staticmethod
+  def is_color_render_pass(render_pass_name):
+    return render_pass_name.endswith(' Color')
   
   @staticmethod
   def direct_or_indirect_to_color_render_pass(render_pass_name):
