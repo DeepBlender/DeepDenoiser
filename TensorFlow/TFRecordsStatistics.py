@@ -4,6 +4,7 @@ import tensorflow as tf
 import tensorflow.contrib.eager as tfe
 import multiprocessing
 
+import math
 import json
 
 from RenderPasses import RenderPasses
@@ -38,45 +39,45 @@ class TFRecordsStatistics:
     
     for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
       source_feature_name = RenderPasses.source_feature_name(source_render_pass)
-      self.minimums[source_feature_name] = []
-      self.maximums[source_feature_name] = []
+      self.minimums[source_feature_name] = math.inf
+      self.maximums[source_feature_name] = -math.inf
       self.means[source_feature_name] = []
       self.variances[source_feature_name] = []
-      self.minimums_log1p[source_feature_name] = []
-      self.maximums_log1p[source_feature_name] = []
+      self.minimums_log1p[source_feature_name] = math.inf
+      self.maximums_log1p[source_feature_name] = -math.inf
       self.means_log1p[source_feature_name] = []
       self.variances_log1p[source_feature_name] = []
       
       if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
         source_feature_name = RenderPasses.source_feature_name_masked(source_render_pass)
-        self.minimums[source_feature_name] = []
-        self.maximums[source_feature_name] = []
+        self.minimums[source_feature_name] = math.inf
+        self.maximums[source_feature_name] = -math.inf
         self.means[source_feature_name] = []
         self.variances[source_feature_name] = []
-        self.minimums_log1p[source_feature_name] = []
-        self.maximums_log1p[source_feature_name] = []
+        self.minimums_log1p[source_feature_name] = math.inf
+        self.maximums_log1p[source_feature_name] = -math.inf
         self.means_log1p[source_feature_name] = []
         self.variances_log1p[source_feature_name] = []
     
     for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
       target_feature_name = RenderPasses.target_feature_name(target_render_pass)
-      self.minimums[target_feature_name] = []
-      self.maximums[target_feature_name] = []
+      self.minimums[target_feature_name] = math.inf
+      self.maximums[target_feature_name] = -math.inf
       self.means[target_feature_name] = []
       self.variances[target_feature_name] = []
-      self.minimums_log1p[target_feature_name] = []
-      self.maximums_log1p[target_feature_name] = []
+      self.minimums_log1p[target_feature_name] = math.inf
+      self.maximums_log1p[target_feature_name] = -math.inf
       self.means_log1p[target_feature_name] = []
       self.variances_log1p[target_feature_name] = []
       
       if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
         target_feature_name = RenderPasses.target_feature_name_masked(target_render_pass)
-        self.minimums[target_feature_name] = []
-        self.maximums[target_feature_name] = []
+        self.minimums[target_feature_name] = math.inf
+        self.maximums[target_feature_name] = -math.inf
         self.means[target_feature_name] = []
         self.variances[target_feature_name] = []
-        self.minimums_log1p[target_feature_name] = []
-        self.maximums_log1p[target_feature_name] = []
+        self.minimums_log1p[target_feature_name] = math.inf
+        self.maximums_log1p[target_feature_name] = -math.inf
         self.means_log1p[target_feature_name] = []
         self.variances_log1p[target_feature_name] = []
     
@@ -92,18 +93,18 @@ class TFRecordsStatistics:
           for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
             source_feature_name = RenderPasses.source_feature_name(source_render_pass)
             source_feature = source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)]
-            self._calculate_mean(source_feature, source_render_pass, source_feature_name, False, target_features)
+            self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, False, target_features)
             if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
               source_feature_name = RenderPasses.source_feature_name_masked(source_render_pass)
-              self._calculate_mean(source_feature, source_render_pass, source_feature_name, True, target_features)
+              self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, True, target_features)
             
         for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
           target_feature_name = RenderPasses.target_feature_name(target_render_pass)
           target_feature = target_features[RenderPasses.target_feature_name(target_render_pass)]
-          self._calculate_mean(source_feature, target_render_pass, target_feature_name, False, target_features)
+          self._first_statistics_iteration(source_feature, target_render_pass, target_feature_name, False, target_features)
           if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
             target_feature_name = RenderPasses.target_feature_name_masked(target_render_pass)
-            self._calculate_mean(target_feature, target_render_pass, target_feature_name, True, target_features)
+            self._first_statistics_iteration(target_feature, target_render_pass, target_feature_name, True, target_features)
           
       except tf.errors.OutOfRangeError:
         break
@@ -112,17 +113,13 @@ class TFRecordsStatistics:
     # The arrays of values need to be joined to get one number.
     
     for feature_name in self.minimums:
-      minimum = self.minimums[feature_name]
-      self.minimums[feature_name] = tf.reduce_min(minimum).numpy().item()
-      maximum = self.maximums[feature_name]
-      self.maximums[feature_name] = tf.reduce_max(maximum).numpy().item()
+      self.minimums[feature_name] = self.minimums[feature_name].numpy().item()
+      self.maximums[feature_name] = self.maximums[feature_name].numpy().item()
       mean = self.means[feature_name]
       self.means[feature_name] = tf.reduce_mean(mean).numpy().item()
       
-      minimum_log1p = self.minimums_log1p[feature_name]
-      self.minimums_log1p[feature_name] = tf.reduce_min(minimum_log1p).numpy().item()
-      maximum_log1p = self.maximums_log1p[feature_name]
-      self.maximums_log1p[feature_name] = tf.reduce_max(maximum_log1p).numpy().item()
+      self.minimums_log1p[feature_name] = self.minimums_log1p[feature_name].numpy().item()
+      self.maximums_log1p[feature_name] = self.maximums_log1p[feature_name].numpy().item()
       mean_log1p = self.means_log1p[feature_name]
       self.means_log1p[feature_name] = tf.reduce_mean(mean_log1p).numpy().item()
     
@@ -138,18 +135,18 @@ class TFRecordsStatistics:
           for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
             source_feature_name = RenderPasses.source_feature_name(source_render_pass)
             source_feature = source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)]
-            self._calculate_variance(source_feature, source_render_pass, source_feature_name, False, target_features)
+            self._second_statistics_iteration(source_feature, source_render_pass, source_feature_name, False, target_features)
             if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
               source_feature_name = RenderPasses.source_feature_name_masked(source_render_pass)
-              self._calculate_variance(source_feature, source_render_pass, source_feature_name, True, target_features)
+              self._second_statistics_iteration(source_feature, source_render_pass, source_feature_name, True, target_features)
             
         for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
           target_feature_name = RenderPasses.target_feature_name(target_render_pass)
           target_feature = target_features[RenderPasses.target_feature_name(target_render_pass)]
-          self._calculate_variance(source_feature, target_render_pass, target_feature_name, False, target_features)
+          self._second_statistics_iteration(source_feature, target_render_pass, target_feature_name, False, target_features)
           if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
             target_feature_name = RenderPasses.target_feature_name_masked(target_render_pass)
-            self._calculate_variance(target_feature, target_render_pass, target_feature_name, True, target_features)
+            self._second_statistics_iteration(target_feature, target_render_pass, target_feature_name, True, target_features)
         
       except tf.errors.OutOfRangeError:
         break
@@ -162,7 +159,7 @@ class TFRecordsStatistics:
       self.variances[feature_name] = tf.reduce_mean(variance).numpy().item()
       
       variance_log1p = self.variances_log1p[feature_name]
-      self.variances_log1p[feature_name] = tf.reduce_min(variance_log1p).numpy().item()
+      self.variances_log1p[feature_name] = tf.reduce_mean(variance_log1p).numpy().item()
     
     
     # Integrate the results into statistics.
@@ -184,7 +181,7 @@ class TFRecordsStatistics:
       statistics_json_file.write(statistics_json_content)
 
       
-  def _calculate_mean(self, feature, render_pass_name, feature_name, use_mask, target_features):
+  def _first_statistics_iteration(self, feature, render_pass_name, feature_name, use_mask, target_features):
     
     feature_log1p = Utilities.signed_log1p(feature)
     
@@ -202,26 +199,26 @@ class TFRecordsStatistics:
       mask = tf.stack([mask, mask, mask], axis=2)
       
       
-      self.minimums[feature_name].append(tf.reduce_min(feature))
-      self.maximums[feature_name].append(tf.reduce_max(feature))
+      self.minimums[feature_name] = tf.minimum(self.minimums[feature_name], tf.reduce_min(feature))
+      self.maximums[feature_name] = tf.maximum(self.maximums[feature_name], tf.reduce_max(feature))
       if tf.greater(mask_sum, 0.):
         self.means[feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(feature, mask), mask_sum)))
       
-      self.minimums_log1p[feature_name].append(tf.reduce_min(feature_log1p))
-      self.maximums_log1p[feature_name].append(tf.reduce_max(feature_log1p))
+      self.minimums_log1p[feature_name] = tf.minimum(self.minimums_log1p[feature_name], tf.reduce_min(feature_log1p))
+      self.maximums_log1p[feature_name] = tf.maximum(self.maximums_log1p[feature_name], tf.reduce_max(feature_log1p))
       if tf.greater(mask_sum, 0.):
         self.means_log1p[feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(feature_log1p, mask), mask_sum)))
       
     else:
-      self.minimums[feature_name].append(tf.reduce_min(feature))
-      self.maximums[feature_name].append(tf.reduce_max(feature))
+      self.minimums[feature_name] = tf.minimum(self.minimums[feature_name], tf.reduce_min(feature))
+      self.maximums[feature_name] = tf.maximum(self.maximums[feature_name], tf.reduce_max(feature))
       self.means[feature_name].append(tf.reduce_mean(feature))
       
-      self.minimums_log1p[feature_name].append(tf.reduce_min(feature_log1p))
-      self.maximums_log1p[feature_name].append(tf.reduce_max(feature_log1p))
+      self.minimums_log1p[feature_name] = tf.minimum(self.minimums_log1p[feature_name], tf.reduce_min(feature_log1p))
+      self.maximums_log1p[feature_name] = tf.maximum(self.maximums_log1p[feature_name], tf.reduce_max(feature_log1p))
       self.means_log1p[feature_name].append(tf.reduce_mean(feature_log1p))
   
-  def _calculate_variance(self, feature, render_pass_name, feature_name, use_mask, target_features):
+  def _second_statistics_iteration(self, feature, render_pass_name, feature_name, use_mask, target_features):
     
     mean = self.means[feature_name]
     mean_log1p = self.means_log1p[feature_name]
