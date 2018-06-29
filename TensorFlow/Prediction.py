@@ -82,8 +82,10 @@ def main(parsed_arguments):
     # REMARK: It is assumed that there are no features which are only a target, without also being a source.
     if feature['is_source']:
       feature_standardization = feature['standardization']
-      feature_standardization = FeatureStandardization(feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'], feature_name)
-      prediction_feature = PredictionFeature(feature['is_target'], feature_standardization, feature['number_of_channels'], feature_name)
+      feature_standardization = FeatureStandardization(
+          feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'], feature_name)
+      prediction_feature = PredictionFeature(
+          feature['is_target'], feature_standardization, feature['number_of_channels'], feature_name)
       prediction_features.append(prediction_feature)
   
   height = None

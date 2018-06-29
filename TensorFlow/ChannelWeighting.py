@@ -1,6 +1,8 @@
 import tensorflow as tf
 
-def learned_channel_weighting(inputs, kernel_size=1, activation_function=tf.nn.relu, number_of_convolutions=2, data_format='channels_last'):
+def learned_channel_weighting(
+    inputs, kernel_size=1, activation_function=tf.nn.relu, number_of_convolutions=2,
+    data_format='channels_last'):
   
   # Inspired by squeeze and excite.
   

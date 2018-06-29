@@ -163,37 +163,67 @@ class DeepDenoiserDataGenerator:
     output_node = node_tree.nodes.new('CompositorNodeOutputFile')
     output_node.layer_slots.clear()
     output_node.location = (300, 0)
-    output_node.base_path = target_folder + '/' + DeepDenoiserDataGenerator.blend_filename() + '/' + DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel) + '_' + str(bpy.context.scene.cycles.seed)
+    output_node.base_path = (
+        target_folder + '/' + DeepDenoiserDataGenerator.blend_filename() + '/' +
+        DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel) + '_' +
+        str(bpy.context.scene.cycles.seed))
     
     links = node_tree.links
     
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Image', output_node, RenderPasses.COMBINED, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Alpha', output_node, RenderPasses.ALPHA, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Depth', output_node, RenderPasses.DEPTH, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Normal', output_node, RenderPasses.NORMAL, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'UV', output_node, RenderPasses.UV, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Vector', output_node, RenderPasses.MOTION_VECTOR, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Shadow', output_node, RenderPasses.SHADOW, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'AO', output_node, RenderPasses.AMBIENT_OCCLUSION, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'IndexOB', output_node, RenderPasses.OBJECT_ID, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'IndexMA', output_node, RenderPasses.MATERIAL_ID, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Mist', output_node, RenderPasses.MIST, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Emit', output_node, RenderPasses.EMISSION, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'Env', output_node, RenderPasses.ENVIRONMENT, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'DiffDir', output_node, RenderPasses.DIFFUSE_DIRECT, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'DiffInd', output_node, RenderPasses.DIFFUSE_INDIRECT, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'DiffCol', output_node, RenderPasses.DIFFUSE_COLOR, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'GlossDir', output_node, RenderPasses.GLOSSY_DIRECT, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'GlossInd', output_node, RenderPasses.GLOSSY_INDIRECT, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'GlossCol', output_node, RenderPasses.GLOSSY_COLOR, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'TransDir', output_node, RenderPasses.TRANSMISSION_DIRECT, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'TransInd', output_node, RenderPasses.TRANSMISSION_INDIRECT, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'TransCol', output_node, RenderPasses.TRANSMISSION_COLOR, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'SubsurfaceDir', output_node, RenderPasses.SUBSURFACE_DIRECT, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'SubsurfaceInd', output_node, RenderPasses.SUBSURFACE_INDIRECT, samples_per_pixel)
-    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'SubsurfaceCol', output_node, RenderPasses.SUBSURFACE_COLOR, samples_per_pixel)
-    # DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'VolumeDir', output_node, RenderPasses.VOLUME_DIRECT, samples_per_pixel)
-    # DeepDenoiserDataGenerator.connect_pass_to_new_file_output(links, input_node, 'VolumeInd', output_node, RenderPasses.VOLUME_INDIRECT, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'Image', output_node, RenderPasses.COMBINED, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'Alpha', output_node, RenderPasses.ALPHA, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'Depth', output_node, RenderPasses.DEPTH, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'Normal', output_node, RenderPasses.NORMAL, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'UV', output_node, RenderPasses.UV, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'Vector', output_node, RenderPasses.MOTION_VECTOR, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'Shadow', output_node, RenderPasses.SHADOW, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'AO', output_node, RenderPasses.AMBIENT_OCCLUSION, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'IndexOB', output_node, RenderPasses.OBJECT_ID, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'IndexMA', output_node, RenderPasses.MATERIAL_ID, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'Mist', output_node, RenderPasses.MIST, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'Emit', output_node, RenderPasses.EMISSION, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'Env', output_node, RenderPasses.ENVIRONMENT, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'DiffDir', output_node, RenderPasses.DIFFUSE_DIRECT, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'DiffInd', output_node, RenderPasses.DIFFUSE_INDIRECT, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'DiffCol', output_node, RenderPasses.DIFFUSE_COLOR, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'GlossDir', output_node, RenderPasses.GLOSSY_DIRECT, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'GlossInd', output_node, RenderPasses.GLOSSY_INDIRECT, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'GlossCol', output_node, RenderPasses.GLOSSY_COLOR, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'TransDir', output_node, RenderPasses.TRANSMISSION_DIRECT, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'TransInd', output_node, RenderPasses.TRANSMISSION_INDIRECT, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'TransCol', output_node, RenderPasses.TRANSMISSION_COLOR, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'SubsurfaceDir', output_node, RenderPasses.SUBSURFACE_DIRECT, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'SubsurfaceInd', output_node, RenderPasses.SUBSURFACE_INDIRECT, samples_per_pixel)
+    DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+        links, input_node, 'SubsurfaceCol', output_node, RenderPasses.SUBSURFACE_COLOR, samples_per_pixel)
+    # DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+    #     links, input_node, 'VolumeDir', output_node, RenderPasses.VOLUME_DIRECT, samples_per_pixel)
+    # DeepDenoiserDataGenerator.connect_pass_to_new_file_output(
+    #     links, input_node, 'VolumeInd', output_node, RenderPasses.VOLUME_INDIRECT, samples_per_pixel)
     
     viewer_node = node_tree.nodes.new('CompositorNodeViewer')
     viewer_node.location = (300, 150)
@@ -222,7 +252,9 @@ class DeepDenoiserDataGenerator:
 
     
   def extended_name(name, samples_per_pixel):
-    result = DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel)+ '_'  + str(bpy.context.scene.cycles.seed) + '_' + name + '_'
+    result = (
+        DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel)+ '_'  +
+        str(bpy.context.scene.cycles.seed) + '_' + name + '_')
     return result
     
     
@@ -251,13 +283,18 @@ class DeepDenoiserDataGenerator:
     if RenderPasses.SCREEN_SPACE_NORMAL in bpy.data.images:
       bpy.data.images.remove(bpy.data.images[RenderPasses.SCREEN_SPACE_NORMAL])
     
-    screen_space_normal_image = bpy.data.images.new(name=RenderPasses.SCREEN_SPACE_NORMAL, width=width, height=height, float_buffer=True)
+    screen_space_normal_image = bpy.data.images.new(
+        name=RenderPasses.SCREEN_SPACE_NORMAL, width=width, height=height, float_buffer=True)
     
     current_frame = bpy.context.scene.frame_current
     current_frame = format(current_frame, '04d')
     screen_space_normal_image.pixels[:] = pixels
     
-    file_path = target_folder + '/' + DeepDenoiserDataGenerator.blend_filename() + '/' + DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel) + '_' + str(bpy.context.scene.cycles.seed) + '/' + DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel) + '_' + str(bpy.context.scene.cycles.seed) + '_' + RenderPasses.SCREEN_SPACE_NORMAL + '_' + current_frame + '.exr'
+    file_path = (
+        target_folder + '/' + DeepDenoiserDataGenerator.blend_filename() + '/' +
+        DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel) + '_' + str(bpy.context.scene.cycles.seed) + '/' +
+        DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel) + '_' + str(bpy.context.scene.cycles.seed) + '_' +
+        RenderPasses.SCREEN_SPACE_NORMAL + '_' + current_frame + '.exr')
     file_path = bpy.path.abspath(file_path)
     screen_space_normal_image.save_render(file_path)
     
@@ -285,8 +322,11 @@ class DeepDenoiserRenderJobPropertyGroup(bpy.types.PropertyGroup):
   
 
 class DeepDenoiserDataGeneratorPropertyGroup(bpy.types.PropertyGroup):
-  target_folder = bpy.props.StringProperty(name='target_folder', description='Base directory for the rendered results.', default='//OpenEXR/', maxlen=1024, subtype='DIR_PATH')
-  seed = bpy.props.IntProperty(name='seed', description='Seed used as basis for the rendering, such that there is a strong variation with deterministic results.', default=0, min=seed_min, max=seed_max)
+  target_folder = bpy.props.StringProperty(
+      name='target_folder', description='Base directory for the rendered results.', default='//OpenEXR/', maxlen=1024, subtype='DIR_PATH')
+  seed = bpy.props.IntProperty(
+      name='seed', description='Seed used as basis for the rendering, such that there is a strong variation with deterministic results.',
+      default=0, min=seed_min, max=seed_max)
   
 
 class CreateWorldOperator(bpy.types.Operator):
@@ -404,7 +444,8 @@ class RENDER_JOB_render(bpy.types.Operator):
             random.seed(current_seed)
             current_seed = random.randint(seed_min, seed_max)
           
-          DeepDenoiserDataGenerator.render(target_folder, render.resolution_x, render.resolution_y, render_job.samples_per_pixel, current_seed)
+          DeepDenoiserDataGenerator.render(
+              target_folder, render.resolution_x, render.resolution_y, render_job.samples_per_pixel, current_seed)
     return{'FINISHED'}
 
 
@@ -478,7 +519,8 @@ def register():
   # Store properties in the scene
   bpy.types.Scene.deep_denoiser_generator_property_group = bpy.props.PointerProperty(type=DeepDenoiserDataGeneratorPropertyGroup)
   bpy.types.Scene.render_jobs = bpy.props.CollectionProperty(type=DeepDenoiserRenderJobPropertyGroup)
-  bpy.types.Scene.selected_render_job_index = bpy.props.IntProperty(name='selected_render_job_index', description= "Selected render job index", default= -1, min= -1)
+  bpy.types.Scene.selected_render_job_index = bpy.props.IntProperty(
+      name='selected_render_job_index', description= "Selected render job index", default= -1, min= -1)
   
 def unregister():
   for i in classes:

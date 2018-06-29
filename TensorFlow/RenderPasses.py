@@ -101,7 +101,9 @@ class RenderPasses:
 
   @staticmethod
   def is_combined_render_pass(render_pass_name):
-    result = render_pass_name == 'Diffuse' or render_pass_name == 'Glossy' or render_pass_name == 'Subsurface' or render_pass_name == 'Transmission'
+    result = (
+        render_pass_name == 'Diffuse' or render_pass_name == 'Glossy' or
+        render_pass_name == 'Subsurface' or render_pass_name == 'Transmission')
     return result
   
   @staticmethod
@@ -111,6 +113,23 @@ class RenderPasses:
   @staticmethod
   def is_color_render_pass(render_pass_name):
     return render_pass_name.endswith(' Color')
+  
+  @staticmethod
+  def is_rgb_color_render_pass(render_pass_name):
+    result = True
+        
+    if (
+        render_pass_name == RenderPasses.ALPHA or
+        render_pass_name == RenderPasses.DEPTH or
+        render_pass_name == RenderPasses.MIST or
+        render_pass_name == RenderPasses.NORMAL or
+        render_pass_name == RenderPasses.SCREEN_SPACE_NORMAL or
+        render_pass_name == RenderPasses.MOTION_VECTOR or
+        render_pass_name == RenderPasses.OBJECT_ID or
+        render_pass_name == RenderPasses.MATERIAL_ID or
+        render_pass_name == RenderPasses.UV):
+      result = False
+    return result
   
   @staticmethod
   def direct_or_indirect_to_color_render_pass(render_pass_name):
@@ -134,7 +153,8 @@ class RenderPasses:
     return render_pass_name + ' Indirect'
 
 class RenderPassesUsage:
-  def __init__(self,
+  def __init__(
+      self,
       use_alpha=False, use_depth=False, use_mist=False, use_normal=False, use_screen_space_normal=False,
       use_motion_vector=False, use_object_id=False, use_material_id=False, use_uv=False,
       use_shadow=False, use_ambient_occlusion=False, use_emission=False, use_environment=False,

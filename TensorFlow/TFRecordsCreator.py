@@ -51,7 +51,9 @@ class TFRecordsCreator:
       
       # TODO: Certainly not the best way to perform the validity checks. (DeepBlender)
       assert new_render_directories.required_files_exist(self.source_samples_per_pixel, self.source_render_passes_usage)
-      assert self.number_of_sources_per_example == len(new_render_directories.samples_per_pixel_to_render_directories[self.source_samples_per_pixel])
+      assert (
+          self.number_of_sources_per_example == len(
+              new_render_directories.samples_per_pixel_to_render_directories[self.source_samples_per_pixel]))
       
       target_samples_per_pixel = self.target_samples_per_pixel
       if target_samples_per_pixel is 'best':
@@ -95,14 +97,16 @@ class TFRecordsCreator:
           for source_render_directory in render_directories.samples_per_pixel_to_render_directories[self.source_samples_per_pixel]:
             for source_render_pass in source_render_directory.render_pass_to_image:
               image = source_render_directory.render_pass_to_image[source_render_pass]
-              features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)] = TFRecordsCreator._bytes_feature(tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
+              features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)] = TFRecordsCreator._bytes_feature(
+                  tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
             source_index = source_index + 1
       
           # Prepare the target image tiles.
           target_render_directory = render_directories.samples_per_pixel_to_render_directories[target_samples_per_pixel][0]
           for target_render_pass in target_render_directory.render_pass_to_image:
             image = target_render_directory.render_pass_to_image[target_render_pass]
-            features[RenderPasses.target_feature_name(target_render_pass)] = TFRecordsCreator._bytes_feature(tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
+            features[RenderPasses.target_feature_name(target_render_pass)] = TFRecordsCreator._bytes_feature(
+                tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
           
           tfrecords_writer.write(features)
       

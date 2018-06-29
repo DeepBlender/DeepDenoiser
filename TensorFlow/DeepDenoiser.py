@@ -77,7 +77,8 @@ class FeatureStandardization:
     return self.variance != 1.
 
   def standardize(self, feature, index):
-    with tf.name_scope('standardize_' + RenderPasses.tensorboard_name(RenderPasses.source_feature_name_indexed(self.name, index))):
+    with tf.name_scope(
+          'standardize_' + RenderPasses.tensorboard_name(RenderPasses.source_feature_name_indexed(self.name, index))):
       if self.use_log1p:
         feature = Utilities.signed_log1p(feature)
       if self.use_mean():
@@ -109,13 +110,18 @@ class FeatureVariance:
   def variance(self, inputs, epsilon=1e-5, data_format='channels_last'):
     assert self.use_variance
     with tf.name_scope('variance_' + RenderPasses.tensorboard_name(self.name)):
-      result = FeatureEngineering.variance(inputs, relative_variance=self.relative_variance, compress_to_one_channel=self.compress_to_one_channel, epsilon=epsilon, data_format=data_format)
+      result = FeatureEngineering.variance(
+          inputs, relative_variance=self.relative_variance, compress_to_one_channel=self.compress_to_one_channel,
+          epsilon=epsilon, data_format=data_format)
     return result
   
 
 class PredictionFeature:
 
-  def __init__(self, number_of_sources, preserve_source, is_target, feature_standardization, feature_variance, number_of_channels, name):
+  def __init__(
+      self, number_of_sources, preserve_source, is_target, feature_standardization, feature_variance,
+      number_of_channels, name):
+    
     self.number_of_sources = number_of_sources
     self.preserve_source = preserve_source
     self.is_target = is_target
@@ -206,14 +212,16 @@ class BaseTrainingFeature:
     with tf.name_scope('horizontal_variation_difference'):
       predicted_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.predicted)
       target_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.target)
-      result = LossDifference.difference(predicted_horizontal_variation, target_horizontal_variation, self.loss_difference)
+      result = LossDifference.difference(
+          predicted_horizontal_variation, target_horizontal_variation, self.loss_difference)
     return result
   
   def vertical_variation_difference(self):
     with tf.name_scope('vertical_variation_difference'):
       predicted_vertical_variation = BaseTrainingFeature.__vertical_variation(self.predicted)
       target_vertical_variation = BaseTrainingFeature.__vertical_variation(self.target)
-      result = LossDifference.difference(predicted_vertical_variation, target_vertical_variation, self.loss_difference)
+      result = LossDifference.difference(
+          predicted_vertical_variation, target_vertical_variation, self.loss_difference)
     return result
   
   def variation_difference(self):
@@ -355,12 +363,14 @@ class BaseTrainingFeature:
   @staticmethod
   def __horizontal_variation(image_batch):
     # 'channels_last' or NHWC
-    image_batch = tf.subtract(BaseTrainingFeature.__shift_left(image_batch), BaseTrainingFeature.__shift_right(image_batch))
+    image_batch = tf.subtract(
+        BaseTrainingFeature.__shift_left(image_batch), BaseTrainingFeature.__shift_right(image_batch))
     return image_batch
     
   def __vertical_variation(image_batch):
     # 'channels_last' or NHWC
-    image_batch = tf.subtract(BaseTrainingFeature.__shift_up(image_batch), BaseTrainingFeature.__shift_down(image_batch))
+    image_batch = tf.subtract(
+        BaseTrainingFeature.__shift_up(image_batch), BaseTrainingFeature.__shift_down(image_batch))
     return image_batch
     
   @staticmethod
@@ -528,7 +538,8 @@ class TrainingFeatureLoader:
   def deserialize(self, parsed_features, required_indices, height, width):
     self.source = {}
     for index in required_indices:
-      self.source[index] = tf.decode_raw(parsed_features[RenderPasses.source_feature_name_indexed(self.name, index)], tf.float32)
+      self.source[index] = tf.decode_raw(
+          parsed_features[RenderPasses.source_feature_name_indexed(self.name, index)], tf.float32)
       self.source[index] = tf.reshape(self.source[index], [height, width, self.number_of_channels])
     if self.is_target:
       self.target = tf.decode_raw(parsed_features[RenderPasses.target_feature_name(self.name)], tf.float32)
@@ -681,7 +692,8 @@ def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_CPU_
     unet = UNet(
         number_of_filters_for_convolution_blocks=[64, 128, 128],
         number_of_convolutions_per_block=2, number_of_output_filters=output_size,
-        activation_function=global_activation_function, use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
+        activation_function=global_activation_function,
+        use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
         data_format=data_format)
     outputs = unet.unet(outputs, is_training)
     invert_standardize = True
@@ -690,7 +702,8 @@ def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_CPU_
         # number_of_preprocessing_convolution_filters=32,
         # number_of_filters_for_convolution_blocks=[16, 32, 64],
         # number_of_convolutions_per_block=2, number_of_output_filters=output_size,
-        # activation_function=global_activation_function, use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
+        # activation_function=global_activation_function,
+        # use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
         # data_format=data_format)
     # outputs = tiramisu.tiramisu(outputs, is_training)
     # invert_standardize = True
@@ -722,7 +735,9 @@ def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_CPU_
   if use_kernel_predicion:
     for prediction_feature in output_prediction_features:
       assert prediction_feature.preserve_source
-      prediction = KernelPrediction.kernel_prediction(prediction_feature.preserved_source, prediction_feature.prediction, kernel_size, data_format='channels_last')
+      prediction = KernelPrediction.kernel_prediction(
+          prediction_feature.preserved_source, prediction_feature.prediction,
+          kernel_size, data_format='channels_last')
       prediction_feature.add_prediction(prediction)
   
   prediction_dictionary = {}
@@ -738,7 +753,9 @@ def model_fn(features, labels, mode, params):
     prediction_feature.initialize_sources_from_dictionary(features)
   
   data_format = params['data_format']
-  predictions = model(prediction_features, mode, params['use_kernel_predicion'], params['kernel_size'], params['use_CPU_only'], data_format)
+  predictions = model(
+      prediction_features, mode, params['use_kernel_predicion'], params['kernel_size'],
+      params['use_CPU_only'], data_format)
 
   if mode == tf.estimator.ModeKeys.PREDICT:
     return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
@@ -791,7 +808,9 @@ def model_fn(features, labels, mode, params):
     t_mul = 1.3 # Use t_mul more steps after each restart.
     m_mul = 0.8 # Multiply the learning rate after each restart with this number.
     alpha = 1 / 100. # Learning rate decays from 1 * learning_rate to alpha * learning_rate.
-    learning_rate_decayed = tf.train.cosine_decay_restarts(learning_rate, global_step, first_decay_steps, t_mul=t_mul, m_mul=m_mul, alpha=alpha)
+    learning_rate_decayed = tf.train.cosine_decay_restarts(
+        learning_rate, global_step, first_decay_steps,
+        t_mul=t_mul, m_mul=m_mul, alpha=alpha)
   
     tf.summary.scalar('learning_rate', learning_rate_decayed)
     tf.summary.scalar('batch_size', params['batch_size'])
@@ -844,7 +863,9 @@ def model_fn(features, labels, mode, params):
       eval_metric_ops=eval_metric_ops)
 
 
-def input_fn_tfrecords(files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, tiles_height_width, batch_size, threads, data_format='channels_last', use_data_augmentation=False):
+def input_fn_tfrecords(
+    files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices,
+    tiles_height_width, batch_size, threads, data_format='channels_last', use_data_augmentation=False):
   
   def feature_parser(serialized_example):
     dataset = None
@@ -920,19 +941,29 @@ def input_fn_tfrecords(files, training_features_loader, training_features_augmen
   return features, targets
 
 
-def train(tfrecords_directory, estimator, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, tiles_height_width, batch_size, threads):
+def train(
+    tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+    number_of_epochs, index_tuples, required_indices, tiles_height_width, batch_size, threads):
+  
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Train the model
   use_data_augmentation = True
-  estimator.train(input_fn=lambda: input_fn_tfrecords(files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, tiles_height_width, batch_size, threads, use_data_augmentation=use_data_augmentation))
+  estimator.train(input_fn=lambda: input_fn_tfrecords(
+      files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices,
+      tiles_height_width, batch_size, threads, use_data_augmentation=use_data_augmentation))
 
-def evaluate(tfrecords_directory, estimator, training_features_loader, training_features_augmentation, index_tuples, required_indices, tiles_height_width, batch_size, threads):
+def evaluate(
+    tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+    index_tuples, required_indices, tiles_height_width, batch_size, threads):
+  
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Evaluate the model
   use_data_augmentation = True
-  estimator.evaluate(input_fn=lambda: input_fn_tfrecords(files, training_features_loader, training_features_augmentation, 1, index_tuples, required_indices, tiles_height_width, batch_size, threads, use_data_augmentation=use_data_augmentation))
+  estimator.evaluate(input_fn=lambda: input_fn_tfrecords(
+      files, training_features_loader, training_features_augmentation, 1, index_tuples, required_indices,
+      tiles_height_width, batch_size, threads, use_data_augmentation=use_data_augmentation))
 
 def source_index_tuples(number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target):
   if number_of_sources_per_example < number_of_sources_per_target:
@@ -1028,10 +1059,17 @@ def main(parsed_arguments):
     if feature['is_source']:
       preserve_source = use_kernel_predicion
       feature_variance = feature['feature_variance']
-      feature_variance = FeatureVariance(feature_variance['use_variance'], feature_variance['relative_variance'], feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'], feature_name)
+      feature_variance = FeatureVariance(
+          feature_variance['use_variance'], feature_variance['relative_variance'],
+          feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'],
+          feature_name)
       feature_standardization = feature['standardization']
-      feature_standardization = FeatureStandardization(feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'], feature_name)      
-      prediction_feature = PredictionFeature(number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, feature_variance, feature['number_of_channels'], feature_name)
+      feature_standardization = FeatureStandardization(
+          feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'],
+          feature_name)      
+      prediction_feature = PredictionFeature(
+          number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, feature_variance,
+          feature['number_of_channels'], feature_name)
       prediction_features.append(prediction_feature)
   
   
@@ -1082,8 +1120,11 @@ def main(parsed_arguments):
   training_features_loader = []
   training_features_augmentation = []
   for prediction_feature in prediction_features:
-    training_features_loader.append(TrainingFeatureLoader(prediction_feature.is_target, prediction_feature.number_of_channels, prediction_feature.name))
-    training_features_augmentation.append(TrainingFeatureAugmentation(number_of_sources_per_target, prediction_feature.is_target, prediction_feature.number_of_channels, prediction_feature.name))
+    training_features_loader.append(TrainingFeatureLoader(
+        prediction_feature.is_target, prediction_feature.number_of_channels, prediction_feature.name))
+    training_features_augmentation.append(TrainingFeatureAugmentation(
+        number_of_sources_per_target, prediction_feature.is_target,
+        prediction_feature.number_of_channels, prediction_feature.name))
 
   
   # Combined training features.
@@ -1155,7 +1196,9 @@ def main(parsed_arguments):
     session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
     save_summary_steps = 100
     save_checkpoints_step = 500
-    run_config = tf.estimator.RunConfig(session_config=session_config, save_summary_steps=save_summary_steps, save_checkpoints_steps=save_checkpoints_step)
+    run_config = tf.estimator.RunConfig(
+        session_config=session_config, save_summary_steps=save_summary_steps,
+        save_checkpoints_steps=save_checkpoints_step)
   
   estimator = tf.estimator.Estimator(
       model_fn=model_fn,
@@ -1181,11 +1224,18 @@ def main(parsed_arguments):
     
     for _ in range(number_of_training_epochs):
       epochs_to_train = 1
-      index_tuples, required_indices = source_index_tuples(training_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
-      train(training_tfrecords_directory, estimator, training_features_loader, training_features_augmentation, epochs_to_train, index_tuples, required_indices, training_tiles_height_width, parsed_arguments.batch_size, parsed_arguments.threads)
+      index_tuples, required_indices = source_index_tuples(
+          training_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
+      train(
+          training_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+          epochs_to_train, index_tuples, required_indices, training_tiles_height_width,
+          parsed_arguments.batch_size, parsed_arguments.threads)
     
-    index_tuples, required_indices = source_index_tuples(validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
-    evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation, index_tuples, required_indices, training_tiles_height_width, parsed_arguments.batch_size, parsed_arguments.threads)
+    index_tuples, required_indices = source_index_tuples(
+        validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
+    evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+        index_tuples, required_indices, training_tiles_height_width,
+        parsed_arguments.batch_size, parsed_arguments.threads)
     
     remaining_number_of_epochs = remaining_number_of_epochs - number_of_training_epochs
 

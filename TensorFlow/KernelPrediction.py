@@ -34,14 +34,26 @@ class KernelPrediction:
         for j in range(kernel_size):
           if Conv2dUtilities.is_batched(inputs):
             if data_format == 'channels_last':
-              input_stack.append(padded_input[:, i:padded_input.shape[height_axis] - 2 * pad + i, j:padded_input.shape[width_axis] - 2 * pad + j, :])
+              input_stack.append(
+                  padded_input[
+                      :, i:padded_input.shape[height_axis] - 2 * pad + i,
+                      j:padded_input.shape[width_axis] - 2 * pad + j, :])
             else:
-              input_stack.append(padded_input[:, :, i:padded_input.shape[height_axis] - 2 * pad + i, j:padded_input.shape[width_axis] - 2 * pad + j])
+              input_stack.append(
+                  padded_input[
+                      :, :, i:padded_input.shape[height_axis] - 2 * pad + i,
+                      j:padded_input.shape[width_axis] - 2 * pad + j])
           else:
             if data_format == 'channels_last':
-              input_stack.append(padded_input[i:padded_input.shape[height_axis] - 2 * pad + i, j:padded_input.shape[width_axis] - 2 * pad + j, :])
+              input_stack.append(
+                  padded_input[
+                      i:padded_input.shape[height_axis] - 2 * pad + i,
+                      j:padded_input.shape[width_axis] - 2 * pad + j, :])
             else:
-              input_stack.append(padded_input[:, i:padded_input.shape[height_axis] - 2 * pad + i, j:padded_input.shape[width_axis] - 2 * pad + j])
+              input_stack.append(
+                  padded_input[
+                      :, i:padded_input.shape[height_axis] - 2 * pad + i,
+                      j:padded_input.shape[width_axis] - 2 * pad + j])
       
       input_stack = tf.concat(input_stack, axis=channel_axis)
       input = tf.reduce_sum(tf.multiply(input_stack, kernel_inputs), axis=channel_axis, keepdims=True)

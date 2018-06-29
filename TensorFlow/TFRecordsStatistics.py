@@ -167,9 +167,14 @@ class TFRecordsStatistics:
     for feature_name in self.minimums:
       
       # REMARK: The 'current_' prefix is only used to avoid a name clash.
-      current_statistics = Statistics(self.minimums[feature_name], self.maximums[feature_name], self.means[feature_name], self.variances[feature_name])
-      current_statistics_log1p = Statistics(self.minimums_log1p[feature_name], self.maximums_log1p[feature_name], self.means_log1p[feature_name], self.variances_log1p[feature_name])
-      feature_statistics = FeatureStatistics(RenderPasses.number_of_channels(feature_name.split('/')[-1]), current_statistics, current_statistics_log1p)
+      current_statistics = Statistics(
+          self.minimums[feature_name], self.maximums[feature_name],
+          self.means[feature_name], self.variances[feature_name])
+      current_statistics_log1p = Statistics(
+          self.minimums_log1p[feature_name], self.maximums_log1p[feature_name],
+          self.means_log1p[feature_name], self.variances_log1p[feature_name])
+      feature_statistics = FeatureStatistics(
+          RenderPasses.number_of_channels(feature_name.split('/')[-1]), current_statistics, current_statistics_log1p)
       statistics[feature_name] = feature_statistics
     
     
@@ -239,9 +244,11 @@ class TFRecordsStatistics:
       
       
       if tf.greater(mask_sum, 0.):
-        self.variances[feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(tf.square(tf.subtract(feature, mean)), mask), mask_sum)))
+        self.variances[feature_name].append(
+            tf.reduce_sum(tf.divide(tf.multiply(tf.square(tf.subtract(feature, mean)), mask), mask_sum)))
       if tf.greater(mask_sum, 0.):
-        self.variances_log1p[feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(tf.square(tf.subtract(feature_log1p, mean_log1p)), mask), mask_sum)))
+        self.variances_log1p[feature_name].append(
+            tf.reduce_sum(tf.divide(tf.multiply(tf.square(tf.subtract(feature_log1p, mean_log1p)), mask), mask_sum)))
       
     else:
       self.variances[feature_name].append(tf.reduce_mean(tf.square(tf.subtract(feature, mean))))
@@ -270,19 +277,24 @@ class TFRecordsStatistics:
     source_features = {}
     for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
       for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
-        source_feature = tf.decode_raw(parsed_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)], tf.float32)
+        source_feature = tf.decode_raw(
+            parsed_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)], tf.float32)
         number_of_channels = RenderPasses.number_of_channels(source_render_pass)
-        source_feature = tf.reshape(source_feature, [self.tfrecords_creator.tiles_height_width, self.tfrecords_creator.tiles_height_width, number_of_channels])
+        source_feature = tf.reshape(
+            source_feature, [self.tfrecords_creator.tiles_height_width, self.tfrecords_creator.tiles_height_width, number_of_channels])
         source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)] = source_feature
     
     target_features = {}
     for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
-      target_feature = tf.decode_raw(parsed_features[RenderPasses.target_feature_name(target_render_pass)], tf.float32)
+      target_feature = tf.decode_raw(
+          parsed_features[RenderPasses.target_feature_name(target_render_pass)], tf.float32)
       number_of_channels = RenderPasses.number_of_channels(target_render_pass)
-      target_feature = tf.reshape(target_feature, [self.tfrecords_creator.tiles_height_width, self.tfrecords_creator.tiles_height_width, number_of_channels])
+      target_feature = tf.reshape(
+          target_feature, [self.tfrecords_creator.tiles_height_width, self.tfrecords_creator.tiles_height_width, number_of_channels])
       target_features[RenderPasses.target_feature_name(target_render_pass)] = target_feature
     
     return source_features, target_features
+
 
 class DataStatisticsEncoder(json.JSONEncoder):
   def default(self, obj):
