@@ -119,14 +119,14 @@ class DataAugmentation:
   def permute_rgb(inputs, permutation, data_format='channels_last'):
     assert Conv2dUtilities.has_valid_shape(inputs)
     assert Conv2dUtilities.number_of_channels(inputs, data_format) == 3
-    assert len(permutation) == 3
-    assert (0 in permutation) and (1 in permutation) and (2 in permutation)
+    #assert len(permutation) == 3
+    #assert (0 in permutation) and (1 in permutation) and (2 in permutation)
     
     # Swap colors.
     channel_axis = Conv2dUtilities.channel_axis(inputs, data_format)
+    
     colors = tf.split(inputs, [1, 1, 1], channel_axis)
-    colors = tf.transpose(colors, permutation)
-    inputs = tf.concat(colors, channel_axis)
+    inputs = tf.concat([colors[permutation[0]], colors[permutation[1]], colors[permutation[2]]], channel_axis)
     
     return inputs
   
