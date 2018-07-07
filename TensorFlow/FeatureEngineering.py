@@ -45,7 +45,7 @@ class FeatureEngineering:
     
     return inputs
   
-  def variance(inputs, relative_variance=False, compress_to_one_channel=False, epsilon=1e-5, data_format='channels_last'):
+  def variance(inputs, relative_variance=False, compress_to_one_channel=False, epsilon=1e-4, data_format='channels_last'):
     mean_of_inputs = FeatureEngineering._local_mean(inputs, data_format)
     squared_mean_of_inputs = tf.square(mean_of_inputs)
     mean_of_squared_inputs = FeatureEngineering._local_mean(tf.square(inputs), data_format)

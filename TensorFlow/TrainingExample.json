@@ -8,8 +8,12 @@
 		"testing"
 	],
 	
+	"number_of_source_index_tuples_description": "The number of tuples (source(s), target) which need to be generated.",
 	"number_of_source_index_tuples": 8,
+	"number_of_sources_per_target_description": "The number of sources which are used per example. E.g. 2 would generate ((source_a, source_b), target) tuples where a and b are randomly picked.",
 	"number_of_sources_per_target": 2,
+	
+	"use_rgb_permutations_description": "Pick a permutation of the rgb channels randomly, and use it at least for all passes/aovs from an example which use rgb colors.",
 	"use_rgb_permutations": true,
 	
 	"loss_difference_description": "Options: DIFFERENCE, ABSOLUTE, SMOOTH_ABSOLUTE, SQUARED, SMAPE.",
@@ -18,6 +22,16 @@
 	"kernel_usage_description": "If kernel prediction is used, The actual kernel has a size of: kernel_size * kernel_size.",
 	"use_kernel_predicion": true,
 	"kernel_size": 21,
+	
+	"use_single_feature_prediction_description_1": "Should only one target feature be predicted at a time? Additionally, the feature flags need to be generated to guide the neural network.",
+	"use_single_feature_prediction_description_2": "The required feature flags are automatically calculated based on the feature flags of the actual target features.",
+	"use_single_feature_prediction": true,
+	"feature_flags": [
+		"Diffuse", "Glossy", "Subsurface", "Transmission", "Volume",
+		"Color", "Direct", "Indirect",
+		"Environment", "Emission",
+		"Shadow", "Ambient Occlusion"
+	],
 	
 	"combined_image": {
 		"loss_weights": {
@@ -98,6 +112,7 @@
 			"is_source": true,
 			"is_target": false,
 			"number_of_channels": 1,
+			"feature_flags": [],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -126,6 +141,7 @@
 			"is_source": true,
 			"is_target": false,
 			"number_of_channels": 1,
+			"feature_flags": [],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -154,6 +170,7 @@
 			"is_source": false,
 			"is_target": false,
 			"number_of_channels": 3,
+			"feature_flags": [],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -182,6 +199,7 @@
 			"is_source": true,
 			"is_target": false,
 			"number_of_channels": 3,
+			"feature_flags": [],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -211,6 +229,7 @@
 			"is_source": false,
 			"is_target": false,
 			"number_of_channels": 3,
+			"feature_flags": ["Ambient Occlusion"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -239,6 +258,7 @@
 			"is_source": false,
 			"is_target": false,
 			"number_of_channels": 3,
+			"feature_flags": ["Shadow"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -268,6 +288,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Emission"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -276,8 +297,8 @@
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.003993552643805742,
-				"variance": 1.4242718862078618e-05
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -296,6 +317,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Environment"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -304,8 +326,8 @@
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.019954385235905647,
-				"variance": 5.9947004046989605e-05
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -325,6 +347,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Diffuse", "Color"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -332,9 +355,9 @@
 				"compress_to_one_channel": true
 			},
 			"standardization": {
-				"use_log1p": false,
-				"mean": 0.21192021667957306,
-				"variance": 0.08307310193777084
+				"use_log1p": true,
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -353,6 +376,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Diffuse", "Direct"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -361,8 +385,8 @@
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 1.1019212007522583,
-				"variance": 0.032897911965847015
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -393,6 +417,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Diffuse", "Indirect"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -401,8 +426,8 @@
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.19995230436325073,
-				"variance": 0.007162444293498993
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -433,6 +458,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Glossy", "Color"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -440,9 +466,9 @@
 				"compress_to_one_channel": true
 			},
 			"standardization": {
-				"use_log1p": false,
-				"mean": 0.19423390924930573,
-				"variance": 0.14815877377986908
+				"use_log1p": true,
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -461,6 +487,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Glossy", "Direct"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -469,8 +496,8 @@
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.6574652194976807,
-				"variance": 0.025908414274454117
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -501,6 +528,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Glossy", "Indirect"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -509,8 +537,8 @@
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.2160816639661789,
-				"variance": 0.006780911237001419
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -541,6 +569,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Subsurface", "Color"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -548,9 +577,9 @@
 				"compress_to_one_channel": true
 			},
 			"standardization": {
-				"use_log1p": false,
-				"mean": 0.002540657529607415,
-				"variance": 0.0016044554067775607
+				"use_log1p": true,
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -569,6 +598,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Subsurface", "Direct"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -577,8 +607,8 @@
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.44964927434921265,
-				"variance": 0.09192882478237152
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -609,6 +639,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Subsurface", "Indirect"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -617,8 +648,8 @@
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.1317073255777359,
-				"variance": 0.02000107429921627
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -649,6 +680,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Transmission", "Color"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -656,9 +688,9 @@
 				"compress_to_one_channel": true
 			},
 			"standardization": {
-				"use_log1p": false,
-				"mean": 0.04961748421192169,
-				"variance": 0.03040217235684395
+				"use_log1p": true,
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -677,6 +709,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Transmission", "Direct"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -685,8 +718,8 @@
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.2579529881477356,
-				"variance": 0.030019637197256088
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,
@@ -717,6 +750,7 @@
 			"is_source": true,
 			"is_target": true,
 			"number_of_channels": 3,
+			"feature_flags": ["Transmission", "Indirect"],
 			"feature_variance": {
 				"use_variance": true,
 				"relative_variance": true,
@@ -725,8 +759,8 @@
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.5192984938621521,
-				"variance": 0.06806652247905731
+				"mean": 0.031,
+				"variance": 0.016
 			},
 			"loss_weights": {
 				"mean": 1.0,

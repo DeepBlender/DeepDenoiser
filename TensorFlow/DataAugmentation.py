@@ -116,6 +116,17 @@ class DataAugmentation:
     return(inputs)
   
   @staticmethod
+  def rotate90_normals(inputs, k, data_format):
+    assert Conv2dUtilities.has_valid_shape(inputs)
+    assert Conv2dUtilities.number_of_channels(inputs, data_format) == 3
+    
+    channel_axis = Conv2dUtilities.channel_axis(inputs, data_format)
+    
+    raise Exception('TODO: Rotate90 normals is not yet implemented. (DeepBlender)')
+    
+    return(inputs)
+  
+  @staticmethod
   def permute_rgb(inputs, permutation, data_format='channels_last'):
     assert Conv2dUtilities.has_valid_shape(inputs)
     assert Conv2dUtilities.number_of_channels(inputs, data_format) == 3
@@ -129,17 +140,6 @@ class DataAugmentation:
     inputs = tf.concat([colors[permutation[0]], colors[permutation[1]], colors[permutation[2]]], channel_axis)
     
     return inputs
-  
-  @staticmethod
-  def rotate90_normals(inputs, k, data_format):
-    assert Conv2dUtilities.has_valid_shape(inputs)
-    assert Conv2dUtilities.number_of_channels(inputs, data_format) == 3
-    
-    channel_axis = Conv2dUtilities.channel_axis(inputs, data_format)
-    
-    raise Exception('TODO: Rotate90 normals is not yet implemented. (DeepBlender)')
-    
-    return(inputs)
   
   @staticmethod
   def _convert_to_channels_last(inputs):
