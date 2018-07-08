@@ -937,16 +937,16 @@ def model_fn(features, labels, mode, params):
       combined_image_training_feature.add_tracked_histograms()
     
     # Summaries
-    with tf.name_scope('feature_summaries'):
-      for training_feature in training_features:
-        training_feature.add_tracked_summaries()
-    with tf.name_scope('combined_feature_summaries'):
-      if combined_training_features != None:
-        for combined_training_feature in combined_training_features:
-          combined_training_feature.add_tracked_summaries()
-    with tf.name_scope('combined_summaries'):
-      if combined_image_training_feature != None:
-        combined_image_training_feature.add_tracked_summaries()
+    #with tf.name_scope('feature_summaries'):
+    for training_feature in training_features:
+      training_feature.add_tracked_summaries()
+    #with tf.name_scope('combined_feature_summaries'):
+    if combined_training_features != None:
+      for combined_training_feature in combined_training_features:
+        combined_training_feature.add_tracked_summaries()
+    #with tf.name_scope('combined_summaries'):
+    if combined_image_training_feature != None:
+      combined_image_training_feature.add_tracked_summaries()
     
     with tf.name_scope('optimizer'):
       optimizer = tf.train.AdamOptimizer(learning_rate_decayed)
