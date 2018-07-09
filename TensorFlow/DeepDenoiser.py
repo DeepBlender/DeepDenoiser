@@ -32,6 +32,10 @@ parser.add_argument(
     help='The json specifying all the relevant details.')
 
 parser.add_argument(
+    '--validate', action="store_true",
+    help='Perform a validation step.')
+
+parser.add_argument(
     '--batch_size', type=int, default=4,
     help='Number of tiles to process in a batch')
 
@@ -1314,7 +1318,7 @@ def main(parsed_arguments):
   # TODO: CPU only has to be configurable. (DeepBlender)
   # TODO: Learning rate has to be configurable. (DeepBlender)
   
-  learning_rate = 1e-3
+  learning_rate = 1e-20
   use_XLA = True
   use_CPU_only = False
   
@@ -1349,24 +1353,7 @@ def main(parsed_arguments):
           'combined_training_features': combined_training_features,
           'combined_image_training_feature': combined_image_training_feature})
   
-  remaining_number_of_epochs = parsed_arguments.train_epochs
-  while remaining_number_of_epochs > 0:
-    number_of_training_epochs = parsed_arguments.validation_interval
-    if remaining_number_of_epochs < number_of_training_epochs:
-      number_of_training_epochs = remaining_number_of_epochs
-    
-    for _ in range(number_of_training_epochs):
-      epochs_to_train = 1
-      index_tuples, required_indices = source_index_tuples(
-          training_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
-      rgb_permutation = None
-      if use_rgb_permutations:
-        rgb_permutation = rgb_color_permutation()
-      train(
-          training_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-          epochs_to_train, index_tuples, required_indices, rgb_permutation, training_tiles_height_width,
-          parsed_arguments.batch_size, parsed_arguments.threads)
-    
+  if parsed_arguments.validate:
     index_tuples, required_indices = source_index_tuples(
         validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
     rgb_permutation = None
@@ -1375,8 +1362,35 @@ def main(parsed_arguments):
     evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
         index_tuples, required_indices, rgb_permutation, training_tiles_height_width,
         parsed_arguments.batch_size, parsed_arguments.threads)
-    
-    remaining_number_of_epochs = remaining_number_of_epochs - number_of_training_epochs
+  else:
+    remaining_number_of_epochs = parsed_arguments.train_epochs
+    while remaining_number_of_epochs > 0:
+      number_of_training_epochs = parsed_arguments.validation_interval
+      if remaining_number_of_epochs < number_of_training_epochs:
+        number_of_training_epochs = remaining_number_of_epochs
+      
+      for _ in range(number_of_training_epochs):
+        epochs_to_train = 1
+        index_tuples, required_indices = source_index_tuples(
+            training_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
+        rgb_permutation = None
+        if use_rgb_permutations:
+          rgb_permutation = rgb_color_permutation()
+        train(
+            training_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+            epochs_to_train, index_tuples, required_indices, rgb_permutation, training_tiles_height_width,
+            parsed_arguments.batch_size, parsed_arguments.threads)
+      
+      index_tuples, required_indices = source_index_tuples(
+          validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
+      rgb_permutation = None
+      if use_rgb_permutations:
+        rgb_permutation = rgb_color_permutation()
+      evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+          index_tuples, required_indices, rgb_permutation, training_tiles_height_width,
+          parsed_arguments.batch_size, parsed_arguments.threads)
+      
+      remaining_number_of_epochs = remaining_number_of_epochs - number_of_training_epochs
 
 
 if __name__ == '__main__':
