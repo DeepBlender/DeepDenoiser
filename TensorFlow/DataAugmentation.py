@@ -11,7 +11,7 @@ class DataAugmentation:
     
     # Convert to 'channels_last' if needed.
     if data_format == 'channels_first':
-      inputs = DataAugmentation._convert_to_channels_last(inputs)
+      inputs = Conv2dUtilities.convert_to_data_format(inputs, 'channels_last')
     
     # Flip
     inputs = tf.image.flip_left_right(inputs)
@@ -22,7 +22,7 @@ class DataAugmentation:
     
     # Convert back to 'channels_first' if needed.
     if data_format == 'channels_first':
-      inputs = DataAugmentation._convert_to_channels_first(inputs)
+      inputs = Conv2dUtilities.convert_to_data_format(inputs, 'channels_first')
     
     return inputs
   
@@ -57,7 +57,7 @@ class DataAugmentation:
     
     # Convert to 'channels_last' if needed.
     if data_format == 'channels_first':
-      inputs = DataAugmentation._convert_to_channels_last(inputs)
+      inputs = Conv2dUtilities.convert_to_data_format(inputs, 'channels_last')
     
     # Rotate
     inputs = tf.image.rot90(inputs, k=k)
@@ -68,7 +68,7 @@ class DataAugmentation:
     
     # Convert back to 'channels_first' if needed.
     if data_format == 'channels_first':
-      inputs = DataAugmentation._convert_to_channels_first(inputs)
+      inputs = Conv2dUtilities.convert_to_data_format(inputs, 'channels_first')
     
     return inputs
     
@@ -139,20 +139,4 @@ class DataAugmentation:
     colors = tf.split(inputs, [1, 1, 1], channel_axis)
     inputs = tf.concat([colors[permutation[0]], colors[permutation[1]], colors[permutation[2]]], channel_axis)
     
-    return inputs
-  
-  @staticmethod
-  def _convert_to_channels_last(inputs):
-    if Conv2dUtilities.is_batched(inputs):
-      inputs = tf.transpose(inputs, [0, 3, 1, 2])
-    else:
-      inputs = tf.transpose(inputs, [2, 0, 1])
-    return inputs
-  
-  @staticmethod
-  def _convert_to_channels_first(inputs):
-    if Conv2dUtilities.is_batched(inputs):
-      inputs = tf.transpose(inputs, [0, 2, 3, 1])
-    else:
-      inputs = tf.transpose(inputs, [1, 2, 0])
     return inputs

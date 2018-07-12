@@ -14,6 +14,7 @@ import multiprocessing
 import Utilities
 from Conv2dUtilities import Conv2dUtilities
 from KernelPrediction import KernelPrediction
+from MultiScalePrediction import MultiScalePrediction
 from FeatureFlags import FeatureFlags
 
 from UNet import UNet
@@ -121,16 +122,17 @@ class PredictionFeature:
 
   def __init__(
       self, number_of_sources, preserve_source, is_target, feature_standardization, feature_variance,
-      feature_flags, number_of_channels, name):
+      feature_flag_names, number_of_channels, name):
     
     self.number_of_sources = number_of_sources
     self.preserve_source = preserve_source
     self.is_target = is_target
     self.feature_standardization = feature_standardization
     self.feature_variance = feature_variance
-    self.feature_flags = feature_flags
+    self.feature_flag_names = feature_flag_names
     self.number_of_channels = number_of_channels
     self.name = name
+    self.predictions = []
 
   def initialize_sources_from_dictionary(self, dictionary):
     self.source = []
@@ -160,16 +162,19 @@ class PredictionFeature:
   
   def prediction_invert_standardize(self):
     if self.feature_standardization != None:
-      self.prediction = self.feature_standardization.invert_standardize(self.prediction)
+      for index in range(len(self.predictions)):
+        self.predictions[index] = self.feature_standardization.invert_standardize(self.predictions[index])
   
-  def add_prediction(self, prediction):
+  def add_prediction(self, scale_index, prediction):
     if not self.is_target:
       raise Exception('Adding a prediction for a feature that is not a target is not allowed.')
-    self.prediction = prediction
+    while len(self.predictions) <= scale_index:
+      self.predictions.append(None)
+    self.predictions[scale_index] = prediction
   
-  def add_prediction_to_dictionary(self, dictionary):
+  def add_prediction_to_dictionary(self, scale_index, dictionary):
     if self.is_target:
-      dictionary[RenderPasses.prediction_feature_name(self.name)] = self.prediction
+      dictionary[RenderPasses.prediction_feature_name(self.name)] = self.predictions[scale_index]
 
 
 class BaseTrainingFeature:
@@ -256,8 +261,8 @@ class BaseTrainingFeature:
     
     # Move channels to last position if needed.
     if predicted.shape[3] != 3:
-      predicted = tf.transpose(predicted, [0, 3, 1, 2])
-      target = tf.transpose(target, [0, 3, 1, 2])
+      predicted = Conv2dUtilities.convert_to_data_format(predicted, 'channels_first')
+      target = Conv2dUtilities.convert_to_data_format(target, 'channels_first')
     
     # Our tile size is not large enough for all power factors (0.0448, 0.2856, 0.3001, 0.2363, 0.1333)
     # Starting with the second power factor, the size is scaled down by 2 after each one. The size after
@@ -590,10 +595,13 @@ class TrainingFeatureAugmentation:
       targets[RenderPasses.target_feature_name(self.name)] = self.target
 
 
-def neural_network_model(inputs, output_size, is_training, data_format, use_batch_normalization=False, dropout_rate=0.0):
+def neural_network_model(inputs, output_size, use_multiscale_predictions, is_training, data_format, use_batch_normalization=False, dropout_rate=0.0):
+
+  # TODO: Those should be configurable. (DeepBlender)
+
   unet = UNet(
       number_of_filters_for_convolution_blocks=[128, 128, 128],
-      number_of_convolutions_per_block=4, number_of_output_filters=output_size,
+      number_of_convolutions_per_block=4, use_multiscale_output=use_multiscale_predictions,
       activation_function=global_activation_function,
       use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
       data_format=data_format)
@@ -602,19 +610,39 @@ def neural_network_model(inputs, output_size, is_training, data_format, use_batc
   # tiramisu = Tiramisu(
       # number_of_preprocessing_convolution_filters=32,
       # number_of_filters_for_convolution_blocks=[16, 32, 64],
-      # number_of_convolutions_per_block=4, number_of_output_filters=output_size,
+      # number_of_convolutions_per_block=4, use_multiscale_output=use_multiscale_predictions,
       # activation_function=global_activation_function,
       # use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
       # data_format=data_format)
   # inputs = tiramisu.tiramisu(inputs, is_training)
   
+  # Adjust the output to have the required number of channels.
+  with tf.name_scope('Postprocess'):
+    if use_multiscale_predictions:
+      for index in range(len(inputs)):
+        inputs[index] = adjust_network_output(inputs[index], output_size, data_format)
+    else:
+      inputs = adjust_network_output(inputs, output_size, data_format)
+  
   return inputs
 
+def adjust_network_output(inputs, output_size, data_format):
+  result = tf.layers.conv2d(
+      inputs=inputs, filters=output_size, kernel_size=(1, 1), padding='same',
+      activation=global_activation_function, data_format=data_format)
+  inputs = tf.layers.conv2d(
+      inputs=inputs, filters=output_size, kernel_size=(1, 1), padding='same',
+      activation=None, data_format=data_format)
+  return result
 
-def combined_features_model(prediction_features, output_prediction_features, is_training, use_kernel_predicion, kernel_size, use_single_feature_prediction, feature_flags, use_CPU_only, data_format):
+def combined_features_model(
+    prediction_features, output_prediction_features, is_training, use_kernel_predicion, kernel_size,
+    use_single_feature_prediction, feature_flags, use_multiscale_predictions, use_CPU_only, data_format):
+  
+  source_data_format = 'channels_last'
+  source_concat_axis = Conv2dUtilities.channel_axis(prediction_features[0].source[0], data_format)
   
   with tf.name_scope('prepare_network_input'):
-    concat_axis = 3
     prediction_inputs = []
     auxiliary_prediction_inputs = []
     auxiliary_inputs = []
@@ -640,14 +668,14 @@ def combined_features_model(prediction_features, output_prediction_features, is_
             source_variance = prediction_feature.variance[index]
             auxiliary_inputs.append(source_variance)
           
-    prediction_inputs = tf.concat(prediction_inputs, concat_axis)
+    prediction_inputs = tf.concat(prediction_inputs, source_concat_axis)
     
     if len(auxiliary_prediction_inputs) > 0:
-      auxiliary_prediction_inputs = tf.concat(auxiliary_prediction_inputs, concat_axis)
+      auxiliary_prediction_inputs = tf.concat(auxiliary_prediction_inputs, source_concat_axis)
     else:
       auxiliary_prediction_inputs = None
     if len(auxiliary_inputs) > 0:
-      auxiliary_inputs = tf.concat(auxiliary_inputs, concat_axis)
+      auxiliary_inputs = tf.concat(auxiliary_inputs, source_concat_axis)
     else:
       auxiliary_inputs = None
   
@@ -662,14 +690,13 @@ def combined_features_model(prediction_features, output_prediction_features, is_
     if use_CPU_only:
       data_format = 'channels_last'
 
-  concat_axis = 3
-  if data_format == 'channels_first':
-    prediction_inputs = tf.transpose(prediction_inputs, [0, 3, 1, 2])
-    if auxiliary_prediction_inputs != None:
-      auxiliary_prediction_inputs = tf.transpose(auxiliary_prediction_inputs, [0, 3, 1, 2])
-    if auxiliary_inputs != None:
-      auxiliary_inputs = tf.transpose(auxiliary_inputs, [0, 3, 1, 2])
-    concat_axis = 1
+  with tf.name_scope('data_format_conversion'):
+    if data_format != source_data_format:
+      prediction_inputs = Conv2dUtilities.convert_to_data_format(prediction_inputs, data_format)
+      if auxiliary_prediction_inputs != None:
+        auxiliary_prediction_inputs = Conv2dUtilities.convert_to_data_format(auxiliary_prediction_inputs, data_format)
+      if auxiliary_inputs != None:
+        auxiliary_inputs = Conv2dUtilities.convert_to_data_format(auxiliary_inputs, data_format)
   
   output_size = 0
   for prediction_feature in output_prediction_features:
@@ -690,16 +717,15 @@ def combined_features_model(prediction_features, output_prediction_features, is_
     else:
       outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], concat_axis)
   
+  
   # HACK: Implementation trick to keep tensorboard cleaner.
-  #with tf.name_scope('model'):
+  # with tf.name_scope('model'):
   with tf.variable_scope('model'):
-    outputs = neural_network_model(outputs, output_size, is_training, data_format)
+    outputs = neural_network_model(outputs, output_size, use_multiscale_predictions, is_training, data_format)
+    if use_multiscale_predictions:
+      # Reverse the outputs, such that it is sorted from largest to smallest.
+      outputs = list(reversed(outputs))
   
-  
-  if data_format == 'channels_first':
-    outputs = tf.transpose(outputs, [0, 2, 3, 1])
-  
-  concat_axis = 3
   size_splits = []
   for prediction_feature in output_prediction_features:
     if use_kernel_predicion:
@@ -708,9 +734,23 @@ def combined_features_model(prediction_features, output_prediction_features, is_
       size_splits.append(prediction_feature.number_of_channels)
   
   with tf.name_scope('split'):
-    prediction_tuple = tf.split(outputs, size_splits, concat_axis)
-  for index, prediction in enumerate(prediction_tuple):
-    output_prediction_features[index].add_prediction(prediction)
+    if use_multiscale_predictions:
+      predictions_tuple = []
+      for output in outputs:
+        prediction_tuple = tf.split(output, size_splits, concat_axis)
+        predictions_tuple.append(prediction_tuple)
+    else:
+      prediction_tuple = tf.split(outputs, size_splits, concat_axis)
+  
+  if use_multiscale_predictions:
+    for scale_index in range(len(predictions_tuple)):
+      prediction_tuple = predictions_tuple[scale_index]
+      for index, prediction in enumerate(prediction_tuple):
+        output_prediction_features[index].add_prediction(scale_index, prediction)
+  else:
+    scale_index = 0
+    for index, prediction in enumerate(prediction_tuple):
+      output_prediction_features[index].add_prediction(scale_index, prediction)
   
   with tf.name_scope('invert_standardize'):
     invert_standardize = not use_kernel_predicion
@@ -720,17 +760,74 @@ def combined_features_model(prediction_features, output_prediction_features, is_
   
   with tf.name_scope('use_kernel_predicion'):
     if use_kernel_predicion:
-      for prediction_feature in output_prediction_features:
-        assert prediction_feature.preserve_source
-        prediction = KernelPrediction.kernel_prediction(
-            prediction_feature.preserved_source, prediction_feature.prediction,
-            kernel_size, data_format='channels_last')
-        prediction_feature.add_prediction(prediction)
+      if use_multiscale_predictions:
+        for prediction_feature in output_prediction_features:
+          assert prediction_feature.preserve_source
+          preserved_source = prediction_feature.preserved_source
+          if data_format != source_data_format:
+            preserved_source = Conv2dUtilities.convert_to_data_format(preserved_source, data_format)
+          
+          for scale_index in range(len(prediction_feature.predictions)):
+            scaled_source = preserved_source
+            if scale_index > 0:
+              size = 2 ** scale_index
+              scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
+            with tf.name_scope(RenderPasses.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+              prediction = KernelPrediction.kernel_prediction(
+                  scaled_source, prediction_feature.predictions[scale_index],
+                  kernel_size, data_format=data_format)
+            prediction_feature.add_prediction(scale_index, prediction)
+      else:
+        scale_index = 0
+        for prediction_feature in output_prediction_features:
+          assert prediction_feature.preserve_source
+          preserved_source = prediction_feature.preserved_source
+          if data_format != source_data_format:
+            preserved_source = Conv2dUtilities.convert_to_data_format(preserved_source, data_format)
+          
+          with tf.name_scope(RenderPasses.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+            prediction = KernelPrediction.kernel_prediction(
+                preserved_source, prediction_feature.predictions[scale_index],
+                kernel_size, data_format=data_format)
+          prediction_feature.add_prediction(scale_index, prediction)
   
-def single_feature_model(prediction_features, output_prediction_features, is_training, use_kernel_predicion, kernel_size, use_single_feature_prediction, feature_flags, use_CPU_only, data_format):
+  with tf.name_scope('combine_multiscales'):
+    if use_multiscale_predictions:
+      reuse = False
+      for prediction_feature in output_prediction_features:
+        for scale_index in range(len(prediction_feature.predictions) - 1, 0, -1):
+          larger_scale_index = scale_index - 1
+          
+          small_prediction = prediction_feature.predictions[scale_index]
+          prediction = prediction_feature.predictions[larger_scale_index]
+          
+          with tf.variable_scope('reused_compose_scales', reuse=reuse):
+            prediction = MultiScalePrediction.compose_scales(small_prediction, prediction, data_format=data_format)
+          reuse = True
+          
+          prediction_feature.add_prediction(larger_scale_index, prediction)
+  
+  # Convert back to the source data format if needed.
+  with tf.name_scope('revert_data_format_conversion'):
+    if data_format != source_data_format:
+      if use_multiscale_predictions:
+        for prediction_feature in output_prediction_features:
+          for scale_index in range(len(prediction_feature.predictions)):
+            prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], source_data_format)
+      else:
+        scale_index = 0
+        for prediction_feature in output_prediction_features:
+          prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], source_data_format)
+
+
+def single_feature_model(
+    prediction_features, output_prediction_features, is_training, use_kernel_predicion, kernel_size,
+    use_single_feature_prediction, feature_flags, use_multiscale_predictions, use_CPU_only, data_format):
+  
+  source_data_format = 'channels_last'
+  source_concat_axis = Conv2dUtilities.channel_axis(prediction_features[0].source[0], source_data_format)
   
   with tf.name_scope('prepare_auxiliary_inputs'):
-    concat_axis = 3
     auxiliary_inputs = []
     for prediction_feature in prediction_features:
       if not prediction_feature.is_target:
@@ -741,14 +838,14 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
             source_variance = prediction_feature.variance[index]
             auxiliary_inputs.append(source_variance)
     if len(auxiliary_inputs) > 0:
-      auxiliary_inputs = tf.concat(auxiliary_inputs, concat_axis)
+      auxiliary_inputs = tf.concat(auxiliary_inputs, source_concat_axis)
     else:
       auxiliary_inputs = None
   
   with tf.name_scope('single_feature_prediction'):
     reuse = False
+    multiscale_combine_reuse = False
     for prediction_feature in prediction_features:
-      concat_axis = 3
       prediction_inputs = []
       auxiliary_prediction_inputs = []
       if prediction_feature.is_target:
@@ -766,23 +863,25 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
                 source_variance = prediction_feature.variance[index]
                 auxiliary_prediction_inputs.append(source_variance)
         
-          prediction_inputs = tf.concat(prediction_inputs, concat_axis)
+          prediction_inputs = tf.concat(prediction_inputs, source_concat_axis)
           if len(auxiliary_prediction_inputs) > 0:
-            auxiliary_prediction_inputs = tf.concat(auxiliary_prediction_inputs, concat_axis)
+            auxiliary_prediction_inputs = tf.concat(auxiliary_prediction_inputs, source_concat_axis)
           else:
             auxiliary_prediction_inputs = None
           
-          height, width = Conv2dUtilities.height_width(prediction_inputs, data_format)
-          prediction_feature_flags = feature_flags.feature_flags(prediction_feature.name, height, width, data_format)
+          height, width = Conv2dUtilities.height_width(prediction_inputs, source_data_format)
+          prediction_feature_flags = feature_flags.feature_flags(prediction_feature.name, height, width, source_data_format)
+          
+          # TODO: Integrate prediction feature flags, may have to done within the dataset code. (DeepBlender)
           
           if auxiliary_prediction_inputs == None and auxiliary_inputs == None:
             outputs = prediction_inputs
           elif auxiliary_prediction_inputs == None:
-            outputs = tf.concat([prediction_inputs, auxiliary_inputs], concat_axis)
+            outputs = tf.concat([prediction_inputs, auxiliary_inputs], source_concat_axis)
           elif auxiliary_inputs == None:
-            outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs], concat_axis)
+            outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs], source_concat_axis)
           else:
-            outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], concat_axis)
+            outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], source_concat_axis)
 
         
         if use_kernel_predicion:
@@ -790,50 +889,96 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
         else:
           output_size = prediction_feature.number_of_channels
         
-        tmp_data_format = data_format
-        if tmp_data_format is None:
+        if data_format is None:
           # When running on GPU, transpose the data from channels_last (NHWC) to
           # channels_first (NCHW) to improve performance.
           # See https://www.tensorflow.org/performance/performance_guide#data_formats
-          tmp_data_format = (
+          data_format = (
             'channels_first' if tf.test.is_built_with_cuda() else
               'channels_last')
           if use_CPU_only:
-            tmp_data_format = 'channels_last'
+            data_format = 'channels_last'
         
-        
-        if tmp_data_format == 'channels_first':
-          outputs = tf.transpose(outputs, [0, 3, 1, 2])
-          concat_axis = 1
+        with tf.name_scope('data_format_conversion'):
+          if data_format != source_data_format:
+            outputs = Conv2dUtilities.convert_to_data_format(outputs, data_format)
+            concat_axis = Conv2dUtilities.channel_axis(outputs, data_format)
         
         
         with tf.name_scope('model'):
           with tf.variable_scope('reused_model', reuse=reuse):
-            outputs = neural_network_model(outputs, output_size, is_training, tmp_data_format)
+            outputs = neural_network_model(outputs, output_size, use_multiscale_predictions, is_training, data_format)
+            if use_multiscale_predictions:
+              # Reverse the outputs, such that it is sorted from largest to smallest.
+              outputs = list(reversed(outputs))
         
         # Reuse the variables after the first pass.
         reuse = True
         
-        if tmp_data_format == 'channels_first':
-          outputs = tf.transpose(outputs, [0, 2, 3, 1])
-        
-        prediction_feature.add_prediction(outputs)
+        if use_multiscale_predictions:
+          for scale_index in range(len(outputs)):
+            prediction_feature.add_prediction(scale_index, outputs[scale_index])
+        else:
+          scale_index = 0
+          prediction_feature.add_prediction(scale_index, outputs[scale_index])
         
         with tf.name_scope('invert_standardize'):
           invert_standardize = not use_kernel_predicion
           if invert_standardize:
             prediction_feature.prediction_invert_standardize()
         
-        with tf.name_scope('kernel_prediction'):
+        with tf.name_scope(RenderPasses.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
           if use_kernel_predicion:
             assert prediction_feature.preserve_source
-            prediction = KernelPrediction.kernel_prediction(
-                prediction_feature.preserved_source, prediction_feature.prediction,
-                kernel_size, data_format='channels_last')
-            prediction_feature.add_prediction(prediction)
+            preserved_source = prediction_feature.preserved_source
+            if data_format != source_data_format:
+              preserved_source = Conv2dUtilities.convert_to_data_format(preserved_source, data_format)
+
+            if use_multiscale_predictions:
+              for scale_index in range(len(prediction_feature.predictions)):
+                scaled_source = preserved_source
+                if scale_index > 0:
+                  size = 2 ** scale_index
+                  scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
+                with tf.name_scope(RenderPasses.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+                  prediction = KernelPrediction.kernel_prediction(
+                      scaled_source, prediction_feature.predictions[scale_index],
+                      kernel_size, data_format=data_format)
+                prediction_feature.add_prediction(scale_index, prediction)
+            else:
+              scale_index = 0
+              with tf.name_scope(RenderPasses.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+                prediction = KernelPrediction.kernel_prediction(
+                    preserved_source, prediction_feature.predictions[scale_index],
+                    kernel_size, data_format=data_format)
+              prediction_feature.add_prediction(scale_index, prediction)
+        
+        with tf.name_scope('combine_multiscales'):
+          if use_multiscale_predictions:
+            for scale_index in range(len(prediction_feature.predictions) - 1, 0, -1):
+              larger_scale_index = scale_index - 1
+              
+              small_prediction = prediction_feature.predictions[scale_index]
+              prediction = prediction_feature.predictions[larger_scale_index]
+              
+              with tf.variable_scope('reused_compose_scales', reuse=multiscale_combine_reuse):
+                prediction = MultiScalePrediction.compose_scales(small_prediction, prediction, data_format=data_format)
+              multiscale_combine_reuse = True
+              
+              prediction_feature.add_prediction(larger_scale_index, prediction)
+        
+        # Convert back to the source data format if needed.
+        with tf.name_scope('revert_data_format_conversion'):
+          if data_format != source_data_format:
+            if use_multiscale_predictions:
+              for scale_index in range(len(prediction_feature.predictions)):
+                prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], source_data_format)
+            else:
+              scale_index = 0
+              prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], source_data_format)
 
 
-def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_single_feature_prediction, feature_flags, use_CPU_only, data_format):
+def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_single_feature_prediction, feature_flags, use_multiscale_predictions, use_CPU_only, data_format):
   
   is_training = False
   if mode == tf.estimator.ModeKeys.TRAIN:
@@ -850,14 +995,29 @@ def model(prediction_features, mode, use_kernel_predicion, kernel_size, use_sing
       prediction_feature.standardize()
 
   if use_single_feature_prediction:
-    single_feature_model(prediction_features, output_prediction_features, is_training, use_kernel_predicion, kernel_size, use_single_feature_prediction, feature_flags, use_CPU_only, data_format)
+    single_feature_model(
+        prediction_features, output_prediction_features, is_training, use_kernel_predicion, kernel_size,
+        use_single_feature_prediction, feature_flags, use_multiscale_predictions, use_CPU_only, data_format)
   else:
-    combined_features_model(prediction_features, output_prediction_features, is_training, use_kernel_predicion, kernel_size, use_single_feature_prediction, feature_flags, use_CPU_only, data_format)
+    combined_features_model(
+        prediction_features, output_prediction_features, is_training, use_kernel_predicion, kernel_size,
+        use_single_feature_prediction, feature_flags, use_multiscale_predictions, use_CPU_only, data_format)
   
-  prediction_dictionary = {}
-  for prediction_feature in output_prediction_features:
-    prediction_feature.add_prediction_to_dictionary(prediction_dictionary)  
-  return prediction_dictionary
+  prediction_dictionaries = []
+  if use_multiscale_predictions:
+    for scale_index in range(len(output_prediction_features[0].predictions)):
+      prediction_dictionary = {}
+      for prediction_feature in output_prediction_features:
+        prediction_feature.add_prediction_to_dictionary(scale_index, prediction_dictionary)
+      prediction_dictionaries.append(prediction_dictionary)
+  else:
+    prediction_dictionary = {}
+    scale_index = 0
+    for prediction_feature in output_prediction_features:
+      prediction_feature.add_prediction_to_dictionary(scale_index, prediction_dictionary)
+    prediction_dictionaries.append(prediction_dictionary)
+      
+  return prediction_dictionaries
 
 
 def model_fn(features, labels, mode, params):
@@ -871,8 +1031,12 @@ def model_fn(features, labels, mode, params):
       prediction_features, mode,
       params['use_kernel_predicion'], params['kernel_size'],
       params['use_single_feature_prediction'], params['feature_flags'],
+      params['use_multiscale_predictions'],
       params['use_CPU_only'], data_format)
 
+  # TODO: Add multi scale losses (if needed according to the not existing json entry) (DeepBlender)
+  predictions = predictions[0]
+  
   if mode == tf.estimator.ModeKeys.PREDICT:
     return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
   
@@ -1151,6 +1315,7 @@ def main(parsed_arguments):
   
   use_single_feature_prediction = parsed_json['use_single_feature_prediction']
   feature_flags = FeatureFlags(parsed_json['feature_flags'])
+  use_multiscale_predictions = parsed_json['use_multiscale_predictions']
   
   features = parsed_json['features']
   combined_features = parsed_json['combined_features']
@@ -1187,7 +1352,7 @@ def main(parsed_arguments):
     
     # REMARK: It is assumed that there are no features which are only a target, without also being a source.
     if feature['is_source']:
-      preserve_source = use_kernel_predicion
+      preserve_source = use_kernel_predicion or use_multiscale_predictions
       feature_variance = feature['feature_variance']
       feature_variance = FeatureVariance(
           feature_variance['use_variance'], feature_variance['relative_variance'],
@@ -1205,7 +1370,7 @@ def main(parsed_arguments):
   if use_single_feature_prediction:
     for prediction_feature in prediction_features:
       if prediction_feature.is_target:
-        feature_flags.add_render_pass_name_to_feature_flag_names(prediction_feature.name, prediction_feature.feature_flags)
+        feature_flags.add_render_pass_name_to_feature_flag_names(prediction_feature.name, prediction_feature.feature_flag_names)
     feature_flags.freeze()
   
   # Training features.
@@ -1318,7 +1483,7 @@ def main(parsed_arguments):
   # TODO: CPU only has to be configurable. (DeepBlender)
   # TODO: Learning rate has to be configurable. (DeepBlender)
   
-  learning_rate = 1e-20
+  learning_rate = 1e-4
   use_XLA = True
   use_CPU_only = False
   
@@ -1349,6 +1514,7 @@ def main(parsed_arguments):
           'kernel_size': kernel_size,
           'use_single_feature_prediction': use_single_feature_prediction,
           'feature_flags': feature_flags,
+          'use_multiscale_predictions': use_multiscale_predictions,
           'training_features': training_features,
           'combined_training_features': combined_training_features,
           'combined_image_training_feature': combined_image_training_feature})

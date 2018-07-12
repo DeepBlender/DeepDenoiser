@@ -11,12 +11,12 @@ class UNet:
 
   def __init__(
       self, number_of_filters_for_convolution_blocks,
-      number_of_convolutions_per_block, number_of_output_filters,
+      number_of_convolutions_per_block, use_multiscale_output=False,
       activation_function=tf.nn.relu, use_batch_normalization=True, dropout_rate=0.2, data_format='channels_last'):
 
     self.number_of_filters_for_convolution_blocks = number_of_filters_for_convolution_blocks
     self.number_of_convolutions_per_block = number_of_convolutions_per_block
-    self.number_of_output_filters = number_of_output_filters
+    self.use_multiscale_output = use_multiscale_output
     self.activation_function = activation_function
     self.use_batch_normalization = use_batch_normalization
     self.dropout_rate = dropout_rate
@@ -60,6 +60,8 @@ class UNet:
 
   def unet(self, inputs, is_training):
     with tf.name_scope('U-Net'):
+      results = []
+    
       number_of_sampling_steps = len(self.number_of_filters_for_convolution_blocks) - 1
       concat_axis = Conv2dUtilities.channel_axis(inputs, self.data_format)
       downsampling_tensors = []
@@ -68,10 +70,11 @@ class UNet:
       with tf.name_scope('downsampling'):
         for i in range(number_of_sampling_steps):
           index = i
+          
           number_of_filters = self.number_of_filters_for_convolution_blocks[index]
           inputs = self.__convolution_block(inputs, number_of_filters, is_training, 'downsampling_' + str(index + 1))
-          
           downsampling_tensors.append(inputs)
+          
           inputs = self.__downsample(inputs, is_training)
       
       # Upsampling
@@ -80,18 +83,21 @@ class UNet:
           index = number_of_sampling_steps - i
           number_of_filters = self.number_of_filters_for_convolution_blocks[index]
           inputs = self.__convolution_block(inputs, number_of_filters, is_training, 'upsampling_' + str(index + 1))
+          if self.use_multiscale_output:
+            results.append(inputs)
           
           inputs = self.__upsample(inputs, self.number_of_filters_for_convolution_blocks[index - 1], is_training)
           
           downsampled_tensor = downsampling_tensors[index - 1]
           inputs = tf.concat([downsampled_tensor, inputs], concat_axis)
         
+        # Last convolution block
         inputs = self.__convolution_block(
             inputs, self.number_of_filters_for_convolution_blocks[0], is_training, 'upsampling_1')
+        results.append(inputs)
       
-      # Finalize the output to have the required number of channels.
-      inputs = tf.layers.conv2d(
-          inputs=inputs, filters=self.number_of_output_filters, kernel_size=(1, 1), padding='same',
-          activation=None, data_format=self.data_format)
+      if not self.use_multiscale_output:
+        assert len(results) == 1
+        results = results[0]
     
-    return inputs
+    return results

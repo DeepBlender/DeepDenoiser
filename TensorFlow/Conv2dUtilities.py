@@ -47,6 +47,25 @@ class Conv2dUtilities:
     return height, width
 
   @staticmethod
+  def convert_to_data_format(inputs, data_format):
+    assert Conv2dUtilities.has_valid_shape(inputs)
+    if Conv2dUtilities.is_batched(inputs):
+      if data_format == 'channels_first':
+        # channels_last to channels_first
+        inputs = tf.transpose(inputs, [0, 3, 1, 2])
+      else:
+        # channels_first to channels_last
+        inputs = tf.transpose(inputs, [0, 2, 3, 1])
+    else:
+      if data_format == 'channels_first':
+        # channels_last to channels_first
+        inputs = tf.transpose(inputs, [2, 0, 1])
+      else:
+        # channels_first to channels_last
+        inputs = tf.transpose(inputs, [1, 2, 0])
+    return inputs
+  
+  @staticmethod
   def non_zero_mask(inputs, data_format):
     channel_index = Conv2dUtilities.channel_axis(inputs, data_format)
     inputs = tf.abs(inputs)

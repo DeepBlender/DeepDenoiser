@@ -33,6 +33,8 @@
 		"Shadow", "Ambient Occlusion"
 	],
 	
+	"use_multiscale_predictions": true,
+	
 	"combined_image": {
 		"loss_weights": {
 			"mean": 1.0,

@@ -38,7 +38,7 @@ class FeatureFlags:
       result.append(flag)
     
     if data_format == 'channels_last':
-      result = tf.concat(result, 3)
+      result = tf.concat(result, 2)
     else:
       result = tf.concat(result, 0)
     
