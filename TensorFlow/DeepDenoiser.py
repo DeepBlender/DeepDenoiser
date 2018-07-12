@@ -868,12 +868,7 @@ def single_feature_model(
             auxiliary_prediction_inputs = tf.concat(auxiliary_prediction_inputs, source_concat_axis)
           else:
             auxiliary_prediction_inputs = None
-          
-          height, width = Conv2dUtilities.height_width(prediction_inputs, source_data_format)
-          prediction_feature_flags = feature_flags.feature_flags(prediction_feature.name, height, width, source_data_format)
-          
-          # TODO: Integrate prediction feature flags, may have to done within the dataset code. (DeepBlender)
-          
+                    
           if auxiliary_prediction_inputs == None and auxiliary_inputs == None:
             outputs = prediction_inputs
           elif auxiliary_prediction_inputs == None:
@@ -882,7 +877,18 @@ def single_feature_model(
             outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs], source_concat_axis)
           else:
             outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], source_concat_axis)
-
+          
+          
+          # Adding the prediction feature flags does only work when the tensor is unbatched. This can be achieved with 'map_fn'.
+          # Alternatively, we could add the flags during the dataset preparation.
+          def add_prediction_feature_flags(inputs):
+            local_concat_axis = Conv2dUtilities.channel_axis(inputs, source_data_format)
+            inputs = tf.concat([prediction_feature_flags, inputs], local_concat_axis)
+            return inputs
+          
+          height, width = Conv2dUtilities.height_width(prediction_inputs, source_data_format)
+          prediction_feature_flags = feature_flags.feature_flags(prediction_feature.name, height, width, source_data_format)
+          outputs = tf.map_fn(add_prediction_feature_flags, outputs)
         
         if use_kernel_predicion:
           output_size = kernel_size ** 2
