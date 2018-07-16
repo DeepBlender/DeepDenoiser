@@ -21,6 +21,7 @@ from UNet import UNet
 from Tiramisu import Tiramisu
 
 from DataAugmentation import DataAugmentation
+from DataAugmentation import DataAugmentationUsage
 from LossDifference import LossDifference
 from LossDifference import LossDifferenceEnum
 from RenderPasses import RenderPasses
@@ -37,7 +38,7 @@ parser.add_argument(
     help='Perform a validation step.')
 
 parser.add_argument(
-    '--batch_size', type=int, default=4,
+    '--batch_size', type=int, default=20,
     help='Number of tiles to process in a batch')
 
 parser.add_argument(
@@ -573,11 +574,11 @@ class TrainingFeatureAugmentation:
     if self.is_target:
       self.target = DataAugmentation.flip_left_right(self.target, self.name)
   
-  def rotate90(self, k, data_format):
+  def rotate_90(self, k, data_format):
     for index in range(self.number_of_sources):
-      self.source[index] = DataAugmentation.rotate90(self.source[index], k, self.name)
+      self.source[index] = DataAugmentation.rotate_90(self.source[index], k, self.name)
     if self.is_target:
-      self.target = DataAugmentation.rotate90(self.target, k, self.name)
+      self.target = DataAugmentation.rotate_90(self.target, k, self.name)
   
   def permute_rgb(self, rgb_permutation, data_format):
     if RenderPasses.is_rgb_color_render_pass(self.name):
@@ -601,7 +602,7 @@ def neural_network_model(inputs, output_size, use_multiscale_predictions, is_tra
 
   unet = UNet(
       number_of_filters_for_convolution_blocks=[128, 128, 128],
-      number_of_convolutions_per_block=4, use_multiscale_output=use_multiscale_predictions,
+      number_of_convolutions_per_block=5, use_multiscale_output=use_multiscale_predictions,
       activation_function=global_activation_function,
       use_batch_normalization=use_batch_normalization, dropout_rate=dropout_rate,
       data_format=data_format)
@@ -1151,8 +1152,8 @@ def model_fn(features, labels, mode, params):
 
 
 def input_fn_tfrecords(
-    files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, rgb_permutation,
-    tiles_height_width, batch_size, threads, data_format='channels_last', use_data_augmentation=False):
+    files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, data_augmentation_usage, rgb_permutation,
+    tiles_height_width, batch_size, threads, data_format='channels_last'):
   
   def feature_parser(serialized_example):
     dataset = None
@@ -1184,20 +1185,24 @@ def input_fn_tfrecords(
   
   def data_augmentation(sources, targets):
     with tf.name_scope('data_augmentation'):
+      flip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
+      rotate = tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32)[0]
+      
       for training_feature_augmentation in training_features_augmentation:
         training_feature_augmentation.intialize_from_dictionaries(sources, targets)
         
-        flip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
-        if flip != 0:
-          training_feature_augmentation.flip_left_right(data_format)
+        if data_augmentation_usage.use_flip_left_right:
+          if flip != 0:
+            training_feature_augmentation.flip_left_right(data_format)
         
-        rotate = tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32)[0]
-        if rotate != 0:
-          training_feature_augmentation.rotate90(rotate, data_format)
+        if data_augmentation_usage.use_rotate_90:
+          if rotate != 0:
+            training_feature_augmentation.rotate_90(rotate, data_format)
 
-        if rgb_permutation != None:
-          if rgb_permutation[0] != 0 and rgb_permutation[1] != 1 and rgb_permutation[2] != 2:
-            training_feature_augmentation.permute_rgb(rgb_permutation, data_format)
+        if data_augmentation_usage.use_rgb_permutation:
+          if rgb_permutation != None:
+            if rgb_permutation[0] != 0 and rgb_permutation[1] != 1 and rgb_permutation[2] != 2:
+              training_feature_augmentation.permute_rgb(rgb_permutation, data_format)
     
         training_feature_augmentation.add_to_sources_dictionary(sources)
         training_feature_augmentation.add_to_targets_dictionary(targets)
@@ -1213,8 +1218,7 @@ def input_fn_tfrecords(
   
   dataset = tf.data.TFRecordDataset(files, compression_type='GZIP', buffer_size=None, num_parallel_reads=threads)
   dataset = dataset.flat_map(map_func=feature_parser)
-  if use_data_augmentation:
-    dataset = dataset.map(map_func=data_augmentation, num_parallel_calls=threads)
+  dataset = dataset.map(map_func=data_augmentation, num_parallel_calls=threads)
   
   shuffle_buffer_size = 20 * batch_size
   dataset = dataset.shuffle(buffer_size=shuffle_buffer_size)
@@ -1234,27 +1238,25 @@ def input_fn_tfrecords(
 
 def train(
     tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-    number_of_epochs, index_tuples, required_indices, rgb_permutation, tiles_height_width, batch_size, threads):
+    number_of_epochs, index_tuples, required_indices, data_augmentation_usage, rgb_permutation, tiles_height_width, batch_size, threads):
   
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Train the model
-  use_data_augmentation = True
   estimator.train(input_fn=lambda: input_fn_tfrecords(
-      files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, rgb_permutation,
-      tiles_height_width, batch_size, threads, use_data_augmentation=use_data_augmentation))
+      files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, data_augmentation_usage, rgb_permutation,
+      tiles_height_width, batch_size, threads))
 
 def evaluate(
     tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-    index_tuples, required_indices, rgb_permutation, tiles_height_width, batch_size, threads):
+    index_tuples, required_indices, data_augmentation_usage, rgb_permutation, tiles_height_width, batch_size, threads):
   
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Evaluate the model
-  use_data_augmentation = True
   estimator.evaluate(input_fn=lambda: input_fn_tfrecords(
-      files, training_features_loader, training_features_augmentation, 1, index_tuples, required_indices, rgb_permutation,
-      tiles_height_width, batch_size, threads, use_data_augmentation=use_data_augmentation))
+      files, training_features_loader, training_features_augmentation, 1, index_tuples, required_indices, data_augmentation_usage, rgb_permutation,
+      tiles_height_width, batch_size, threads))
 
 def source_index_tuples(number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target):
   if number_of_sources_per_example < number_of_sources_per_target:
@@ -1311,7 +1313,9 @@ def main(parsed_arguments):
   
   number_of_source_index_tuples = parsed_json['number_of_source_index_tuples']
   number_of_sources_per_target = parsed_json['number_of_sources_per_target']
-  use_rgb_permutations = parsed_json['use_rgb_permutations']
+  data_augmentation = parsed_json['data_augmentation']
+  data_augmentation_usage = DataAugmentationUsage(
+      data_augmentation['use_rotate_90'], data_augmentation['use_flip_left_right'], data_augmentation['use_rgb_permutation'])
   
   loss_difference = parsed_json['loss_difference']
   loss_difference = LossDifferenceEnum[loss_difference]
@@ -1489,7 +1493,7 @@ def main(parsed_arguments):
   # TODO: CPU only has to be configurable. (DeepBlender)
   # TODO: Learning rate has to be configurable. (DeepBlender)
   
-  learning_rate = 1e-4
+  learning_rate = 1e-3
   use_XLA = True
   use_CPU_only = False
   
@@ -1529,10 +1533,10 @@ def main(parsed_arguments):
     index_tuples, required_indices = source_index_tuples(
         validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
     rgb_permutation = None
-    if use_rgb_permutations:
+    if data_augmentation_usage.use_rgb_permutation:
       rgb_permutation = rgb_color_permutation()
     evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-        index_tuples, required_indices, rgb_permutation, training_tiles_height_width,
+        index_tuples, required_indices, data_augmentation_usage, rgb_permutation, training_tiles_height_width,
         parsed_arguments.batch_size, parsed_arguments.threads)
   else:
     remaining_number_of_epochs = parsed_arguments.train_epochs
@@ -1546,20 +1550,20 @@ def main(parsed_arguments):
         index_tuples, required_indices = source_index_tuples(
             training_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
         rgb_permutation = None
-        if use_rgb_permutations:
+        if data_augmentation_usage.use_rgb_permutation:
           rgb_permutation = rgb_color_permutation()
         train(
             training_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-            epochs_to_train, index_tuples, required_indices, rgb_permutation, training_tiles_height_width,
+            epochs_to_train, index_tuples, required_indices, data_augmentation_usage, rgb_permutation, training_tiles_height_width,
             parsed_arguments.batch_size, parsed_arguments.threads)
       
       index_tuples, required_indices = source_index_tuples(
           validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
       rgb_permutation = None
-      if use_rgb_permutations:
+      if data_augmentation_usage.use_rgb_permutation:
         rgb_permutation = rgb_color_permutation()
       evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-          index_tuples, required_indices, rgb_permutation, training_tiles_height_width,
+          index_tuples, required_indices, data_augmentation_usage, rgb_permutation, training_tiles_height_width,
           parsed_arguments.batch_size, parsed_arguments.threads)
       
       remaining_number_of_epochs = remaining_number_of_epochs - number_of_training_epochs

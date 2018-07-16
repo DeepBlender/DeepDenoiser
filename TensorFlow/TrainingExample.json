@@ -13,15 +13,19 @@
 	"number_of_sources_per_target_description": "The number of sources which are used per example. E.g. 2 would generate ((source_a, source_b), target) tuples where a and b are randomly picked.",
 	"number_of_sources_per_target": 2,
 	
-	"use_rgb_permutations_description": "Pick a permutation of the rgb channels randomly, and use it at least for all passes/aovs from an example which use rgb colors.",
-	"use_rgb_permutations": true,
+	"data_augmentation": {
+		"use_rotate_90": true,
+		"use_flip_left_right": true,
+		"use_rgb_permutation_description": "Pick a permutation of the rgb channels randomly, and use it at least for all passes/aovs from an example which use rgb colors.",
+		"use_rgb_permutation": true
+	},
 	
 	"loss_difference_description": "Options: DIFFERENCE, ABSOLUTE, SMOOTH_ABSOLUTE, SQUARED, SMAPE.",
 	"loss_difference": "SMAPE",
 	
 	"kernel_usage_description": "If kernel prediction is used, The actual kernel has a size of: kernel_size * kernel_size.",
 	"use_kernel_predicion": true,
-	"kernel_size": 21,
+	"kernel_size": 5,
 	
 	"use_single_feature_prediction_description_1": "Should only one target feature be predicted at a time? Additionally, the feature flags need to be generated to guide the neural network.",
 	"use_single_feature_prediction_description_2": "The required feature flags are automatically calculated based on the feature flags of the actual target features.",

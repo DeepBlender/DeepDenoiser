@@ -53,7 +53,7 @@ class DataAugmentation:
     return(inputs)
   
   @staticmethod
-  def rotate90(inputs, k, name, data_format='channels_last'):
+  def rotate_90(inputs, k, name, data_format='channels_last'):
     
     # Convert to 'channels_last' if needed.
     if data_format == 'channels_first':
@@ -62,9 +62,9 @@ class DataAugmentation:
     # Rotate
     inputs = tf.image.rot90(inputs, k=k)
     if name == RenderPasses.SCREEN_SPACE_NORMAL:
-      inputs = DataAugmentation._rotate90_screen_space_normals(inputs, k)
+      inputs = DataAugmentation._rotate_90_screen_space_normals(inputs, k)
     if name == RenderPasses.NORMAL:
-      inputs = DataAugmentation._rotate90_normals(inputs, k)
+      inputs = DataAugmentation._rotate_90_normals(inputs, k)
     
     # Convert back to 'channels_first' if needed.
     if data_format == 'channels_first':
@@ -73,7 +73,7 @@ class DataAugmentation:
     return inputs
     
   @staticmethod
-  def _rotate90_screen_space_normals(inputs, k):
+  def _rotate_90_screen_space_normals(inputs, k):
     # 'channels_last' format is assumed.
     data_format = 'channels_last'
     
@@ -104,25 +104,25 @@ class DataAugmentation:
     return(inputs)
   
   @staticmethod
-  def _rotate90_normals(inputs, k):
+  def _rotate_90_normals(inputs, k):
     # 'channels_last' format is assumed.
     data_format = 'channels_last'
     
     assert Conv2dUtilities.has_valid_shape(inputs)
     assert Conv2dUtilities.number_of_channels(inputs, data_format) == 3
     
-    raise Exception('TODO: Rotate90 normals is not yet implemented. (DeepBlender)')
+    raise Exception('TODO: Rotate 90 normals is not yet implemented. (DeepBlender)')
     
     return(inputs)
   
   @staticmethod
-  def rotate90_normals(inputs, k, data_format):
+  def rotate_90_normals(inputs, k, data_format):
     assert Conv2dUtilities.has_valid_shape(inputs)
     assert Conv2dUtilities.number_of_channels(inputs, data_format) == 3
     
     channel_axis = Conv2dUtilities.channel_axis(inputs, data_format)
     
-    raise Exception('TODO: Rotate90 normals is not yet implemented. (DeepBlender)')
+    raise Exception('TODO: Rotate 90 normals is not yet implemented. (DeepBlender)')
     
     return(inputs)
   
@@ -140,3 +140,11 @@ class DataAugmentation:
     inputs = tf.concat([colors[permutation[0]], colors[permutation[1]], colors[permutation[2]]], channel_axis)
     
     return inputs
+
+
+class DataAugmentationUsage:
+
+  def __init__(self, use_rotate_90, use_flip_left_right, use_rgb_permutation):
+    self.use_rotate_90 = use_rotate_90
+    self.use_flip_left_right = use_flip_left_right
+    self.use_rgb_permutation = use_rgb_permutation
