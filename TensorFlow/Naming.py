@@ -9,13 +9,18 @@ class Naming:
   # Naming for Tensorboard
 
   @staticmethod
-  def variation_name(name, masked=False):
-    result = Naming._tensorboard_statistics_name(name, ' Variation', masked=masked)
+  def difference_name(name, masked=False):
+    result = Naming._tensorboard_statistics_name(name, ' Difference', masked=masked)
     return result
   
   @staticmethod
   def mean_name(name, masked=False):
     result = Naming._tensorboard_statistics_name(name, ' Mean', masked=masked)
+    return result
+  
+  @staticmethod
+  def variation_difference_name(name, masked=False):
+    result = Naming._tensorboard_statistics_name(name, ' Variation Difference', masked=masked)
     return result
   
   @staticmethod

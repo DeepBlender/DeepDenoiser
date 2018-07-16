@@ -144,28 +144,33 @@ class PredictionFeature:
       self.source.append(source_at_index)
 
   def standardize(self):
-    if self.feature_variance.use_variance and self.feature_variance.compute_before_standardization:
-      for index in range(self.number_of_sources):
-        assert len(self.variance) == index
-        variance = self.feature_variance.variance(self.source[index], data_format='channels_last')
-        self.variance.append(variance)
+    with tf.name_scope(Naming.tensorboard_name(self.name + ' Variance')):
+      if self.feature_variance.use_variance and self.feature_variance.compute_before_standardization:
+        for index in range(self.number_of_sources):
+          assert len(self.variance) == index
+          variance = self.feature_variance.variance(self.source[index], data_format='channels_last')
+          self.variance.append(variance)
     
     if self.preserve_source:
       self.preserved_source = self.source[0]
-    if self.feature_standardization != None:
-      for index in range(self.number_of_sources):
-        self.source[index] = self.feature_standardization.standardize(self.source[index], index)
     
-    if self.feature_variance.use_variance and not self.feature_variance.compute_before_standardization:
-      for index in range(self.number_of_sources):
-        assert len(self.variance) == index
-        variance = self.feature_variance.variance(self.source[index], data_format='channels_last')
-        self.variance.append(variance)
+    with tf.name_scope(Naming.tensorboard_name('Standardize ' + self.name)):
+      if self.feature_standardization != None:
+        for index in range(self.number_of_sources):
+          self.source[index] = self.feature_standardization.standardize(self.source[index], index)
+    
+    with tf.name_scope(Naming.tensorboard_name(self.name + ' Variance')):
+      if self.feature_variance.use_variance and not self.feature_variance.compute_before_standardization:
+        for index in range(self.number_of_sources):
+          assert len(self.variance) == index
+          variance = self.feature_variance.variance(self.source[index], data_format='channels_last')
+          self.variance.append(variance)
   
   def prediction_invert_standardize(self):
-    if self.feature_standardization != None:
-      for index in range(len(self.predictions)):
-        self.predictions[index] = self.feature_standardization.invert_standardize(self.predictions[index])
+    with tf.name_scope(Naming.tensorboard_name('Invert Standardize ' + self.name)):
+      if self.feature_standardization != None:
+        for index in range(len(self.predictions)):
+          self.predictions[index] = self.feature_standardization.invert_standardize(self.predictions[index])
   
   def add_prediction(self, scale_index, prediction):
     if not self.is_target:
@@ -213,43 +218,65 @@ class BaseTrainingFeature:
   
   
   def difference(self):
-    result = LossDifference.difference(self.predicted, self.target, self.loss_difference)
+    with tf.name_scope(Naming.difference_name(self.name) + '_internal'):
+      result = LossDifference.difference(self.predicted, self.target, self.loss_difference)
     return result
   
-  def horizontal_variation_difference(self):
+  def masked_difference(self):
+    with tf.name_scope(Naming.difference_name(self.name, masked=True) + '_internal'):
+      result = tf.multiply(self.difference(), self.mask)
+    return result
+  
+  def mean(self):
+    with tf.name_scope(Naming.mean_name(self.name) + '_internal'):
+      result = tf.reduce_mean(self.difference())
+    return result
+  
+  def masked_mean(self):
+    with tf.name_scope(Naming.mean_name(self.name, masked=True) + '_internal'):
+      result = tf.cond(
+          tf.greater(self.mask_sum, 0.),
+          lambda: tf.reduce_sum(tf.divide(tf.multiply(self.difference(), self.mask), self.mask_sum)),
+          lambda: tf.constant(0.))
+    return result
+  
+  def variation_difference(self):
+    with tf.name_scope(Naming.variation_difference_name(self.name) + '_internal'):
+      result = tf.concat(
+          [tf.layers.flatten(self._horizontal_variation_difference()),
+          tf.layers.flatten(self._vertical_variation_difference())], axis=1)
+    return result
+  
+  def masked_variation_difference(self):
+    with tf.name_scope(Naming.variation_difference_name(self.name, masked=True) + '_internal'):
+      result = tf.multiply(self.variation_difference(), self.mask)
+    return result
+    
+  def variation_mean(self):
+    with tf.name_scope(Naming.variation_mean_name(self.name) + '_internal'):
+      result = tf.reduce_mean(self.variation_difference())
+    return result
+    
+  def masked_variation_mean(self):
+    with tf.name_scope(Naming.variation_mean_name(self.name, masked=True) + '_internal'):
+      result = tf.cond(
+          tf.greater(self.mask_sum, 0.),
+          lambda: tf.reduce_sum(tf.divide(tf.multiply(self.variation_difference(), self.mask), self.mask_sum)),
+          lambda: tf.constant(0.))
+    return result
+  
+  def _horizontal_variation_difference(self):
     predicted_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.predicted)
     target_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.target)
     result = LossDifference.difference(
         predicted_horizontal_variation, target_horizontal_variation, self.loss_difference)
     return result
   
-  def vertical_variation_difference(self):
+  def _vertical_variation_difference(self):
     predicted_vertical_variation = BaseTrainingFeature.__vertical_variation(self.predicted)
     target_vertical_variation = BaseTrainingFeature.__vertical_variation(self.target)
     result = LossDifference.difference(
         predicted_vertical_variation, target_vertical_variation, self.loss_difference)
-    return result
-  
-  def variation_difference(self):
-    result = tf.concat(
-        [tf.layers.flatten(self.horizontal_variation_difference()),
-        tf.layers.flatten(self.vertical_variation_difference())], axis=1)
-    return result
-  
-  def masked_difference(self):
-    result = tf.multiply(self.difference(), self.mask)
-    return result
-  
-  def masked_variation_difference(self):
-    result = tf.multiply(self.variation_difference(), self.mask)
-    return result
-  
-  def mean(self):
-    result = tf.reduce_mean(self.difference())
-    return result
-  
-  def variation_mean(self):
-    result = tf.reduce_mean(self.variation_difference())
     return result
   
   def ms_ssim(self):
@@ -280,20 +307,6 @@ class BaseTrainingFeature:
     result = tf.subtract(1., tf.reduce_mean(ms_ssim))
     return result
   
-  def masked_mean(self):
-    result = tf.cond(
-        tf.greater(self.mask_sum, 0.),
-        lambda: tf.reduce_sum(tf.divide(tf.multiply(self.difference(), self.mask), self.mask_sum)),
-        lambda: tf.constant(0.))
-    return result
-  
-  def masked_variation_mean(self):
-    result = tf.cond(
-        tf.greater(self.mask_sum, 0.),
-        lambda: tf.reduce_sum(tf.divide(tf.multiply(self.variation_difference(), self.mask), self.mask_sum)),
-        lambda: tf.constant(0.))
-    return result
-  
   def masked_ms_ssim(self):
     raise Exception('Not implemented')
   
@@ -301,19 +314,21 @@ class BaseTrainingFeature:
   def loss(self):
     result = 0.0
     
-    if self.mean_weight > 0.0:
-      result = tf.add(result, tf.scalar_mul(self.mean_weight, self.mean()))
-    if self.variation_weight > 0.0:
-      result = tf.add(result, tf.scalar_mul(self.variation_weight, self.variation_mean()))
-    if self.ms_ssim_weight > 0.0:
-      result = tf.add(result, tf.scalar_mul(self.ms_ssim_weight, self.ms_ssim()))
+    with tf.name_scope(Naming.tensorboard_name(self.name + ' Weighted Means')):
+      if self.mean_weight > 0.0:
+        result = tf.add(result, tf.scalar_mul(self.mean_weight, self.mean()))
+      if self.variation_weight > 0.0:
+        result = tf.add(result, tf.scalar_mul(self.variation_weight, self.variation_mean()))
+      if self.ms_ssim_weight > 0.0:
+        result = tf.add(result, tf.scalar_mul(self.ms_ssim_weight, self.ms_ssim()))
     
-    if self.masked_mean_weight > 0.0:
-      result = tf.add(result, tf.scalar_mul(self.masked_mean_weight, self.masked_mean()))
-    if self.masked_variation_weight > 0.0:
-      result = tf.add(result, tf.scalar_mul(self.masked_variation_weight, self.masked_variation_mean()))
-    if self.masked_ms_ssim_weight > 0.0:
-      result = tf.add(result, tf.scalar_mul(self.masked_ms_ssim_weight, self.masked_ms_ssim()))
+    with tf.name_scope(Naming.tensorboard_name(self.name + ' Weighted Masked Means')):
+      if self.masked_mean_weight > 0.0:
+        result = tf.add(result, tf.scalar_mul(self.masked_mean_weight, self.masked_mean()))
+      if self.masked_variation_weight > 0.0:
+        result = tf.add(result, tf.scalar_mul(self.masked_variation_weight, self.masked_variation_mean()))
+      if self.masked_ms_ssim_weight > 0.0:
+        result = tf.add(result, tf.scalar_mul(self.masked_ms_ssim_weight, self.masked_ms_ssim()))
     return result
     
   
@@ -334,14 +349,14 @@ class BaseTrainingFeature:
   
   def add_tracked_histograms(self):
     if self.track_difference_histogram:
-      tf.summary.histogram(Naming.tensorboard_name(self.name), self.difference())
+      tf.summary.histogram(Naming.difference_name(self.name), self.difference())
     if self.track_variation_difference_histogram:
-      tf.summary.histogram(Naming.variation_name(self.name), self.variation_difference())
+      tf.summary.histogram(Naming.variation_difference_name(self.name), self.variation_difference())
     
     if self.track_masked_difference_histogram:
-      tf.summary.histogram(Naming.tensorboard_name(self.name, True), self.masked_difference())
+      tf.summary.histogram(Naming.difference_name(self.name, masked=True), self.masked_difference())
     if self.track_masked_variation_difference_histogram:
-      tf.summary.histogram(Naming.variation_name(self.name, True), self.masked_variation_difference())
+      tf.summary.histogram(Naming.variation_difference_name(self.name, masked=True), self.masked_variation_difference())
     
   def add_tracked_metrics_to_dictionary(self, dictionary):
     if self.track_mean:
@@ -632,8 +647,8 @@ def adjust_network_output(inputs, output_size, data_format):
   result = tf.layers.conv2d(
       inputs=inputs, filters=output_size, kernel_size=(1, 1), padding='same',
       activation=global_activation_function, data_format=data_format)
-  inputs = tf.layers.conv2d(
-      inputs=inputs, filters=output_size, kernel_size=(1, 1), padding='same',
+  result = tf.layers.conv2d(
+      inputs=result, filters=output_size, kernel_size=(1, 1), padding='same',
       activation=None, data_format=data_format)
   return result
 
@@ -644,7 +659,7 @@ def combined_features_model(
   source_data_format = 'channels_last'
   source_concat_axis = Conv2dUtilities.channel_axis(prediction_features[0].source[0], data_format)
   
-  with tf.name_scope('prepare_network_input'):
+  with tf.name_scope('bundle_features'):
     prediction_inputs = []
     auxiliary_prediction_inputs = []
     auxiliary_inputs = []
@@ -680,19 +695,19 @@ def combined_features_model(
       auxiliary_inputs = tf.concat(auxiliary_inputs, source_concat_axis)
     else:
       auxiliary_inputs = None
-  
-  
-  if data_format is None:
-    # When running on GPU, transpose the data from channels_last (NHWC) to
-    # channels_first (NCHW) to improve performance.
-    # See https://www.tensorflow.org/performance/performance_guide#data_formats
-    data_format = (
-      'channels_first' if tf.test.is_built_with_cuda() else
-        'channels_last')
-    if use_CPU_only:
-      data_format = 'channels_last'
 
-  with tf.name_scope('data_format_conversion'):
+
+  with tf.name_scope('data_format_conversion'):    
+    if data_format is None:
+      # When running on GPU, transpose the data from channels_last (NHWC) to
+      # channels_first (NCHW) to improve performance.
+      # See https://www.tensorflow.org/performance/performance_guide#data_formats
+      data_format = (
+        'channels_first' if tf.test.is_built_with_cuda() else
+          'channels_last')
+      if use_CPU_only:
+        data_format = 'channels_last'
+    
     if data_format != source_data_format:
       prediction_inputs = Conv2dUtilities.convert_to_data_format(prediction_inputs, data_format)
       if auxiliary_prediction_inputs != None:
@@ -700,14 +715,15 @@ def combined_features_model(
       if auxiliary_inputs != None:
         auxiliary_inputs = Conv2dUtilities.convert_to_data_format(auxiliary_inputs, data_format)
   
-  output_size = 0
-  for prediction_feature in output_prediction_features:
-    if use_kernel_predicion:
-      output_size = output_size + (kernel_size ** 2)
-    else:
-      output_size = output_size + prediction_feature.number_of_channels
   
-  with tf.name_scope('network_input_concat'):
+  with tf.name_scope('feature_concatenation'):
+    output_size = 0
+    for prediction_feature in output_prediction_features:
+      if use_kernel_predicion:
+        output_size = output_size + (kernel_size ** 2)
+      else:
+        output_size = output_size + prediction_feature.number_of_channels
+  
     concat_axis = Conv2dUtilities.channel_axis(prediction_inputs, data_format)
     
     if auxiliary_prediction_inputs == None and auxiliary_inputs == None:
@@ -727,15 +743,16 @@ def combined_features_model(
     if use_multiscale_predictions:
       # Reverse the outputs, such that it is sorted from largest to smallest.
       outputs = list(reversed(outputs))
-  
-  size_splits = []
-  for prediction_feature in output_prediction_features:
-    if use_kernel_predicion:
-      size_splits.append(kernel_size ** 2)
-    else:
-      size_splits.append(prediction_feature.number_of_channels)
+
   
   with tf.name_scope('split'):
+    size_splits = []
+    for prediction_feature in output_prediction_features:
+      if use_kernel_predicion:
+        size_splits.append(kernel_size ** 2)
+      else:
+        size_splits.append(prediction_feature.number_of_channels)
+  
     if use_multiscale_predictions:
       predictions_tuple = []
       for output in outputs:
@@ -760,7 +777,7 @@ def combined_features_model(
       for prediction_feature in output_prediction_features:
         prediction_feature.prediction_invert_standardize()
   
-  with tf.name_scope('use_kernel_predicion'):
+  with tf.name_scope('kernel_predicions'):
     if use_kernel_predicion:
       if use_multiscale_predictions:
         for prediction_feature in output_prediction_features:
@@ -774,7 +791,7 @@ def combined_features_model(
             if scale_index > 0:
               size = 2 ** scale_index
               scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
-            with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+            with tf.name_scope(Naming.tensorboard_name(prediction_feature.name + ' Kernel Prediction')):
               prediction = KernelPrediction.kernel_prediction(
                   scaled_source, prediction_feature.predictions[scale_index],
                   kernel_size, data_format=data_format)
@@ -787,7 +804,7 @@ def combined_features_model(
           if data_format != source_data_format:
             preserved_source = Conv2dUtilities.convert_to_data_format(preserved_source, data_format)
           
-          with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+          with tf.name_scope(Naming.tensorboard_name(prediction_feature.name + ' Kernel Prediction')):
             prediction = KernelPrediction.kernel_prediction(
                 preserved_source, prediction_feature.predictions[scale_index],
                 kernel_size, data_format=data_format)
