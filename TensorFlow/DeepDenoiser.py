@@ -1173,6 +1173,30 @@ def input_fn_tfrecords(
     files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, data_augmentation_usage, rgb_permutation,
     tiles_height_width, batch_size, threads, data_format='channels_last'):
   
+  def fast_feature_parser(serialized_example):
+    assert len(index_tuples) == 1
+    
+    # Load all the required indices.
+    features = {}
+    for training_feature_loader in training_features_loader:
+      training_feature_loader.add_to_parse_dictionary(features, required_indices)
+    
+    parsed_features = tf.parse_single_example(serialized_example, features)
+    
+    for training_feature_loader in training_features_loader:
+      training_feature_loader.deserialize(parsed_features, required_indices, tiles_height_width, tiles_height_width)
+    
+    # Prepare the examples.
+    index_tuple = index_tuples[0]
+    
+    sources = {}
+    targets = {}
+    for training_feature_loader in training_features_loader:
+      training_feature_loader.add_to_sources_dictionary(sources, index_tuple)
+      training_feature_loader.add_to_targets_dictionary(targets)
+    
+    return sources, targets
+  
   def feature_parser(serialized_example):
     dataset = None
     
@@ -1235,7 +1259,10 @@ def input_fn_tfrecords(
   files = files.shuffle(buffer_size=shuffle_buffer_size)
   
   dataset = tf.data.TFRecordDataset(files, compression_type='GZIP', buffer_size=None, num_parallel_reads=threads)
-  dataset = dataset.flat_map(map_func=feature_parser)
+  if len(index_tuples) == 1:
+    dataset = dataset.map(map_func=fast_feature_parser, num_parallel_calls=threads)
+  else:
+    dataset = dataset.flat_map(map_func=feature_parser)
   dataset = dataset.map(map_func=data_augmentation, num_parallel_calls=threads)
   
   shuffle_buffer_size = 20 * batch_size
