@@ -10,7 +10,7 @@ import tensorflow as tf
 import json
 import gzip
 
-from RenderPasses import RenderPasses
+from Naming import Naming
 from RenderPasses import RenderPassesUsage
 from TFRecordsStatistics import TFRecordsStatistics
 from RenderDirectories import RenderDirectories
@@ -97,7 +97,7 @@ class TFRecordsCreator:
           for source_render_directory in render_directories.samples_per_pixel_to_render_directories[self.source_samples_per_pixel]:
             for source_render_pass in source_render_directory.render_pass_to_image:
               image = source_render_directory.render_pass_to_image[source_render_pass]
-              features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)] = TFRecordsCreator._bytes_feature(
+              features[Naming.source_feature_name(source_render_pass, index=source_index)] = TFRecordsCreator._bytes_feature(
                   tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
             source_index = source_index + 1
       
@@ -105,7 +105,7 @@ class TFRecordsCreator:
           target_render_directory = render_directories.samples_per_pixel_to_render_directories[target_samples_per_pixel][0]
           for target_render_pass in target_render_directory.render_pass_to_image:
             image = target_render_directory.render_pass_to_image[target_render_pass]
-            features[RenderPasses.target_feature_name(target_render_pass)] = TFRecordsCreator._bytes_feature(
+            features[Naming.target_feature_name(target_render_pass)] = TFRecordsCreator._bytes_feature(
                 tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
           
           tfrecords_writer.write(features)

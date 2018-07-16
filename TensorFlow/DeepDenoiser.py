@@ -24,6 +24,7 @@ from DataAugmentation import DataAugmentation
 from DataAugmentation import DataAugmentationUsage
 from LossDifference import LossDifference
 from LossDifference import LossDifferenceEnum
+from Naming import Naming
 from RenderPasses import RenderPasses
 from FeatureEngineering import FeatureEngineering
 
@@ -139,7 +140,7 @@ class PredictionFeature:
     self.source = []
     self.variance = []
     for index in range(self.number_of_sources):
-      source_at_index = dictionary[RenderPasses.source_feature_name_indexed(self.name, index)]
+      source_at_index = dictionary[Naming.source_feature_name(self.name, index=index)]
       self.source.append(source_at_index)
 
   def standardize(self):
@@ -175,7 +176,7 @@ class PredictionFeature:
   
   def add_prediction_to_dictionary(self, scale_index, dictionary):
     if self.is_target:
-      dictionary[RenderPasses.prediction_feature_name(self.name)] = self.predictions[scale_index]
+      dictionary[Naming.prediction_feature_name(self.name)] = self.predictions[scale_index]
 
 
 class BaseTrainingFeature:
@@ -247,7 +248,7 @@ class BaseTrainingFeature:
     result = tf.reduce_mean(self.difference())
     return result
   
-  def variation(self):
+  def variation_mean(self):
     result = tf.reduce_mean(self.variation_difference())
     return result
   
@@ -286,7 +287,7 @@ class BaseTrainingFeature:
         lambda: tf.constant(0.))
     return result
   
-  def masked_variation(self):
+  def masked_variation_mean(self):
     result = tf.cond(
         tf.greater(self.mask_sum, 0.),
         lambda: tf.reduce_sum(tf.divide(tf.multiply(self.variation_difference(), self.mask), self.mask_sum)),
@@ -303,14 +304,14 @@ class BaseTrainingFeature:
     if self.mean_weight > 0.0:
       result = tf.add(result, tf.scalar_mul(self.mean_weight, self.mean()))
     if self.variation_weight > 0.0:
-      result = tf.add(result, tf.scalar_mul(self.variation_weight, self.variation()))
+      result = tf.add(result, tf.scalar_mul(self.variation_weight, self.variation_mean()))
     if self.ms_ssim_weight > 0.0:
       result = tf.add(result, tf.scalar_mul(self.ms_ssim_weight, self.ms_ssim()))
     
     if self.masked_mean_weight > 0.0:
       result = tf.add(result, tf.scalar_mul(self.masked_mean_weight, self.masked_mean()))
     if self.masked_variation_weight > 0.0:
-      result = tf.add(result, tf.scalar_mul(self.masked_variation_weight, self.masked_variation()))
+      result = tf.add(result, tf.scalar_mul(self.masked_variation_weight, self.masked_variation_mean()))
     if self.masked_ms_ssim_weight > 0.0:
       result = tf.add(result, tf.scalar_mul(self.masked_ms_ssim_weight, self.masked_ms_ssim()))
     return result
@@ -318,44 +319,44 @@ class BaseTrainingFeature:
   
   def add_tracked_summaries(self):
     if self.track_mean:
-      tf.summary.scalar(RenderPasses.mean_name(self.name), self.mean())
+      tf.summary.scalar(Naming.mean_name(self.name), self.mean())
     if self.track_variation:
-      tf.summary.scalar(RenderPasses.variation_name(self.name), self.variation())
+      tf.summary.scalar(Naming.variation_mean_name(self.name), self.variation_mean())
     if self.track_ms_ssim:
-      tf.summary.scalar(RenderPasses.ms_ssim_name(self.name), self.ms_ssim())
+      tf.summary.scalar(Naming.ms_ssim_name(self.name), self.ms_ssim())
     
     if self.track_masked_mean:
-      tf.summary.scalar(RenderPasses.mean_name(self.name, True), self.masked_mean())
+      tf.summary.scalar(Naming.mean_name(self.name, masked=True), self.masked_mean())
     if self.track_masked_variation:
-      tf.summary.scalar(RenderPasses.variation_name(self.name, True), self.masked_variation())
+      tf.summary.scalar(Naming.variation_mean_name(self.name, masked=True), self.masked_variation_mean())
     if self.track_masked_ms_ssim:
-      tf.summary.scalar(RenderPasses.ms_ssim_name(self.name, True), self.masked_ms_ssim())
+      tf.summary.scalar(Naming.ms_ssim_name(self.name, masked=True), self.masked_ms_ssim())
   
   def add_tracked_histograms(self):
     if self.track_difference_histogram:
-      tf.summary.histogram(RenderPasses.tensorboard_name(self.name), self.difference())
+      tf.summary.histogram(Naming.tensorboard_name(self.name), self.difference())
     if self.track_variation_difference_histogram:
-      tf.summary.histogram(RenderPasses.variation_name(self.name), self.variation_difference())
+      tf.summary.histogram(Naming.variation_name(self.name), self.variation_difference())
     
     if self.track_masked_difference_histogram:
-      tf.summary.histogram(RenderPasses.tensorboard_name(self.name, True), self.masked_difference())
+      tf.summary.histogram(Naming.tensorboard_name(self.name, True), self.masked_difference())
     if self.track_masked_variation_difference_histogram:
-      tf.summary.histogram(RenderPasses.variation_name(self.name, True), self.masked_variation_difference())
+      tf.summary.histogram(Naming.variation_name(self.name, True), self.masked_variation_difference())
     
   def add_tracked_metrics_to_dictionary(self, dictionary):
     if self.track_mean:
-      dictionary[RenderPasses.mean_name(self.name)] = tf.metrics.mean(self.mean())
+      dictionary[Naming.mean_name(self.name)] = tf.metrics.mean(self.mean())
     if self.track_variation:
-      dictionary[RenderPasses.variation_name(self.name)] = tf.metrics.mean(self.variation())
+      dictionary[Naming.variation_mean_name(self.name)] = tf.metrics.mean(self.variation_mean())
     if self.track_ms_ssim:
-      dictionary[RenderPasses.ms_ssim_name(self.name)] = tf.metrics.mean(self.ms_ssim())
+      dictionary[Naming.ms_ssim_name(self.name)] = tf.metrics.mean(self.ms_ssim())
     
     if self.track_masked_mean:
-      dictionary[RenderPasses.mean_name(self.name, True)] = tf.metrics.mean(self.masked_mean())
+      dictionary[Naming.mean_name(self.name, masked=True)] = tf.metrics.mean(self.masked_mean())
     if self.track_masked_variation:
-      dictionary[RenderPasses.variation_name(self.name, True)] = tf.metrics.mean(self.masked_variation())
+      dictionary[Naming.variation_mean_name(self.name, masked=True)] = tf.metrics.mean(self.masked_variation_mean())
     if self.track_masked_ms_ssim:
-      dictionary[RenderPasses.ms_ssim_name(self.name, True)] = tf.metrics.mean(self.masked_ms_ssim())
+      dictionary[Naming.ms_ssim_name(self.name, masked=True)] = tf.metrics.mean(self.masked_ms_ssim())
 
   @staticmethod
   def __horizontal_variation(image_batch):
@@ -424,11 +425,11 @@ class TrainingFeature(BaseTrainingFeature):
         track_masked_difference_histogram, track_masked_variation_difference_histogram)
   
   def initialize(self, source_features, predicted_features, target_features):
-    self.predicted = predicted_features[RenderPasses.prediction_feature_name(self.name)]
-    self.target = target_features[RenderPasses.target_feature_name(self.name)]
+    self.predicted = predicted_features[Naming.prediction_feature_name(self.name)]
+    self.target = target_features[Naming.target_feature_name(self.name)]
     if RenderPasses.is_direct_or_indirect_render_pass(self.name):
       corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(self.name)
-      corresponding_target_feature = target_features[RenderPasses.target_feature_name(corresponding_color_pass)]
+      corresponding_target_feature = target_features[Naming.target_feature_name(corresponding_color_pass)]
       self.mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
       self.mask_sum = tf.reduce_sum(self.mask)
 
@@ -528,28 +529,28 @@ class TrainingFeatureLoader:
   
   def add_to_parse_dictionary(self, dictionary, required_indices):
     for index in required_indices:
-      dictionary[RenderPasses.source_feature_name_indexed(self.name, index)] = tf.FixedLenFeature([], tf.string)
+      dictionary[Naming.source_feature_name(self.name, index=index)] = tf.FixedLenFeature([], tf.string)
     if self.is_target:
-      dictionary[RenderPasses.target_feature_name(self.name)] = tf.FixedLenFeature([], tf.string)
+      dictionary[Naming.target_feature_name(self.name)] = tf.FixedLenFeature([], tf.string)
   
   def deserialize(self, parsed_features, required_indices, height, width):
     self.source = {}
     for index in required_indices:
       self.source[index] = tf.decode_raw(
-          parsed_features[RenderPasses.source_feature_name_indexed(self.name, index)], tf.float32)
+          parsed_features[Naming.source_feature_name(self.name, index=index)], tf.float32)
       self.source[index] = tf.reshape(self.source[index], [height, width, self.number_of_channels])
     if self.is_target:
-      self.target = tf.decode_raw(parsed_features[RenderPasses.target_feature_name(self.name)], tf.float32)
+      self.target = tf.decode_raw(parsed_features[Naming.target_feature_name(self.name)], tf.float32)
       self.target = tf.reshape(self.target, [height, width, self.number_of_channels])
   
   def add_to_sources_dictionary(self, sources, index_tuple):
     for i in range(len(index_tuple)):
       index = index_tuple[i]
-      sources[RenderPasses.source_feature_name_indexed(self.name, i)] = self.source[index]
+      sources[Naming.source_feature_name(self.name, index=i)] = self.source[index]
     
   def add_to_targets_dictionary(self, targets):
     if self.is_target:
-      targets[RenderPasses.target_feature_name(self.name)] = self.target
+      targets[Naming.target_feature_name(self.name)] = self.target
 
 class TrainingFeatureAugmentation:
 
@@ -562,9 +563,9 @@ class TrainingFeatureAugmentation:
   def intialize_from_dictionaries(self, sources, targets):
     self.source = {}
     for index in range(self.number_of_sources):
-      self.source[index] = (sources[RenderPasses.source_feature_name_indexed(self.name, index)])
+      self.source[index] = (sources[Naming.source_feature_name(self.name, index=index)])
     if self.is_target:
-      self.target = targets[RenderPasses.target_feature_name(self.name)]
+      self.target = targets[Naming.target_feature_name(self.name)]
   
   def flip_left_right(self, data_format):
     if data_format != 'channels_last':
@@ -589,11 +590,11 @@ class TrainingFeatureAugmentation:
   
   def add_to_sources_dictionary(self, sources):
     for index in range(self.number_of_sources):
-      sources[RenderPasses.source_feature_name_indexed(self.name, index)] = self.source[index]
+      sources[Naming.source_feature_name(self.name, index=index)] = self.source[index]
     
   def add_to_targets_dictionary(self, targets):
     if self.is_target:
-      targets[RenderPasses.target_feature_name(self.name)] = self.target
+      targets[Naming.target_feature_name(self.name)] = self.target
 
 
 def neural_network_model(inputs, output_size, use_multiscale_predictions, is_training, data_format, use_batch_normalization=False, dropout_rate=0.0):
@@ -773,7 +774,7 @@ def combined_features_model(
             if scale_index > 0:
               size = 2 ** scale_index
               scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
-            with tf.name_scope(RenderPasses.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+            with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
               prediction = KernelPrediction.kernel_prediction(
                   scaled_source, prediction_feature.predictions[scale_index],
                   kernel_size, data_format=data_format)
@@ -786,7 +787,7 @@ def combined_features_model(
           if data_format != source_data_format:
             preserved_source = Conv2dUtilities.convert_to_data_format(preserved_source, data_format)
           
-          with tf.name_scope(RenderPasses.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+          with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
             prediction = KernelPrediction.kernel_prediction(
                 preserved_source, prediction_feature.predictions[scale_index],
                 kernel_size, data_format=data_format)
@@ -934,7 +935,7 @@ def single_feature_model(
           if invert_standardize:
             prediction_feature.prediction_invert_standardize()
         
-        with tf.name_scope(RenderPasses.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+        with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
           if use_kernel_predicion:
             assert prediction_feature.preserve_source
             preserved_source = prediction_feature.preserved_source
@@ -947,14 +948,14 @@ def single_feature_model(
                 if scale_index > 0:
                   size = 2 ** scale_index
                   scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
-                with tf.name_scope(RenderPasses.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+                with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
                   prediction = KernelPrediction.kernel_prediction(
                       scaled_source, prediction_feature.predictions[scale_index],
                       kernel_size, data_format=data_format)
                 prediction_feature.add_prediction(scale_index, prediction)
             else:
               scale_index = 0
-              with tf.name_scope(RenderPasses.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+              with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
                 prediction = KernelPrediction.kernel_prediction(
                     preserved_source, prediction_feature.predictions[scale_index],
                     kernel_size, data_format=data_format)

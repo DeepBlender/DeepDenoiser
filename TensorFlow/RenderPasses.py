@@ -33,66 +33,6 @@ class RenderPasses:
   VOLUME_INDIRECT = 'Volume Indirect'
   
   @staticmethod
-  def source_feature_name(render_pass_name):
-    return 'source_image/' + render_pass_name
-  
-  @staticmethod
-  def source_feature_name_indexed(render_pass_name, source_index):
-    return 'source_image/' + str(source_index) + '/' + render_pass_name
-  
-  @staticmethod
-  def source_feature_name_masked(render_pass_name):
-    return 'source_image/' + render_pass_name + ' Masked'
-  
-  @staticmethod
-  def target_feature_name(render_pass_name):
-    return 'target_image/' + render_pass_name
-  
-  @staticmethod
-  def target_feature_name_masked(render_pass_name):
-    return 'target_image/' + render_pass_name + ' Masked'
-  
-  @staticmethod
-  def prediction_feature_name(render_pass_name):
-    return 'prediction/' + render_pass_name
-  
-  @staticmethod
-  def tensorboard_name(render_pass_name, masked=False):
-    if masked:
-      render_pass_name = render_pass_name + ' Masked'
-    return render_pass_name.lower().replace(' ', '_')
-  
-  @staticmethod
-  def variation_name(render_pass_name, masked=False):
-    result = render_pass_name
-    if RenderPasses.is_combined_render_pass(render_pass_name):
-      result = 'combined_' + render_pass_name
-    result = RenderPasses.tensorboard_name(result) + '_variation'
-    if masked:
-      result = result + '_masked'
-    return result
-  
-  @staticmethod
-  def ms_ssim_name(render_pass_name, masked=False):
-    result = render_pass_name
-    if RenderPasses.is_combined_render_pass(render_pass_name):
-      result = 'combined_' + render_pass_name
-    result = RenderPasses.tensorboard_name(result) + '_ms_ssim'
-    if masked:
-      result = result + '_masked'
-    return result
-  
-  @staticmethod
-  def mean_name(render_pass_name, masked=False):
-    result = render_pass_name
-    if RenderPasses.is_combined_render_pass(render_pass_name):
-      result = 'combined_' + render_pass_name
-    result = RenderPasses.tensorboard_name(result) + '_mean'
-    if masked:
-      result = result + '_masked'
-    return result
-  
-  @staticmethod
   def number_of_channels(render_pass_name):
     result = 3
     if render_pass_name == RenderPasses.ALPHA or render_pass_name == RenderPasses.DEPTH:

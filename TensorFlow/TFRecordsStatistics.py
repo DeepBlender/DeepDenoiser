@@ -1,3 +1,7 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import os
 
 import tensorflow as tf
@@ -7,8 +11,8 @@ import multiprocessing
 import math
 import json
 
+from Naming import Naming
 from RenderPasses import RenderPasses
-from RenderPasses import RenderPassesUsage
 from FeatureStatistics import Statistics
 from FeatureStatistics import FeatureStatistics
 import Utilities
@@ -38,7 +42,7 @@ class TFRecordsStatistics:
     self.variances_log1p = {}
     
     for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
-      source_feature_name = RenderPasses.source_feature_name(source_render_pass)
+      source_feature_name = Naming.source_feature_name(source_render_pass)
       self.minimums[source_feature_name] = math.inf
       self.maximums[source_feature_name] = -math.inf
       self.means[source_feature_name] = []
@@ -49,7 +53,7 @@ class TFRecordsStatistics:
       self.variances_log1p[source_feature_name] = []
       
       if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
-        source_feature_name = RenderPasses.source_feature_name_masked(source_render_pass)
+        source_feature_name = Naming.source_feature_name(source_render_pass, masked=True)
         self.minimums[source_feature_name] = math.inf
         self.maximums[source_feature_name] = -math.inf
         self.means[source_feature_name] = []
@@ -60,7 +64,7 @@ class TFRecordsStatistics:
         self.variances_log1p[source_feature_name] = []
     
     for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
-      target_feature_name = RenderPasses.target_feature_name(target_render_pass)
+      target_feature_name = Naming.target_feature_name(target_render_pass)
       self.minimums[target_feature_name] = math.inf
       self.maximums[target_feature_name] = -math.inf
       self.means[target_feature_name] = []
@@ -71,7 +75,7 @@ class TFRecordsStatistics:
       self.variances_log1p[target_feature_name] = []
       
       if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
-        target_feature_name = RenderPasses.target_feature_name_masked(target_render_pass)
+        target_feature_name = Naming.target_feature_name(target_render_pass, masked=True)
         self.minimums[target_feature_name] = math.inf
         self.maximums[target_feature_name] = -math.inf
         self.means[target_feature_name] = []
@@ -91,20 +95,20 @@ class TFRecordsStatistics:
         
         for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
           for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
-            source_feature_name = RenderPasses.source_feature_name(source_render_pass)
-            source_feature = source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)]
+            source_feature_name = Naming.source_feature_name(source_render_pass)
+            source_feature = source_features[Naming.source_feature_name(source_render_pass, index=source_index)]
             self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, False, target_features)
             if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
               # TODO: Make sure the required target feature is present!
-              source_feature_name = RenderPasses.source_feature_name_masked(source_render_pass)
+              source_feature_name = Naming.source_feature_name(source_render_pass, masked=True)
               self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, True, target_features)
             
         for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
-          target_feature_name = RenderPasses.target_feature_name(target_render_pass)
-          target_feature = target_features[RenderPasses.target_feature_name(target_render_pass)]
+          target_feature_name = Naming.target_feature_name(target_render_pass)
+          target_feature = target_features[target_feature_name]
           self._first_statistics_iteration(source_feature, target_render_pass, target_feature_name, False, target_features)
           if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
-            target_feature_name = RenderPasses.target_feature_name_masked(target_render_pass)
+            target_feature_name = Naming.target_feature_name(target_render_pass, masked=True)
             self._first_statistics_iteration(target_feature, target_render_pass, target_feature_name, True, target_features)
           
       except tf.errors.OutOfRangeError:
@@ -134,19 +138,19 @@ class TFRecordsStatistics:
         
         for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
           for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
-            source_feature_name = RenderPasses.source_feature_name(source_render_pass)
-            source_feature = source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)]
+            source_feature_name = Naming.source_feature_name(source_render_pass)
+            source_feature = source_features[Naming.source_feature_name(source_render_pass, index=source_index)]
             self._second_statistics_iteration(source_feature, source_render_pass, source_feature_name, False, target_features)
             if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
-              source_feature_name = RenderPasses.source_feature_name_masked(source_render_pass)
+              source_feature_name = Naming.source_feature_name(source_render_pass, masked=True)
               self._second_statistics_iteration(source_feature, source_render_pass, source_feature_name, True, target_features)
             
         for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
-          target_feature_name = RenderPasses.target_feature_name(target_render_pass)
-          target_feature = target_features[RenderPasses.target_feature_name(target_render_pass)]
+          target_feature_name = Naming.target_feature_name(target_render_pass)
+          target_feature = target_features[target_feature_name]
           self._second_statistics_iteration(source_feature, target_render_pass, target_feature_name, False, target_features)
           if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
-            target_feature_name = RenderPasses.target_feature_name_masked(target_render_pass)
+            target_feature_name = Naming.target_feature_name(target_render_pass, masked=True)
             self._second_statistics_iteration(target_feature, target_render_pass, target_feature_name, True, target_features)
         
       except tf.errors.OutOfRangeError:
@@ -197,7 +201,7 @@ class TFRecordsStatistics:
       # of the direct and indirect passes matter.
       
       corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(render_pass_name)
-      corresponding_target_feature = target_features[RenderPasses.target_feature_name(corresponding_color_pass)]
+      corresponding_target_feature = target_features[Naming.target_feature_name(corresponding_color_pass)]
       mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
       mask_sum = tf.reduce_sum(mask)
       
@@ -236,7 +240,7 @@ class TFRecordsStatistics:
       # of the direct and indirect passes matter.
       
       corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(render_pass_name)
-      corresponding_target_feature = target_features[RenderPasses.target_feature_name(corresponding_color_pass)]
+      corresponding_target_feature = target_features[Naming.target_feature_name(corresponding_color_pass)]
       mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
       mask_sum = tf.reduce_sum(mask)
       
@@ -269,9 +273,9 @@ class TFRecordsStatistics:
     features = {}
     for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
       for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
-        features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)] = tf.FixedLenFeature([], tf.string)
+        features[Naming.source_feature_name(source_render_pass, index=source_index)] = tf.FixedLenFeature([], tf.string)
     for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
-      features[RenderPasses.target_feature_name(target_render_pass)] = tf.FixedLenFeature([], tf.string)
+      features[Naming.target_feature_name(target_render_pass)] = tf.FixedLenFeature([], tf.string)
     
     parsed_features = tf.parse_single_example(serialized_example, features)
     
@@ -279,20 +283,20 @@ class TFRecordsStatistics:
     for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
       for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
         source_feature = tf.decode_raw(
-            parsed_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)], tf.float32)
+            parsed_features[Naming.source_feature_name(source_render_pass, index=source_index)], tf.float32)
         number_of_channels = RenderPasses.number_of_channels(source_render_pass)
         source_feature = tf.reshape(
             source_feature, [self.tfrecords_creator.tiles_height_width, self.tfrecords_creator.tiles_height_width, number_of_channels])
-        source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)] = source_feature
+        source_features[Naming.source_feature_name(source_render_pass, index=source_index)] = source_feature
     
     target_features = {}
     for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
       target_feature = tf.decode_raw(
-          parsed_features[RenderPasses.target_feature_name(target_render_pass)], tf.float32)
+          parsed_features[Naming.target_feature_name(target_render_pass)], tf.float32)
       number_of_channels = RenderPasses.number_of_channels(target_render_pass)
       target_feature = tf.reshape(
           target_feature, [self.tfrecords_creator.tiles_height_width, self.tfrecords_creator.tiles_height_width, number_of_channels])
-      target_features[RenderPasses.target_feature_name(target_render_pass)] = target_feature
+      target_features[Naming.target_feature_name(target_render_pass)] = target_feature
     
     return source_features, target_features
 
