@@ -52,7 +52,7 @@ class TFRecordsCreator:
       # TODO: Certainly not the best way to perform the validity checks. (DeepBlender)
       assert new_render_directories.required_files_exist(self.source_samples_per_pixel, self.source_render_passes_usage)
       assert (
-          self.number_of_sources_per_example == len(
+          self.number_of_sources_per_example <= len(
               new_render_directories.samples_per_pixel_to_render_directories[self.source_samples_per_pixel]))
       
       target_samples_per_pixel = self.target_samples_per_pixel

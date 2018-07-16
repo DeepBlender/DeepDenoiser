@@ -95,6 +95,7 @@ class TFRecordsStatistics:
             source_feature = source_features[RenderPasses.source_feature_name_indexed(source_render_pass, source_index)]
             self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, False, target_features)
             if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
+              # TODO: Make sure the required target feature is present!
               source_feature_name = RenderPasses.source_feature_name_masked(source_render_pass)
               self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, True, target_features)
             
