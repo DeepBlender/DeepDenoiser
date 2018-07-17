@@ -55,7 +55,7 @@ class Naming:
   def source_feature_name(name, index=None, masked=False):
     result = 'source_image/'
     if index != None:
-      result = result + str(index)
+      result = result + str(index) + '/'
     result = result + name
     result = Naming._masked_if_needed(result, masked=masked)
     return result
