@@ -10,8 +10,6 @@
 	
 	"number_of_source_index_tuples_description": "The number of tuples (source(s), target) which need to be generated.",
 	"number_of_source_index_tuples": 8,
-	"number_of_sources_per_target_description": "The number of sources which are used per example. E.g. 2 would generate ((source_a, source_b), target) tuples where a and b are randomly picked.",
-	"number_of_sources_per_target": 2,
 	
 	"data_augmentation": {
 		"use_rotate_90": true,
@@ -23,21 +21,33 @@
 	"loss_difference_description": "Options: DIFFERENCE, ABSOLUTE, SMOOTH_ABSOLUTE, SQUARED, SMAPE.",
 	"loss_difference": "SMAPE",
 	
-	"kernel_usage_description": "If kernel prediction is used, The actual kernel has a size of: kernel_size * kernel_size.",
-	"use_kernel_predicion": true,
-	"kernel_size": 5,
-	
-	"use_single_feature_prediction_description_1": "Should only one target feature be predicted at a time? Additionally, the feature flags need to be generated to guide the neural network.",
-	"use_single_feature_prediction_description_2": "The required feature flags are automatically calculated based on the feature flags of the actual target features.",
-	"use_single_feature_prediction": true,
-	"feature_flags": [
-		"Diffuse", "Glossy", "Subsurface", "Transmission", "Volume",
-		"Color", "Direct", "Indirect",
-		"Environment", "Emission",
-		"Shadow", "Ambient Occlusion"
-	],
-	
-	"use_multiscale_predictions": true,
+	"neural_network": {
+		"architecture_description": "Options: U-Net, Tiramisu",
+		"architecture": "U-Net",
+		"number_of_filters_for_convolution_blocks": [128, 128, 128],
+		"number_of_convolutions_per_block": 5,
+		"use_batch_normalization": false,
+		"dropout_rate": 0.0,
+		
+		"number_of_sources_per_target_description": "The number of sources which are used per example. E.g. 2 would generate ((source_a, source_b), target) tuples where a and b are randomly picked.",
+		"number_of_sources_per_target": 1,
+		
+		"use_single_feature_prediction_description_1": "Should only one target feature be predicted at a time? Additionally, the feature flags need to be generated to guide the neural network.",
+		"use_single_feature_prediction_description_2": "The required feature flags are automatically calculated based on the feature flags of the actual target features.",
+		"use_single_feature_prediction": true,
+		"feature_flags": [
+			"Diffuse", "Glossy", "Subsurface", "Transmission", "Volume",
+			"Color", "Direct", "Indirect",
+			"Environment", "Emission",
+			"Shadow", "Ambient Occlusion"
+		],
+		
+		"use_multiscale_predictions": true,
+		
+		"kernel_usage_description": "If kernel prediction is used, The actual kernel has a size of: kernel_size * kernel_size.",
+		"use_kernel_predicion": true,
+		"kernel_size": 5
+	},
 	
 	"combined_image": {
 		"loss_weights": {
