@@ -140,6 +140,7 @@
 				"mean": 0.0,
 				"variance": 1.0
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -169,6 +170,7 @@
 				"mean": 0.0,
 				"variance": 23.025850296020508
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -198,6 +200,7 @@
 				"mean": 0.0,
 				"variance": 1.0
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -227,6 +230,7 @@
 				"mean": 0.25535839796066284,
 				"variance": 0.2170753926038742
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -257,6 +261,7 @@
 				"mean": 0.0,
 				"variance": 1.0
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -286,6 +291,7 @@
 				"mean": 0.0,
 				"variance": 1.0
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -316,6 +322,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -345,6 +352,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -375,6 +383,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -404,6 +413,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -445,6 +455,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -486,6 +497,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -515,6 +527,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -556,6 +569,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -597,6 +611,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -626,6 +641,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -667,6 +683,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -708,6 +725,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -737,6 +755,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
@@ -778,6 +797,7 @@
 				"mean": 0.031,
 				"variance": 0.016
 			},
+			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,

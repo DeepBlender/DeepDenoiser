@@ -39,7 +39,7 @@ parser.add_argument(
     help='Perform a validation step.')
 
 parser.add_argument(
-    '--batch_size', type=int, default=4,
+    '--batch_size', type=int, default=20,
     help='Number of tiles to process in a batch')
 
 parser.add_argument(
@@ -51,7 +51,7 @@ parser.add_argument(
     help='Number of epochs to train.')
 
 parser.add_argument(
-    '--validation_interval', type=int, default=5,
+    '--validation_interval', type=int, default=1,
     help='Number of epochs after which a validation is made.')
 
 parser.add_argument(
@@ -93,7 +93,7 @@ class FeatureStandardization:
       feature = tf.divide(feature, tf.sqrt(self.variance))
     return feature
     
-  def invert_standardize(self, feature):
+  def invert_standardization(self, feature):
     if self.use_variance():
       feature = tf.multiply(feature, tf.sqrt(self.variance))
     if self.use_mean():
@@ -123,13 +123,14 @@ class FeatureVariance:
 class PredictionFeature:
 
   def __init__(
-      self, number_of_sources, preserve_source, is_target, feature_standardization, feature_variance,
+      self, number_of_sources, preserve_source, is_target, feature_standardization, invert_standardization, feature_variance,
       feature_flag_names, number_of_channels, name):
     
     self.number_of_sources = number_of_sources
     self.preserve_source = preserve_source
     self.is_target = is_target
     self.feature_standardization = feature_standardization
+    self.invert_standardization = invert_standardization
     self.feature_variance = feature_variance
     self.feature_flag_names = feature_flag_names
     self.number_of_channels = number_of_channels
@@ -166,11 +167,11 @@ class PredictionFeature:
           variance = self.feature_variance.variance(self.source[index], data_format='channels_last')
           self.variance.append(variance)
   
-  def prediction_invert_standardize(self):
-    with tf.name_scope(Naming.tensorboard_name('Invert Standardize ' + self.name)):
+  def prediction_invert_standardization(self):
+    with tf.name_scope(Naming.tensorboard_name('Invert Standardization ' + self.name)):
       if self.feature_standardization != None:
         for index in range(len(self.predictions)):
-          self.predictions[index] = self.feature_standardization.invert_standardize(self.predictions[index])
+          self.predictions[index] = self.feature_standardization.invert_standardization(self.predictions[index])
   
   def add_prediction(self, scale_index, prediction):
     if not self.is_target:
@@ -794,24 +795,24 @@ def combined_features_model(prediction_features, output_prediction_features, is_
     scale_index = 0
     for index, prediction in enumerate(prediction_tuple):
       output_prediction_features[index].add_prediction(scale_index, prediction)
-  
-  with tf.name_scope('invert_standardize'):
-    invert_standardize = not neural_network.use_kernel_predicion
-    if invert_standardize:
-      for prediction_feature in output_prediction_features:
-        prediction_feature.prediction_invert_standardize()
+
   
   with tf.name_scope('kernel_predicions'):
     if neural_network.use_kernel_predicion:
       if neural_network.use_multiscale_predictions:
         for prediction_feature in output_prediction_features:
-          assert prediction_feature.preserve_source
-          preserved_source = prediction_feature.preserved_source
+          if prediction_feature.invert_standardization:
+            source = prediction_feature.source[0]
+          else:
+            assert prediction_feature.preserve_source
+            source = prediction_feature.preserved_source
+          
           if data_format != source_data_format:
-            preserved_source = Conv2dUtilities.convert_to_data_format(preserved_source, data_format)
+            source = Conv2dUtilities.convert_to_data_format(source, data_format)
           
           for scale_index in range(len(prediction_feature.predictions)):
-            scaled_source = preserved_source
+            scaled_source = source
+            
             if scale_index > 0:
               size = 2 ** scale_index
               scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
@@ -823,16 +824,27 @@ def combined_features_model(prediction_features, output_prediction_features, is_
       else:
         scale_index = 0
         for prediction_feature in output_prediction_features:
-          assert prediction_feature.preserve_source
-          preserved_source = prediction_feature.preserved_source
+          if prediction_feature.invert_standardization:
+            source = prediction_feature.source[0]
+          else:
+            assert prediction_feature.preserve_source
+            source = prediction_feature.preserved_source
+          
           if data_format != source_data_format:
-            preserved_source = Conv2dUtilities.convert_to_data_format(preserved_source, data_format)
+            source = Conv2dUtilities.convert_to_data_format(source, data_format)
           
           with tf.name_scope(Naming.tensorboard_name(prediction_feature.name + ' Kernel Prediction')):
             prediction = KernelPrediction.kernel_prediction(
-                preserved_source, prediction_feature.predictions[scale_index],
+                source, prediction_feature.predictions[scale_index],
                 neural_network.kernel_size, data_format=data_format)
           prediction_feature.add_prediction(scale_index, prediction)
+  
+  
+  with tf.name_scope('invert_standardization'):
+    for prediction_feature in output_prediction_features:
+      if prediction_feature.invert_standardization:
+        prediction_feature.prediction_invert_standardization()
+  
   
   with tf.name_scope('combine_multiscales'):
     if neural_network.use_multiscale_predictions:
@@ -969,21 +981,20 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
           scale_index = 0
           prediction_feature.add_prediction(scale_index, outputs[scale_index])
         
-        with tf.name_scope('invert_standardize'):
-          invert_standardize = not neural_network.use_kernel_predicion
-          if invert_standardize:
-            prediction_feature.prediction_invert_standardize()
-        
         with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
           if neural_network.use_kernel_predicion:
-            assert prediction_feature.preserve_source
-            preserved_source = prediction_feature.preserved_source
+            if prediction_feature.invert_standardization:
+              source = prediction_feature.source[0]
+            else:
+              assert prediction_feature.preserve_source
+            source = prediction_feature.preserved_source
+            
             if data_format != source_data_format:
-              preserved_source = Conv2dUtilities.convert_to_data_format(preserved_source, data_format)
+              source = Conv2dUtilities.convert_to_data_format(source, data_format)
 
             if neural_network.use_multiscale_predictions:
               for scale_index in range(len(prediction_feature.predictions)):
-                scaled_source = preserved_source
+                scaled_source = source
                 if scale_index > 0:
                   size = 2 ** scale_index
                   scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
@@ -996,9 +1007,13 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
               scale_index = 0
               with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
                 prediction = KernelPrediction.kernel_prediction(
-                    preserved_source, prediction_feature.predictions[scale_index],
+                    source, prediction_feature.predictions[scale_index],
                     neural_network.kernel_size, data_format=data_format)
               prediction_feature.add_prediction(scale_index, prediction)
+        
+        with tf.name_scope('invert_standardization'):
+          if prediction_feature.invert_standardization:
+            prediction_feature.prediction_invert_standardization()
         
         with tf.name_scope('combine_multiscales'):
           if neural_network.use_multiscale_predictions:
@@ -1434,7 +1449,6 @@ def main(parsed_arguments):
     
     # REMARK: It is assumed that there are no features which are only a target, without also being a source.
     if feature['is_source']:
-      preserve_source = use_kernel_predicion or use_multiscale_predictions
       feature_variance = feature['feature_variance']
       feature_variance = FeatureVariance(
           feature_variance['use_variance'], feature_variance['relative_variance'],
@@ -1443,9 +1457,11 @@ def main(parsed_arguments):
       feature_standardization = feature['standardization']
       feature_standardization = FeatureStandardization(
           feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'],
-          feature_name)      
+          feature_name)
+      invert_standardization = feature['invert_standardization']
+      preserve_source = not invert_standardization
       prediction_feature = PredictionFeature(
-          number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, feature_variance,
+          number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, invert_standardization, feature_variance,
           feature['feature_flags'], feature['number_of_channels'], feature_name)
       prediction_features.append(prediction_feature)
   
