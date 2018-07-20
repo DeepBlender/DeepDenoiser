@@ -12,7 +12,7 @@ class LossDifferenceEnum(Enum):
 class LossDifference:
   
   @staticmethod
-  def difference(predicted, target, loss_difference, epsilon=1e-4):
+  def difference(predicted, target, loss_difference, epsilon=1e-2):
     if loss_difference == LossDifferenceEnum.DIFFERENCE:
       result = tf.subtract(predicted, target)
     elif loss_difference == LossDifferenceEnum.ABSOLUTE:
