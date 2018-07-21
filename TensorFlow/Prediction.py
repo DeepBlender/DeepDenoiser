@@ -15,6 +15,7 @@ import multiprocessing
 from DeepDenoiser import *
 
 from RenderPasses import RenderPasses
+from Naming import Naming
 from RenderDirectory import RenderDirectory
 
 parser = argparse.ArgumentParser(description='Training and inference for the DeepDenoiser.')
@@ -72,6 +73,27 @@ def main(parsed_arguments):
   model_directory = parsed_json['model_directory']
   features = parsed_json['features']
   
+  
+  neural_network = parsed_json['neural_network']
+  architecture = neural_network['architecture']
+  number_of_filters_for_convolution_blocks = neural_network['number_of_filters_for_convolution_blocks']
+  number_of_convolutions_per_block = neural_network['number_of_convolutions_per_block']
+  use_batch_normalization = neural_network['use_batch_normalization']
+  dropout_rate = neural_network['dropout_rate']
+  number_of_sources_per_target = neural_network['number_of_sources_per_target']
+  use_single_feature_prediction = neural_network['use_single_feature_prediction']
+  feature_flags = FeatureFlags(neural_network['feature_flags'])
+  use_multiscale_predictions = neural_network['use_multiscale_predictions']
+  use_kernel_predicion = neural_network['use_kernel_predicion']
+  kernel_size = neural_network['kernel_size']
+
+  neural_network = NeuralNetwork(
+      architecture=architecture, number_of_filters_for_convolution_blocks=number_of_filters_for_convolution_blocks,
+      number_of_convolutions_per_block=number_of_convolutions_per_block, use_batch_normalization=use_batch_normalization,
+      dropout_rate=dropout_rate, number_of_sources_per_target=number_of_sources_per_target, use_single_feature_prediction=use_single_feature_prediction,
+      feature_flags=feature_flags, use_multiscale_predictions=use_multiscale_predictions,
+      use_kernel_predicion=use_kernel_predicion, kernel_size=kernel_size)
+  
   # The names have to be sorted, otherwise the channels would be randomly mixed.
   feature_names = sorted(list(features.keys()))
   
@@ -81,11 +103,20 @@ def main(parsed_arguments):
     
     # REMARK: It is assumed that there are no features which are only a target, without also being a source.
     if feature['is_source']:
+      feature_variance = feature['feature_variance']
+      feature_variance = FeatureVariance(
+          feature_variance['use_variance'], feature_variance['relative_variance'],
+          feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'],
+          feature_name)
       feature_standardization = feature['standardization']
       feature_standardization = FeatureStandardization(
-          feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'], feature_name)
+          feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'],
+          feature_name)
+      invert_standardization = feature['invert_standardization']
+      preserve_source = not invert_standardization
       prediction_feature = PredictionFeature(
-          feature['is_target'], feature_standardization, feature['number_of_channels'], feature_name)
+          number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, invert_standardization, feature_variance,
+          feature['feature_flags'], feature['number_of_channels'], feature_name)
       prediction_features.append(prediction_feature)
   
   height = None
@@ -103,7 +134,8 @@ def main(parsed_arguments):
         if RenderPasses.number_of_channels(prediction_feature.name) == 1:
           image = image[:, :, 0]
         
-        features[RenderPasses.source_feature_name(prediction_feature.name)] = image
+        # HACK: Assume just one source input!
+        features[Naming.source_feature_name(prediction_feature.name, index=0)] = image
         exr_loaded = True
         
         if height == None:
@@ -137,6 +169,7 @@ def main(parsed_arguments):
       config=run_config,
       params={
           'prediction_features': prediction_features,
+          'neural_network': neural_network,
           'use_CPU_only': use_CPU_only,
           'data_format': parsed_arguments.data_format})
   
@@ -145,24 +178,24 @@ def main(parsed_arguments):
         
   for prediction in predictions:
   
-    diffuse_direct = prediction[RenderPasses.prediction_feature_name(RenderPasses.DIFFUSE_DIRECT)]
-    diffuse_indirect = prediction[RenderPasses.prediction_feature_name(RenderPasses.DIFFUSE_INDIRECT)]
-    diffuse_color = prediction[RenderPasses.prediction_feature_name(RenderPasses.DIFFUSE_COLOR)]
+    diffuse_direct = prediction[Naming.prediction_feature_name(RenderPasses.DIFFUSE_DIRECT)]
+    diffuse_indirect = prediction[Naming.prediction_feature_name(RenderPasses.DIFFUSE_INDIRECT)]
+    diffuse_color = prediction[Naming.prediction_feature_name(RenderPasses.DIFFUSE_COLOR)]
     
-    glossy_direct = prediction[RenderPasses.prediction_feature_name(RenderPasses.GLOSSY_DIRECT)]
-    glossy_indirect = prediction[RenderPasses.prediction_feature_name(RenderPasses.GLOSSY_INDIRECT)]
-    glossy_color = prediction[RenderPasses.prediction_feature_name(RenderPasses.GLOSSY_COLOR)]
+    glossy_direct = prediction[Naming.prediction_feature_name(RenderPasses.GLOSSY_DIRECT)]
+    glossy_indirect = prediction[Naming.prediction_feature_name(RenderPasses.GLOSSY_INDIRECT)]
+    glossy_color = prediction[Naming.prediction_feature_name(RenderPasses.GLOSSY_COLOR)]
     
-    subsurface_direct = prediction[RenderPasses.prediction_feature_name(RenderPasses.SUBSURFACE_DIRECT)]
-    subsurface_indirect = prediction[RenderPasses.prediction_feature_name(RenderPasses.SUBSURFACE_INDIRECT)]
-    subsurface_color = prediction[RenderPasses.prediction_feature_name(RenderPasses.SUBSURFACE_COLOR)]
+    subsurface_direct = prediction[Naming.prediction_feature_name(RenderPasses.SUBSURFACE_DIRECT)]
+    subsurface_indirect = prediction[Naming.prediction_feature_name(RenderPasses.SUBSURFACE_INDIRECT)]
+    subsurface_color = prediction[Naming.prediction_feature_name(RenderPasses.SUBSURFACE_COLOR)]
     
-    transmission_direct = prediction[RenderPasses.prediction_feature_name(RenderPasses.TRANSMISSION_DIRECT)]
-    transmission_indirect = prediction[RenderPasses.prediction_feature_name(RenderPasses.TRANSMISSION_INDIRECT)]
-    transmission_color = prediction[RenderPasses.prediction_feature_name(RenderPasses.TRANSMISSION_COLOR)]
+    transmission_direct = prediction[Naming.prediction_feature_name(RenderPasses.TRANSMISSION_DIRECT)]
+    transmission_indirect = prediction[Naming.prediction_feature_name(RenderPasses.TRANSMISSION_INDIRECT)]
+    transmission_color = prediction[Naming.prediction_feature_name(RenderPasses.TRANSMISSION_COLOR)]
     
-    environment = prediction[RenderPasses.prediction_feature_name(RenderPasses.ENVIRONMENT)]
-    emission = prediction[RenderPasses.prediction_feature_name(RenderPasses.EMISSION)]
+    environment = prediction[Naming.prediction_feature_name(RenderPasses.ENVIRONMENT)]
+    emission = prediction[Naming.prediction_feature_name(RenderPasses.EMISSION)]
 
   
     # Combined features
