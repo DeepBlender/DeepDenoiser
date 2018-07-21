@@ -39,10 +39,6 @@ parser.add_argument(
     help='Perform a validation step.')
 
 parser.add_argument(
-    '--batch_size', type=int, default=20,
-    help='Number of tiles to process in a batch')
-
-parser.add_argument(
     '--threads', default=multiprocessing.cpu_count() + 1,
     help='Number of threads to use')
 
@@ -1414,6 +1410,9 @@ def main(parsed_arguments):
   loss_difference = parsed_json['loss_difference']
   loss_difference = LossDifferenceEnum[loss_difference]
   
+  learning_rate = parsed_json['learning_rate']
+  batch_size = parsed_json['batch_size']
+  
   features = parsed_json['features']
   combined_features = parsed_json['combined_features']
   combined_image = parsed_json['combined_image']
@@ -1587,9 +1586,7 @@ def main(parsed_arguments):
   
   
   # TODO: CPU only has to be configurable. (DeepBlender)
-  # TODO: Learning rate has to be configurable. (DeepBlender)
-  
-  learning_rate = 1e-4
+
   use_XLA = True
   use_CPU_only = False
   
@@ -1615,7 +1612,7 @@ def main(parsed_arguments):
           'use_CPU_only': use_CPU_only,
           'data_format': parsed_arguments.data_format,
           'learning_rate': learning_rate,
-          'batch_size': parsed_arguments.batch_size,
+          'batch_size': batch_size,
           'neural_network': neural_network,
           'training_features': training_features,
           'combined_training_features': combined_training_features,
@@ -1629,7 +1626,7 @@ def main(parsed_arguments):
       rgb_permutation = rgb_color_permutation()
     evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
         index_tuples, required_indices, data_augmentation_usage, rgb_permutation, training_tiles_height_width,
-        parsed_arguments.batch_size, parsed_arguments.threads)
+        batch_size, parsed_arguments.threads)
   else:
     remaining_number_of_epochs = parsed_arguments.train_epochs
     while remaining_number_of_epochs > 0:
@@ -1647,7 +1644,7 @@ def main(parsed_arguments):
         train(
             training_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
             epochs_to_train, index_tuples, required_indices, data_augmentation_usage, rgb_permutation, training_tiles_height_width,
-            parsed_arguments.batch_size, parsed_arguments.threads)
+            batch_size, parsed_arguments.threads)
       
       index_tuples, required_indices = source_index_tuples(
           validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
@@ -1656,7 +1653,7 @@ def main(parsed_arguments):
         rgb_permutation = rgb_color_permutation()
       evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
           index_tuples, required_indices, data_augmentation_usage, rgb_permutation, training_tiles_height_width,
-          parsed_arguments.batch_size, parsed_arguments.threads)
+          batch_size, parsed_arguments.threads)
       
       remaining_number_of_epochs = remaining_number_of_epochs - number_of_training_epochs
 
