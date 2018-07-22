@@ -6,12 +6,11 @@ import tensorflow as tf
 
 from Conv2dUtilities import Conv2dUtilities
 
-
 class FeatureEngineering:
 
-  def _local_mean(inputs, data_format='channels_last'):
+  def _local_mean(inputs, variance_mode='uniform', data_format='channels_last'):
     kernel_size = 3
-    mode='symmetric'
+    padding_mode='symmetric'
     
     channel_axis = Conv2dUtilities.channel_axis(inputs, data_format)
     height_axis, width_axis = Conv2dUtilities.height_width_axis(inputs, data_format)
@@ -24,16 +23,26 @@ class FeatureEngineering:
     else:
       short_data_format = 'NCHW'
     
-    padded_inputs = Conv2dUtilities.pad_equally(inputs, pad, mode=mode, data_format=data_format)
+    padded_inputs = Conv2dUtilities.pad_equally(inputs, pad, mode=padding_mode, data_format=data_format)
     padded_inputs_split = tf.split(padded_inputs, number_of_channels, axis=channel_axis)
     joined_inputs = []
+    
+    filter_shape = [kernel_size, kernel_size, 1, 1]
+    if variance_mode == 'uniform':
+      filter = tf.ones(filter_shape)
+    else:
+      assert variance_mode == 'neighbor'
+      
+      assert kernel_size == 3
+      filter = [0.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0]
+      filter = tf.reshape(filter, [kernel_size, kernel_size, 1, 1])
+      
+    filter = tf.divide(filter, tf.reduce_sum(filter))
+    
     for index in range(number_of_channels):
       padded_input = padded_inputs_split[index]
       if not is_batched:
         padded_input = tf.stack([padded_input])
-      
-      filter = tf.ones([kernel_size, kernel_size, 1, 1])
-      filter = tf.divide(filter, tf.cast(kernel_size**2, tf.float32))
       
       input = tf.nn.conv2d(padded_input, filter=filter, strides=[1, 1, 1, 1], padding='VALID', data_format=short_data_format)
       
@@ -45,10 +54,10 @@ class FeatureEngineering:
     
     return inputs
   
-  def variance(inputs, relative_variance=False, compress_to_one_channel=False, epsilon=1e-4, data_format='channels_last'):
-    mean_of_inputs = FeatureEngineering._local_mean(inputs, data_format)
+  def variance(inputs, relative_variance=False, compress_to_one_channel=False, variance_mode='uniform', epsilon=1e-4, data_format='channels_last'):
+    mean_of_inputs = FeatureEngineering._local_mean(inputs, variance_mode=variance_mode, data_format=data_format)
     squared_mean_of_inputs = tf.square(mean_of_inputs)
-    mean_of_squared_inputs = FeatureEngineering._local_mean(tf.square(inputs), data_format)
+    mean_of_squared_inputs = FeatureEngineering._local_mean(tf.square(inputs), variance_mode=variance_mode, data_format=data_format)
     result = tf.subtract(mean_of_squared_inputs, squared_mean_of_inputs)
     
     if relative_variance:
