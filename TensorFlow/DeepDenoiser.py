@@ -580,13 +580,13 @@ class TrainingFeatureAugmentation:
     if self.is_target:
       self.target = targets[Naming.target_feature_name(self.name)]
   
-  def flip_left_right(self, data_format):
+  def flip_left_right(self, flip, data_format):
     if data_format != 'channels_last':
       raise Exception('Channel last is the only supported format.')
     for index in range(self.number_of_sources):
-      self.source[index] = DataAugmentation.flip_left_right(self.source[index], self.name)
+      self.source[index] = DataAugmentation.flip_left_right(self.source[index], self.name, flip)
     if self.is_target:
-      self.target = DataAugmentation.flip_left_right(self.target, self.name)
+      self.target = DataAugmentation.flip_left_right(self.target, self.name, flip)
   
   def rotate_90(self, k, data_format):
     for index in range(self.number_of_sources):
@@ -594,12 +594,12 @@ class TrainingFeatureAugmentation:
     if self.is_target:
       self.target = DataAugmentation.rotate_90(self.target, k, self.name)
   
-  def permute_rgb(self, rgb_permutation, data_format):
+  def permute_rgb(self, permute, data_format):
     if RenderPasses.is_rgb_color_render_pass(self.name):
       for index in range(self.number_of_sources):
-        self.source[index] = DataAugmentation.permute_rgb(self.source[index], rgb_permutation, self.name)
+        self.source[index] = DataAugmentation.permute_rgb(self.source[index], permute, self.name)
       if self.is_target:
-        self.target = DataAugmentation.permute_rgb(self.target, rgb_permutation, self.name)
+        self.target = DataAugmentation.permute_rgb(self.target, permute, self.name)
   
   def add_to_sources_dictionary(self, sources):
     for index in range(self.number_of_sources):
@@ -1200,7 +1200,7 @@ def model_fn(features, labels, mode, params):
 
 
 def input_fn_tfrecords(
-    files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, data_augmentation_usage, rgb_permutation,
+    files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, data_augmentation_usage,
     tiles_height_width, batch_size, threads, data_format='channels_last'):
   
   def fast_feature_parser(serialized_example):
@@ -1259,22 +1259,19 @@ def input_fn_tfrecords(
     with tf.name_scope('data_augmentation'):
       flip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
       rotate = tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32)[0]
+      permute = tf.random_uniform([1], minval=0, maxval=6, dtype=tf.int32)[0]
       
       for training_feature_augmentation in training_features_augmentation:
         training_feature_augmentation.intialize_from_dictionaries(sources, targets)
         
         if data_augmentation_usage.use_flip_left_right:
-          if flip != 0:
-            training_feature_augmentation.flip_left_right(data_format)
+          training_feature_augmentation.flip_left_right(flip, data_format)
         
         if data_augmentation_usage.use_rotate_90:
-          if rotate != 0:
-            training_feature_augmentation.rotate_90(rotate, data_format)
+          training_feature_augmentation.rotate_90(rotate, data_format)
 
         if data_augmentation_usage.use_rgb_permutation:
-          if rgb_permutation != None:
-            if rgb_permutation[0] != 0 and rgb_permutation[1] != 1 and rgb_permutation[2] != 2:
-              training_feature_augmentation.permute_rgb(rgb_permutation, data_format)
+          training_feature_augmentation.permute_rgb(permute, data_format)
     
         training_feature_augmentation.add_to_sources_dictionary(sources)
         training_feature_augmentation.add_to_targets_dictionary(targets)
@@ -1313,24 +1310,24 @@ def input_fn_tfrecords(
 
 def train(
     tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-    number_of_epochs, index_tuples, required_indices, data_augmentation_usage, rgb_permutation, tiles_height_width, batch_size, threads):
+    number_of_epochs, index_tuples, required_indices, data_augmentation_usage, tiles_height_width, batch_size, threads):
   
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Train the model
   estimator.train(input_fn=lambda: input_fn_tfrecords(
-      files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, data_augmentation_usage, rgb_permutation,
+      files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, data_augmentation_usage,
       tiles_height_width, batch_size, threads))
 
 def evaluate(
     tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-    index_tuples, required_indices, data_augmentation_usage, rgb_permutation, tiles_height_width, batch_size, threads):
+    index_tuples, required_indices, data_augmentation_usage, tiles_height_width, batch_size, threads):
   
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Evaluate the model
   estimator.evaluate(input_fn=lambda: input_fn_tfrecords(
-      files, training_features_loader, training_features_augmentation, 1, index_tuples, required_indices, data_augmentation_usage, rgb_permutation,
+      files, training_features_loader, training_features_augmentation, 1, index_tuples, required_indices, data_augmentation_usage,
       tiles_height_width, batch_size, threads))
 
 def source_index_tuples(number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target):
@@ -1364,11 +1361,6 @@ def source_index_tuples(number_of_sources_per_example, number_of_source_index_tu
   required_indices.sort()
   
   return index_tuples, required_indices
-
-def rgb_color_permutation():
-  rgb_permutation = [0, 1, 2]
-  rgb_permutation = random.sample(rgb_permutation, len(rgb_permutation))
-  return rgb_permutation
   
 
 def main(parsed_arguments):
@@ -1621,11 +1613,8 @@ def main(parsed_arguments):
   if parsed_arguments.validate:
     index_tuples, required_indices = source_index_tuples(
         validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
-    rgb_permutation = None
-    if data_augmentation_usage.use_rgb_permutation:
-      rgb_permutation = rgb_color_permutation()
     evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-        index_tuples, required_indices, data_augmentation_usage, rgb_permutation, training_tiles_height_width,
+        index_tuples, required_indices, data_augmentation_usage, training_tiles_height_width,
         batch_size, parsed_arguments.threads)
   else:
     remaining_number_of_epochs = parsed_arguments.train_epochs
@@ -1638,21 +1627,15 @@ def main(parsed_arguments):
         epochs_to_train = 1
         index_tuples, required_indices = source_index_tuples(
             training_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
-        rgb_permutation = None
-        if data_augmentation_usage.use_rgb_permutation:
-          rgb_permutation = rgb_color_permutation()
         train(
             training_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-            epochs_to_train, index_tuples, required_indices, data_augmentation_usage, rgb_permutation, training_tiles_height_width,
+            epochs_to_train, index_tuples, required_indices, data_augmentation_usage, training_tiles_height_width,
             batch_size, parsed_arguments.threads)
       
       index_tuples, required_indices = source_index_tuples(
           validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
-      rgb_permutation = None
-      if data_augmentation_usage.use_rgb_permutation:
-        rgb_permutation = rgb_color_permutation()
       evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-          index_tuples, required_indices, data_augmentation_usage, rgb_permutation, training_tiles_height_width,
+          index_tuples, required_indices, data_augmentation_usage, training_tiles_height_width,
           batch_size, parsed_arguments.threads)
       
       remaining_number_of_epochs = remaining_number_of_epochs - number_of_training_epochs

@@ -6,7 +6,7 @@ from RenderPasses import RenderPasses
 class DataAugmentation:
   
   @staticmethod
-  def flip_left_right(inputs, name, data_format='channels_last'):
+  def flip_left_right(inputs, name, flip, data_format='channels_last'):
     assert Conv2dUtilities.has_valid_shape(inputs)
     
     # Convert to 'channels_last' if needed.
@@ -14,11 +14,11 @@ class DataAugmentation:
       inputs = Conv2dUtilities.convert_to_data_format(inputs, 'channels_last')
     
     # Flip
-    inputs = tf.image.flip_left_right(inputs)
+    inputs = tf.cond(flip > 0, lambda: tf.image.flip_left_right(inputs), lambda: inputs)
     if name == RenderPasses.SCREEN_SPACE_NORMAL:
-      inputs = DataAugmentation._flip_screen_space_normals(inputs)
+      inputs = tf.cond(flip > 0, lambda: DataAugmentation._flip_screen_space_normals(inputs), lambda: inputs)
     if name == RenderPasses.NORMAL:
-      inputs = DataAugmentation._flip_normals(inputs)
+      inputs = tf.cond (flip > 0, lambda: DataAugmentation._flip_normals(inputs), lambda: inputs)
     
     # Convert back to 'channels_first' if needed.
     if data_format == 'channels_first':
@@ -82,23 +82,36 @@ class DataAugmentation:
     
     channel_axis = Conv2dUtilities.channel_axis(inputs, data_format)
     screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.split(inputs, [1, 1, 1], channel_axis)
-    if k == 1:
+    
+    def _rotate_90(screen_space_normal_x, screen_space_normal_y, screen_space_normal_z):
       # x -> -y
       # y -> x
       temporary_screen_space_normal_x = screen_space_normal_x
       screen_space_normal_x = tf.negative(screen_space_normal_y)
       screen_space_normal_y = temporary_screen_space_normal_x
-    elif k == 2:
+      return screen_space_normal_x, screen_space_normal_y, screen_space_normal_z
+    
+    def _rotate_180(screen_space_normal_x, screen_space_normal_y, screen_space_normal_z):
       # x -> -x
       # y -> -y
       screen_space_normal_x = tf.negative(screen_space_normal_x)
       screen_space_normal_y = tf.negative(screen_space_normal_y)
-    elif k == 3:
+      return screen_space_normal_x, screen_space_normal_y, screen_space_normal_z
+    
+    def _rotate_270(screen_space_normal_x, screen_space_normal_y, screen_space_normal_z):
       # x -> y
       # y -> -x
       temporary_screen_space_normal_y = screen_space_normal_y
       screen_space_normal_y = tf.negative(screen_space_normal_x)
       screen_space_normal_x = temporary_screen_space_normal_y
+      return screen_space_normal_x, screen_space_normal_y, screen_space_normal_z
+    
+    cases =[
+        (tf.equal(k, 1), lambda: _rotate_90(screen_space_normal_x, screen_space_normal_y, screen_space_normal_z)),
+        (tf.equal(k, 2), lambda: _rotate_180(screen_space_normal_x, screen_space_normal_y, screen_space_normal_z)),
+        (tf.equal(k, 3), lambda: _rotate_270(screen_space_normal_x, screen_space_normal_y, screen_space_normal_z))]
+    screen_space_normal_x, screen_space_normal_y, screen_space_normal_z = tf.case(
+        cases, default=lambda: (screen_space_normal_x, screen_space_normal_y, screen_space_normal_z), exclusive=True)
     
     inputs = tf.concat([screen_space_normal_x, screen_space_normal_y, screen_space_normal_z], channel_axis)
     return(inputs)
@@ -116,28 +129,23 @@ class DataAugmentation:
     return(inputs)
   
   @staticmethod
-  def rotate_90_normals(inputs, k, data_format):
+  def permute_rgb(inputs, permute, data_format='channels_last'):
     assert Conv2dUtilities.has_valid_shape(inputs)
     assert Conv2dUtilities.number_of_channels(inputs, data_format) == 3
     
-    channel_axis = Conv2dUtilities.channel_axis(inputs, data_format)
+    def _permute_rgb(inputs, permutation):
+      channel_axis = Conv2dUtilities.channel_axis(inputs, data_format)
+      result = tf.split(inputs, [1, 1, 1], channel_axis)
+      result = tf.concat([result[permutation[0]], result[permutation[1]], result[permutation[2]]], channel_axis)
+      return result
     
-    raise Exception('TODO: Rotate 90 normals is not yet implemented. (DeepBlender)')
-    
-    return(inputs)
-  
-  @staticmethod
-  def permute_rgb(inputs, permutation, data_format='channels_last'):
-    assert Conv2dUtilities.has_valid_shape(inputs)
-    assert Conv2dUtilities.number_of_channels(inputs, data_format) == 3
-    #assert len(permutation) == 3
-    #assert (0 in permutation) and (1 in permutation) and (2 in permutation)
-    
-    # Swap colors.
-    channel_axis = Conv2dUtilities.channel_axis(inputs, data_format)
-    
-    colors = tf.split(inputs, [1, 1, 1], channel_axis)
-    inputs = tf.concat([colors[permutation[0]], colors[permutation[1]], colors[permutation[2]]], channel_axis)
+    cases =[
+        (tf.equal(permute, 1), lambda: _permute_rgb(inputs, [0, 2, 1])),
+        (tf.equal(permute, 2), lambda: _permute_rgb(inputs, [1, 0, 2])),
+        (tf.equal(permute, 3), lambda: _permute_rgb(inputs, [1, 2, 0])),
+        (tf.equal(permute, 4), lambda: _permute_rgb(inputs, [2, 0, 1])),
+        (tf.equal(permute, 5), lambda: _permute_rgb(inputs, [2, 1, 0]))]
+    inputs = tf.case(cases, default=lambda: inputs, exclusive=True)
     
     return inputs
 
