@@ -134,8 +134,10 @@
 			"feature_flags": [],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -164,8 +166,10 @@
 			"feature_flags": [],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -194,8 +198,10 @@
 			"feature_flags": [],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -224,8 +230,10 @@
 			"feature_flags": [],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -255,8 +263,10 @@
 			"feature_flags": ["Ambient Occlusion"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -285,8 +295,10 @@
 			"feature_flags": ["Shadow"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -316,8 +328,10 @@
 			"feature_flags": ["Emission"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -346,8 +360,10 @@
 			"feature_flags": ["Environment"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -377,8 +393,10 @@
 			"feature_flags": ["Diffuse", "Color"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -407,8 +425,10 @@
 			"feature_flags": ["Diffuse", "Direct"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -449,8 +469,10 @@
 			"feature_flags": ["Diffuse", "Indirect"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -491,8 +513,10 @@
 			"feature_flags": ["Glossy", "Color"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -521,8 +545,10 @@
 			"feature_flags": ["Glossy", "Direct"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -563,8 +589,10 @@
 			"feature_flags": ["Glossy", "Indirect"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -605,8 +633,10 @@
 			"feature_flags": ["Subsurface", "Color"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -635,8 +665,10 @@
 			"feature_flags": ["Subsurface", "Direct"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -677,8 +709,10 @@
 			"feature_flags": ["Subsurface", "Indirect"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -719,8 +753,10 @@
 			"feature_flags": ["Transmission", "Color"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -749,8 +785,10 @@
 			"feature_flags": ["Transmission", "Direct"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
@@ -791,8 +829,10 @@
 			"feature_flags": ["Transmission", "Indirect"],
 			"feature_variance": {
 				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
-				"compute_before_standardization": true,
+				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {

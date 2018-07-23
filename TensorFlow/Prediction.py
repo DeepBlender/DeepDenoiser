@@ -105,7 +105,7 @@ def main(parsed_arguments):
     if feature['is_source']:
       feature_variance = feature['feature_variance']
       feature_variance = FeatureVariance(
-          feature_variance['use_variance'], feature_variance['relative_variance'],
+          feature_variance['use_variance'], feature_variance['variance_mode'], feature_variance['relative_variance'],
           feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'],
           feature_name)
       feature_standardization = feature['standardization']

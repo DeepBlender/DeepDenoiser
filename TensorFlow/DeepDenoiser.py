@@ -101,8 +101,9 @@ class FeatureStandardization:
 
 class FeatureVariance:
 
-  def __init__(self, use_variance, relative_variance, compute_before_standardization, compress_to_one_channel, name):
+  def __init__(self, use_variance, variance_mode, relative_variance, compute_before_standardization, compress_to_one_channel, name):
     self.use_variance = use_variance
+    self.variance_mode = variance_mode
     self.relative_variance = relative_variance
     self.compute_before_standardization = compute_before_standardization
     self.compress_to_one_channel = compress_to_one_channel
@@ -111,7 +112,7 @@ class FeatureVariance:
   def variance(self, inputs, epsilon=1e-4, data_format='channels_last'):
     assert self.use_variance
     result = FeatureEngineering.variance(
-        inputs, relative_variance=self.relative_variance, compress_to_one_channel=self.compress_to_one_channel,
+        inputs, variance_mode=self.variance_mode, relative_variance=self.relative_variance, compress_to_one_channel=self.compress_to_one_channel,
         epsilon=epsilon, data_format=data_format)
     return result
   
@@ -132,6 +133,9 @@ class PredictionFeature:
     self.number_of_channels = number_of_channels
     self.name = name
     self.predictions = []
+    
+    if self.preserve_source:
+      raise Exception('Preserve source should not be used because it does not support augmentation.')
 
   def initialize_sources_from_dictionary(self, dictionary):
     self.source = []
@@ -1442,7 +1446,7 @@ def main(parsed_arguments):
     if feature['is_source']:
       feature_variance = feature['feature_variance']
       feature_variance = FeatureVariance(
-          feature_variance['use_variance'], feature_variance['relative_variance'],
+          feature_variance['use_variance'], feature_variance['variance_mode'], feature_variance['relative_variance'],
           feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'],
           feature_name)
       feature_standardization = feature['standardization']
