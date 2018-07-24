@@ -46,6 +46,8 @@
 		],
 		
 		"use_multiscale_predictions": true,
+		"use_multiscale_loss": true,
+		"use_multiscale_metrics": true,
 		
 		"kernel_usage_description": "If kernel prediction is used, The actual kernel has a size of: kernel_size * kernel_size.",
 		"use_kernel_predicion": true,

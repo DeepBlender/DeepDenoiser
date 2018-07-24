@@ -188,7 +188,7 @@ class PredictionFeature:
 class BaseTrainingFeature:
 
   def __init__(
-      self, name, loss_difference,
+      self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
       mean_weight, variation_weight, ms_ssim_weight,
       masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
@@ -198,6 +198,9 @@ class BaseTrainingFeature:
       
     self.name = name
     self.loss_difference = loss_difference
+    
+    self.use_multiscale_loss = use_multiscale_loss
+    self.use_multiscale_metrics = use_multiscale_metrics
     
     self.mean_weight = mean_weight
     self.variation_weight = variation_weight
@@ -423,7 +426,7 @@ class BaseTrainingFeature:
 class TrainingFeature(BaseTrainingFeature):
 
   def __init__(
-      self, name, loss_difference,
+      self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
       mean_weight, variation_weight, ms_ssim_weight,
       masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
@@ -432,7 +435,7 @@ class TrainingFeature(BaseTrainingFeature):
       track_masked_difference_histogram, track_masked_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
-        self, name, loss_difference,
+        self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
         mean_weight, variation_weight, ms_ssim_weight,
         masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
         track_mean, track_variation, track_ms_ssim,
@@ -461,7 +464,7 @@ class TrainingFeature(BaseTrainingFeature):
 class CombinedTrainingFeature(BaseTrainingFeature):
 
   def __init__(
-      self, name, loss_difference,
+      self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
       color_training_feature, direct_training_feature, indirect_training_feature,
       mean_weight, variation_weight, ms_ssim_weight,
       masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
@@ -471,7 +474,7 @@ class CombinedTrainingFeature(BaseTrainingFeature):
       track_masked_difference_histogram, track_masked_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
-        self, name, loss_difference,
+        self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
         mean_weight, variation_weight, ms_ssim_weight,
         masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
         track_mean, track_variation, track_ms_ssim,
@@ -505,7 +508,7 @@ class CombinedTrainingFeature(BaseTrainingFeature):
 class CombinedImageTrainingFeature(BaseTrainingFeature):
 
   def __init__(
-      self, name, loss_difference,
+      self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
       diffuse_training_feature, glossy_training_feature,
       subsurface_training_feature, transmission_training_feature,
       emission_training_feature, environment_training_feature,
@@ -517,7 +520,7 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
       track_masked_difference_histogram, track_masked_variation_difference_histogram):
     
     BaseTrainingFeature.__init__(
-        self, name, loss_difference,
+        self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
         mean_weight, variation_weight, ms_ssim_weight,
         masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
         track_mean, track_variation, track_ms_ssim,
@@ -791,64 +794,42 @@ def combined_features_model(prediction_features, output_prediction_features, is_
       else:
         size_splits.append(prediction_feature.number_of_channels)
   
+    predictions_tuple = []
     if neural_network.use_multiscale_predictions:
-      predictions_tuple = []
       for output in outputs:
         prediction_tuple = tf.split(output, size_splits, concat_axis)
         predictions_tuple.append(prediction_tuple)
     else:
       prediction_tuple = tf.split(outputs, size_splits, concat_axis)
+      predictions_tuple.append(prediction_tuple)
   
-  if neural_network.use_multiscale_predictions:
-    for scale_index in range(len(predictions_tuple)):
-      prediction_tuple = predictions_tuple[scale_index]
-      for index, prediction in enumerate(prediction_tuple):
-        output_prediction_features[index].add_prediction(scale_index, prediction)
-  else:
-    scale_index = 0
+  for scale_index in range(len(predictions_tuple)):
+    prediction_tuple = predictions_tuple[scale_index]
     for index, prediction in enumerate(prediction_tuple):
       output_prediction_features[index].add_prediction(scale_index, prediction)
 
   
   with tf.name_scope('kernel_predicions'):
     if neural_network.use_kernel_predicion:
-      if neural_network.use_multiscale_predictions:
-        for prediction_feature in output_prediction_features:
-          if prediction_feature.invert_standardization:
-            source = prediction_feature.source[0]
-          else:
-            assert prediction_feature.preserve_source
-            source = prediction_feature.preserved_source
+      for prediction_feature in output_prediction_features:
+        if prediction_feature.invert_standardization:
+          source = prediction_feature.source[0]
+        else:
+          assert prediction_feature.preserve_source
+          source = prediction_feature.preserved_source
+        
+        if data_format != source_data_format:
+          source = Conv2dUtilities.convert_to_data_format(source, data_format)
+        
+        for scale_index in range(len(prediction_feature.predictions)):
+          scaled_source = source
           
-          if data_format != source_data_format:
-            source = Conv2dUtilities.convert_to_data_format(source, data_format)
-          
-          for scale_index in range(len(prediction_feature.predictions)):
-            scaled_source = source
-            
-            if scale_index > 0:
-              size = 2 ** scale_index
-              scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
-            with tf.name_scope(Naming.tensorboard_name(prediction_feature.name + ' Kernel Prediction')):
-              prediction = KernelPrediction.kernel_prediction(
-                  scaled_source, prediction_feature.predictions[scale_index],
-                  neural_network.kernel_size, data_format=data_format)
-            prediction_feature.add_prediction(scale_index, prediction)
-      else:
-        scale_index = 0
-        for prediction_feature in output_prediction_features:
-          if prediction_feature.invert_standardization:
-            source = prediction_feature.source[0]
-          else:
-            assert prediction_feature.preserve_source
-            source = prediction_feature.preserved_source
-          
-          if data_format != source_data_format:
-            source = Conv2dUtilities.convert_to_data_format(source, data_format)
-          
+          if scale_index > 0:
+            size = 2 ** scale_index
+            scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
           with tf.name_scope(Naming.tensorboard_name(prediction_feature.name + ' Kernel Prediction')):
             prediction = KernelPrediction.kernel_prediction(
-                source, prediction_feature.predictions[scale_index],
+                scaled_source, prediction_feature.predictions[scale_index],
                 neural_network.kernel_size, data_format=data_format)
           prediction_feature.add_prediction(scale_index, prediction)
   
@@ -878,13 +859,8 @@ def combined_features_model(prediction_features, output_prediction_features, is_
   # Convert back to the source data format if needed.
   with tf.name_scope('revert_data_format_conversion'):
     if data_format != source_data_format:
-      if neural_network.use_multiscale_predictions:
-        for prediction_feature in output_prediction_features:
-          for scale_index in range(len(prediction_feature.predictions)):
-            prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], source_data_format)
-      else:
-        scale_index = 0
-        for prediction_feature in output_prediction_features:
+      for prediction_feature in output_prediction_features:
+        for scale_index in range(len(prediction_feature.predictions)):
           prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], source_data_format)
 
 
@@ -987,11 +963,7 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
         # Reuse the variables after the first pass.
         reuse = True
         
-        if neural_network.use_multiscale_predictions:
-          for scale_index in range(len(outputs)):
-            prediction_feature.add_prediction(scale_index, outputs[scale_index])
-        else:
-          scale_index = 0
+        for scale_index in range(len(outputs)):
           prediction_feature.add_prediction(scale_index, outputs[scale_index])
         
         with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
@@ -1005,22 +977,14 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
             if data_format != source_data_format:
               source = Conv2dUtilities.convert_to_data_format(source, data_format)
 
-            if neural_network.use_multiscale_predictions:
-              for scale_index in range(len(prediction_feature.predictions)):
-                scaled_source = source
-                if scale_index > 0:
-                  size = 2 ** scale_index
-                  scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
-                with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
-                  prediction = KernelPrediction.kernel_prediction(
-                      scaled_source, prediction_feature.predictions[scale_index],
-                      neural_network.kernel_size, data_format=data_format)
-                prediction_feature.add_prediction(scale_index, prediction)
-            else:
-              scale_index = 0
+            for scale_index in range(len(prediction_feature.predictions)):
+              scaled_source = source
+              if scale_index > 0:
+                size = 2 ** scale_index
+                scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
               with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
                 prediction = KernelPrediction.kernel_prediction(
-                    source, prediction_feature.predictions[scale_index],
+                    scaled_source, prediction_feature.predictions[scale_index],
                     neural_network.kernel_size, data_format=data_format)
               prediction_feature.add_prediction(scale_index, prediction)
         
@@ -1045,11 +1009,7 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
         # Convert back to the source data format if needed.
         with tf.name_scope('revert_data_format_conversion'):
           if data_format != source_data_format:
-            if neural_network.use_multiscale_predictions:
-              for scale_index in range(len(prediction_feature.predictions)):
-                prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], source_data_format)
-            else:
-              scale_index = 0
+            for scale_index in range(len(prediction_feature.predictions)):
               prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], source_data_format)
 
 
@@ -1077,15 +1037,8 @@ def model(prediction_features, mode, neural_network, use_CPU_only, data_format):
         prediction_features, output_prediction_features, is_training, neural_network, use_CPU_only, data_format)
   
   prediction_dictionaries = []
-  if neural_network.use_multiscale_predictions:
-    for scale_index in range(len(output_prediction_features[0].predictions)):
-      prediction_dictionary = {}
-      for prediction_feature in output_prediction_features:
-        prediction_feature.add_prediction_to_dictionary(scale_index, prediction_dictionary)
-      prediction_dictionaries.append(prediction_dictionary)
-  else:
+  for scale_index in range(len(output_prediction_features[0].predictions)):
     prediction_dictionary = {}
-    scale_index = 0
     for prediction_feature in output_prediction_features:
       prediction_feature.add_prediction_to_dictionary(scale_index, prediction_dictionary)
     prediction_dictionaries.append(prediction_dictionary)
@@ -1106,12 +1059,12 @@ def model_fn(features, labels, mode, params):
       prediction_features, mode, neural_network,
       params['use_CPU_only'], data_format)
 
-  # TODO: Add multi scale losses (if needed according to the not existing json entry) (DeepBlender)
-  predictions = predictions[0]
-  
   if mode == tf.estimator.ModeKeys.PREDICT:
+    predictions = predictions[0]
     return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
   
+  # TODO: Add multi scale losses (if needed according to the not existing json entry) (DeepBlender)
+  predictions = predictions[0]
   targets = labels
   
   with tf.name_scope('loss_function'):
@@ -1407,6 +1360,8 @@ def main(parsed_arguments):
   use_single_feature_prediction = neural_network['use_single_feature_prediction']
   feature_flags = FeatureFlags(neural_network['feature_flags'])
   use_multiscale_predictions = neural_network['use_multiscale_predictions']
+  use_multiscale_loss = neural_network['use_multiscale_loss']
+  use_multiscale_metrics = neural_network['use_multiscale_metrics']
   use_kernel_predicion = neural_network['use_kernel_predicion']
   kernel_size = neural_network['kernel_size']
   
@@ -1496,7 +1451,7 @@ def main(parsed_arguments):
       statistics_masked = feature['statistics_masked']
         
       training_feature = TrainingFeature(
-          feature_name, loss_difference,
+          feature_name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
           loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
           loss_weights_masked['mean'], loss_weights_masked['variation'], loss_weights_masked['ms_ssim'],
           statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
@@ -1537,7 +1492,7 @@ def main(parsed_arguments):
       direct_feature_name = RenderPasses.combined_to_direct_render_pass(combined_feature_name)
       indirect_feature_name = RenderPasses.combined_to_indirect_render_pass(combined_feature_name)
       combined_training_feature = CombinedTrainingFeature(
-          combined_feature_name, loss_difference,
+          combined_feature_name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
           feature_name_to_training_feature[color_feature_name],
           feature_name_to_training_feature[direct_feature_name],
           feature_name_to_training_feature[indirect_feature_name],
@@ -1561,7 +1516,7 @@ def main(parsed_arguments):
   loss_weights = combined_image['loss_weights']
   if loss_weights['mean'] > 0. or loss_weights['variation'] > 0:
     combined_image_training_feature = CombinedImageTrainingFeature(
-        RenderPasses.COMBINED, loss_difference,
+        RenderPasses.COMBINED, loss_difference, use_multiscale_loss, use_multiscale_metrics,
         combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_DIFFUSE],
         combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_GLOSSY],
         combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_SUBSURFACE],
