@@ -678,11 +678,8 @@ def neural_network_model(inputs, output_size, neural_network, is_training, data_
   
   # Adjust the output to have the required number of channels.
   with tf.name_scope('Postprocess'):
-    if neural_network.use_multiscale_predictions:
-      for index in range(len(inputs)):
-        inputs[index] = adjust_network_output(inputs[index], output_size, data_format)
-    else:
-      inputs = adjust_network_output(inputs, output_size, data_format)
+    for index in range(len(inputs)):
+      inputs[index] = adjust_network_output(inputs[index], output_size, data_format)
   
   return inputs
 
@@ -795,12 +792,8 @@ def combined_features_model(prediction_features, output_prediction_features, is_
         size_splits.append(prediction_feature.number_of_channels)
   
     predictions_tuple = []
-    if neural_network.use_multiscale_predictions:
-      for output in outputs:
-        prediction_tuple = tf.split(output, size_splits, concat_axis)
-        predictions_tuple.append(prediction_tuple)
-    else:
-      prediction_tuple = tf.split(outputs, size_splits, concat_axis)
+    for output in outputs:
+      prediction_tuple = tf.split(output, size_splits, concat_axis)
       predictions_tuple.append(prediction_tuple)
   
   for scale_index in range(len(predictions_tuple)):

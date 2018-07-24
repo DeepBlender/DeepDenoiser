@@ -95,9 +95,5 @@ class UNet:
         inputs = self.__convolution_block(
             inputs, self.number_of_filters_for_convolution_blocks[0], is_training, 'upsampling_1')
         results.append(inputs)
-      
-      if not self.use_multiscale_output:
-        assert len(results) == 1
-        results = results[0]
     
     return results
