@@ -4,6 +4,10 @@ from __future__ import print_function
 
 class RenderPasses:
   COMBINED = 'Combined'
+  COMBINED_DIFFUSE = 'Diffuse'
+  COMBINED_GLOSSY = 'Glossy'
+  COMBINED_SUBSURFACE = 'Subsurface'
+  COMBINED_TRANSMISSION = 'Transmission'
   ALPHA = 'Alpha'
   DEPTH = 'Depth'
   MIST = 'Mist'

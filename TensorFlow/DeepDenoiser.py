@@ -237,7 +237,7 @@ class BaseTrainingFeature:
     with tf.name_scope(Naming.mean_name(self.name, masked=True) + '_internal'):
       result = tf.cond(
           tf.greater(self.mask_sum, 0.),
-          lambda: tf.reduce_sum(tf.divide(tf.multiply(self.difference(), self.mask), self.mask_sum)),
+          lambda: tf.reduce_sum(tf.divide(self.masked_difference(), self.mask_sum)),
           lambda: tf.constant(0.))
     return result
   
@@ -262,7 +262,7 @@ class BaseTrainingFeature:
     with tf.name_scope(Naming.variation_mean_name(self.name, masked=True) + '_internal'):
       result = tf.cond(
           tf.greater(self.mask_sum, 0.),
-          lambda: tf.reduce_sum(tf.divide(tf.multiply(self.variation_difference(), self.mask), self.mask_sum)),
+          lambda: tf.reduce_sum(tf.divide(self.masked_variation_difference(), self.mask_sum)),
           lambda: tf.constant(0.))
     return result
   
@@ -313,22 +313,22 @@ class BaseTrainingFeature:
   
   
   def loss(self):
-    result = 0.0
+    result = 0.
     
     with tf.name_scope(Naming.tensorboard_name(self.name + ' Weighted Means')):
-      if self.mean_weight > 0.0:
+      if self.mean_weight > 0.:
         result = tf.add(result, tf.scalar_mul(self.mean_weight, self.mean()))
-      if self.variation_weight > 0.0:
+      if self.variation_weight > 0.:
         result = tf.add(result, tf.scalar_mul(self.variation_weight, self.variation_mean()))
-      if self.ms_ssim_weight > 0.0:
+      if self.ms_ssim_weight > 0.:
         result = tf.add(result, tf.scalar_mul(self.ms_ssim_weight, self.ms_ssim()))
     
     with tf.name_scope(Naming.tensorboard_name(self.name + ' Weighted Masked Means')):
-      if self.masked_mean_weight > 0.0:
+      if self.masked_mean_weight > 0.:
         result = tf.add(result, tf.scalar_mul(self.masked_mean_weight, self.masked_mean()))
-      if self.masked_variation_weight > 0.0:
+      if self.masked_variation_weight > 0.:
         result = tf.add(result, tf.scalar_mul(self.masked_variation_weight, self.masked_variation_mean()))
-      if self.masked_ms_ssim_weight > 0.0:
+      if self.masked_ms_ssim_weight > 0.:
         result = tf.add(result, tf.scalar_mul(self.masked_ms_ssim_weight, self.masked_ms_ssim()))
     return result
     
@@ -443,8 +443,16 @@ class TrainingFeature(BaseTrainingFeature):
   def initialize(self, source_features, predicted_features, target_features):
     self.predicted = predicted_features[Naming.prediction_feature_name(self.name)]
     self.target = target_features[Naming.target_feature_name(self.name)]
-    if RenderPasses.is_direct_or_indirect_render_pass(self.name):
+    
+    corresponding_color_pass = None
+    if RenderPasses.is_color_render_pass(self.name):
+      corresponding_color_pass = self.name
+    elif self.name == RenderPasses.ENVIRONMENT or self.name == RenderPasses.EMISSION:
+      corresponding_color_pass = self.name
+    elif RenderPasses.is_direct_or_indirect_render_pass(self.name):
       corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(self.name)
+    
+    if corresponding_color_pass != None:
       corresponding_target_feature = target_features[Naming.target_feature_name(corresponding_color_pass)]
       self.mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
       self.mask_sum = tf.reduce_sum(self.mask)
@@ -487,6 +495,11 @@ class CombinedTrainingFeature(BaseTrainingFeature):
         tf.add(
             self.direct_training_feature.target,
             self.indirect_training_feature.target))
+    
+    corresponding_color_pass = RenderPasses.combined_to_color_render_pass(self.name)
+    corresponding_target_feature = target_features[Naming.target_feature_name(corresponding_color_pass)]
+    self.mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
+    self.mask_sum = tf.reduce_sum(self.mask)
   
   
 class CombinedImageTrainingFeature(BaseTrainingFeature):
@@ -618,7 +631,7 @@ class NeuralNetwork:
 
   def __init__(
       self, architecture='U-Net', number_of_filters_for_convolution_blocks=[128, 128, 128], number_of_convolutions_per_block=5,
-      use_batch_normalization=False, dropout_rate=0.0, number_of_sources_per_target=1, use_single_feature_prediction=False,
+      use_batch_normalization=False, dropout_rate=0., number_of_sources_per_target=1, use_single_feature_prediction=False,
       feature_flags="", use_multiscale_predictions=True, use_kernel_predicion=True, kernel_size=5):
     self.architecture = architecture
     self.number_of_filters_for_convolution_blocks = number_of_filters_for_convolution_blocks
@@ -1112,7 +1125,7 @@ def model_fn(features, labels, mode, params):
       if len(feature_losses) > 0:
         feature_loss = tf.add_n(feature_losses)
       else:
-        feature_loss = 0.0
+        feature_loss = 0.
     
     with tf.name_scope('combined_feature_loss'):
       combined_training_features = params['combined_training_features']
@@ -1125,7 +1138,7 @@ def model_fn(features, labels, mode, params):
         if len(combined_feature_losses) > 0:
           combined_feature_loss = tf.add_n(combined_feature_losses)
       else:
-        combined_feature_loss = 0.0
+        combined_feature_loss = 0.
     
     with tf.name_scope('combined_image_loss'):
       combined_image_training_feature = params['combined_image_training_feature']
@@ -1133,7 +1146,7 @@ def model_fn(features, labels, mode, params):
         combined_image_training_feature.initialize(features, predictions, targets)
         combined_image_feature_loss = combined_image_training_feature.loss()
       else:
-        combined_image_feature_loss = 0.0
+        combined_image_feature_loss = 0.
     
     # All losses combined
     loss = tf.add_n([feature_loss, combined_feature_loss, combined_image_feature_loss])
@@ -1475,29 +1488,12 @@ def main(parsed_arguments):
     if feature['is_source'] and feature['is_target']:
       
       # Training loss
-      
       loss_weights = feature['loss_weights']
-      if 'loss_weights_masked' in feature:
-        loss_weights_masked = feature['loss_weights_masked']
-      else:
-        loss_weights_masked = {}
-        loss_weights_masked['mean'] = 0.0
-        loss_weights_masked['variation'] = 0.0
-        loss_weights_masked['ms_ssim'] = 0.0
-      
+      loss_weights_masked = feature['loss_weights_masked']
       
       # Training metrics
-      
       statistics = feature['statistics']
-      if 'statistics_masked' in feature:
-        statistics_masked = feature['statistics_masked']
-      else:
-        statistics_masked = {}
-        statistics_masked['track_mean'] = False
-        statistics_masked['track_variation'] = False
-        statistics_masked['track_ms_ssim'] = False
-        statistics_masked['track_difference_histogram'] = False
-        statistics_masked['track_variation_difference_histogram'] = False
+      statistics_masked = feature['statistics_masked']
         
       training_feature = TrainingFeature(
           feature_name, loss_difference,
@@ -1527,9 +1523,16 @@ def main(parsed_arguments):
   combined_feature_names = list(combined_features.keys())
   for combined_feature_name in combined_feature_names:
     combined_feature = combined_features[combined_feature_name]
-    statistics = combined_feature['statistics']
+    
+    # Training loss
     loss_weights = combined_feature['loss_weights']
-    if loss_weights['mean'] > 0. or loss_weights['variation'] > 0:
+    loss_weights_masked = combined_feature['loss_weights_masked']
+    
+    # Training metrics
+    statistics = combined_feature['statistics']
+    statistics_masked = combined_feature['statistics_masked']
+    
+    if loss_weights['mean'] > 0. or loss_weights['variation'] > 0.:
       color_feature_name = RenderPasses.combined_to_color_render_pass(combined_feature_name)
       direct_feature_name = RenderPasses.combined_to_direct_render_pass(combined_feature_name)
       indirect_feature_name = RenderPasses.combined_to_indirect_render_pass(combined_feature_name)
@@ -1539,11 +1542,11 @@ def main(parsed_arguments):
           feature_name_to_training_feature[direct_feature_name],
           feature_name_to_training_feature[indirect_feature_name],
           loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
-          0.0, 0.0, 0.0,
+          loss_weights_masked['mean'], loss_weights_masked['variation'], loss_weights_masked['ms_ssim'],
           statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
           statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'],
-          0.0, 0.0, 0.0,
-          0.0, 0.0)
+          statistics_masked['track_mean'], statistics_masked['track_variation'], statistics_masked['track_ms_ssim'],
+          statistics_masked['track_difference_histogram'], statistics_masked['track_variation_difference_histogram'])
       combined_training_features.append(combined_training_feature)
       combined_feature_name_to_combined_training_feature[combined_feature_name] = combined_training_feature
         
@@ -1559,18 +1562,18 @@ def main(parsed_arguments):
   if loss_weights['mean'] > 0. or loss_weights['variation'] > 0:
     combined_image_training_feature = CombinedImageTrainingFeature(
         RenderPasses.COMBINED, loss_difference,
-        combined_feature_name_to_combined_training_feature['Diffuse'],
-        combined_feature_name_to_combined_training_feature['Glossy'],
-        combined_feature_name_to_combined_training_feature['Subsurface'],
-        combined_feature_name_to_combined_training_feature['Transmission'],
+        combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_DIFFUSE],
+        combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_GLOSSY],
+        combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_SUBSURFACE],
+        combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_TRANSMISSION],
         feature_name_to_training_feature[RenderPasses.EMISSION],
         feature_name_to_training_feature[RenderPasses.ENVIRONMENT],
         loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
-        0.0, 0.0, 0.0,
+        0., 0., 0.,
         statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
         statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'],
-        0.0, 0.0, 0.0,
-        0.0, 0.0)
+        0., 0., 0.,
+        0., 0.)
   
   
   neural_network = NeuralNetwork(

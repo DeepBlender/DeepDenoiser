@@ -27,8 +27,8 @@
 	"neural_network": {
 		"architecture_description": "Options: U-Net, Tiramisu",
 		"architecture": "U-Net",
-		"number_of_filters_for_convolution_blocks": [128, 128, 128],
-		"number_of_convolutions_per_block": 5,
+		"number_of_filters_for_convolution_blocks": [256, 256, 256],
+		"number_of_convolutions_per_block": 2,
 		"use_batch_normalization": false,
 		"dropout_rate": 0.0,
 		
@@ -37,7 +37,7 @@
 		
 		"use_single_feature_prediction_description_1": "Should only one target feature be predicted at a time? Additionally, the feature flags need to be generated to guide the neural network.",
 		"use_single_feature_prediction_description_2": "The required feature flags are automatically calculated based on the feature flags of the actual target features.",
-		"use_single_feature_prediction": true,
+		"use_single_feature_prediction": false,
 		"feature_flags": [
 			"Diffuse", "Glossy", "Subsurface", "Transmission", "Volume",
 			"Color", "Direct", "Indirect",
@@ -54,7 +54,7 @@
 	
 	"combined_image": {
 		"loss_weights": {
-			"mean": 1.0,
+			"mean": 2.0,
 			"variation": 0.0,
 			"ms_ssim": 0.0
 		},
@@ -74,7 +74,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -88,7 +100,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -102,7 +126,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -116,7 +152,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -128,14 +176,14 @@
 	
 	"features": {
 		"Alpha": {
-			"is_source": true,
+			"is_source": false,
 			"is_target": false,
 			"number_of_channels": 1,
 			"feature_flags": [],
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
@@ -151,7 +199,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": false,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -160,14 +220,14 @@
 			}
 		},
 		"Depth": {
-			"is_source": true,
+			"is_source": false,
 			"is_target": false,
 			"number_of_channels": 1,
 			"feature_flags": [],
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
@@ -175,7 +235,7 @@
 			"standardization": {
 				"use_log1p": true,
 				"mean": 0.0,
-				"variance": 23.025850296020508
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -183,7 +243,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": false,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -199,7 +271,7 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
@@ -215,7 +287,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": false,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -231,15 +315,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": false,
-				"mean": 0.25535839796066284,
-				"variance": 0.2170753926038742
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -247,7 +331,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": false,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -264,7 +360,7 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
@@ -280,7 +376,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": false,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -296,7 +404,7 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
@@ -312,7 +420,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 0.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": false,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": false,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -329,15 +449,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -345,7 +465,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -361,15 +493,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -377,7 +509,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -394,15 +538,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -410,7 +554,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -426,15 +582,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -443,7 +599,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.0,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -455,7 +611,7 @@
 				"track_variation_difference_histogram": false
 			},
 			"statistics_masked": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -470,15 +626,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -487,7 +643,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.0,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -499,7 +655,7 @@
 				"track_variation_difference_histogram": false
 			},
 			"statistics_masked": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -514,15 +670,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -530,7 +686,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -546,15 +714,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -563,7 +731,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.0,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -575,7 +743,7 @@
 				"track_variation_difference_histogram": false
 			},
 			"statistics_masked": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -590,15 +758,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -607,7 +775,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.0,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -619,7 +787,7 @@
 				"track_variation_difference_histogram": false
 			},
 			"statistics_masked": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -634,15 +802,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -650,7 +818,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -666,15 +846,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -683,7 +863,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.0,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -695,7 +875,7 @@
 				"track_variation_difference_histogram": false
 			},
 			"statistics_masked": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -710,15 +890,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -727,7 +907,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.0,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -739,7 +919,7 @@
 				"track_variation_difference_histogram": false
 			},
 			"statistics_masked": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -754,15 +934,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -770,7 +950,19 @@
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
 			"statistics": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
 				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
@@ -786,15 +978,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -803,7 +995,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.0,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -815,7 +1007,7 @@
 				"track_variation_difference_histogram": false
 			},
 			"statistics_masked": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -830,15 +1022,15 @@
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "uniform",
+				"variance_mode": "neighbor",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
 			},
 			"standardization": {
 				"use_log1p": true,
-				"mean": 0.031,
-				"variance": 0.016
+				"mean": 0.0,
+				"variance": 1.0
 			},
 			"invert_standardization": true,
 			"loss_weights": {
@@ -847,7 +1039,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.0,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -859,7 +1051,7 @@
 				"track_variation_difference_histogram": false
 			},
 			"statistics_masked": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
