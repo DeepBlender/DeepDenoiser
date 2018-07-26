@@ -221,71 +221,71 @@ class BaseTrainingFeature:
     self.track_masked_variation_difference_histogram = track_masked_variation_difference_histogram
   
   
-  def difference(self):
-    with tf.name_scope(Naming.difference_name(self.name) + '_internal'):
-      result = LossDifference.difference(self.predicted, self.target, self.loss_difference)
+  def difference(self, scale_index):
+    with tf.name_scope(Naming.difference_name(self.name, internal=True, scale_index=scale_index)):
+      result = LossDifference.difference(self.predicted[scale_index], self.target[scale_index], self.loss_difference)
     return result
   
-  def masked_difference(self):
-    with tf.name_scope(Naming.difference_name(self.name, masked=True) + '_internal'):
-      result = tf.multiply(self.difference(), self.mask)
+  def masked_difference(self, scale_index):
+    with tf.name_scope(Naming.difference_name(self.name, masked=True, internal=True, scale_index=scale_index)):
+      result = tf.multiply(self.difference(scale_index), self.mask[scale_index])
     return result
   
-  def mean(self):
-    with tf.name_scope(Naming.mean_name(self.name) + '_internal'):
-      result = tf.reduce_mean(self.difference())
+  def mean(self, scale_index):
+    with tf.name_scope(Naming.mean_name(self.name, internal=True, scale_index=scale_index)):
+      result = tf.reduce_mean(self.difference(scale_index))
     return result
   
-  def masked_mean(self):
-    with tf.name_scope(Naming.mean_name(self.name, masked=True) + '_internal'):
+  def masked_mean(self, scale_index):
+    with tf.name_scope(Naming.mean_name(self.name, masked=True, internal=True, scale_index=scale_index)):
       result = tf.cond(
-          tf.greater(self.mask_sum, 0.),
-          lambda: tf.reduce_sum(tf.divide(self.masked_difference(), self.mask_sum)),
+          tf.greater(self.mask_sum[scale_index], 0.),
+          lambda: tf.reduce_sum(tf.divide(self.masked_difference(scale_index), self.mask_sum[scale_index])),
           lambda: tf.constant(0.))
     return result
   
-  def variation_difference(self):
-    with tf.name_scope(Naming.variation_difference_name(self.name) + '_internal'):
+  def variation_difference(self, scale_index):
+    with tf.name_scope(Naming.variation_difference_name(self.name, internal=True, scale_index=scale_index)):
       result = tf.concat(
-          [tf.layers.flatten(self._horizontal_variation_difference()),
-          tf.layers.flatten(self._vertical_variation_difference())], axis=1)
+          [tf.layers.flatten(self._horizontal_variation_difference(scale_index)),
+          tf.layers.flatten(self._vertical_variation_difference(scale_index))], axis=1)
     return result
   
-  def masked_variation_difference(self):
-    with tf.name_scope(Naming.variation_difference_name(self.name, masked=True) + '_internal'):
-      result = tf.multiply(self.variation_difference(), self.mask)
+  def masked_variation_difference(self, scale_index):
+    with tf.name_scope(Naming.variation_difference_name(self.name, masked=True, internal=True, scale_index=scale_index)):
+      result = tf.multiply(self.variation_difference(scale_index), self.mask[scale_index])
     return result
     
-  def variation_mean(self):
-    with tf.name_scope(Naming.variation_mean_name(self.name) + '_internal'):
-      result = tf.reduce_mean(self.variation_difference())
+  def variation_mean(self, scale_index):
+    with tf.name_scope(Naming.variation_mean_name(self.name, internal=True, scale_index=scale_index)):
+      result = tf.reduce_mean(self.variation_difference(scale_index))
     return result
     
-  def masked_variation_mean(self):
-    with tf.name_scope(Naming.variation_mean_name(self.name, masked=True) + '_internal'):
+  def masked_variation_mean(self, scale_index):
+    with tf.name_scope(Naming.variation_mean_name(self.name, masked=True, internal=True, scale_index=scale_index)):
       result = tf.cond(
-          tf.greater(self.mask_sum, 0.),
-          lambda: tf.reduce_sum(tf.divide(self.masked_variation_difference(), self.mask_sum)),
+          tf.greater(self.mask_sum[scale_index], 0.),
+          lambda: tf.reduce_sum(tf.divide(self.masked_variation_difference(scale_index), self.mask_sum[scale_index])),
           lambda: tf.constant(0.))
     return result
   
-  def _horizontal_variation_difference(self):
-    predicted_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.predicted)
-    target_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.target)
+  def _horizontal_variation_difference(self, scale_index):
+    predicted_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.predicted[scale_index])
+    target_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.target[scale_index])
     result = LossDifference.difference(
         predicted_horizontal_variation, target_horizontal_variation, self.loss_difference)
     return result
   
-  def _vertical_variation_difference(self):
-    predicted_vertical_variation = BaseTrainingFeature.__vertical_variation(self.predicted)
-    target_vertical_variation = BaseTrainingFeature.__vertical_variation(self.target)
+  def _vertical_variation_difference(self, scale_index):
+    predicted_vertical_variation = BaseTrainingFeature.__vertical_variation(self.predicted[scale_index])
+    target_vertical_variation = BaseTrainingFeature.__vertical_variation(self.target[scale_index])
     result = LossDifference.difference(
         predicted_vertical_variation, target_vertical_variation, self.loss_difference)
     return result
   
   def ms_ssim(self):
-    predicted = self.predicted
-    target = self.target
+    predicted = self.predicted[0]
+    target = self.target[0]
     
     if len(predicted.shape) == 3:
       shape = tf.shape(predicted)
@@ -318,62 +318,94 @@ class BaseTrainingFeature:
   def loss(self):
     result = 0.
     
+    # Allow to have the loss for multiple prediction scales.
+    scale_index_count = 1
+    if self.use_multiscale_loss:
+      scale_index_count = len(self.target)
+    
+    # Precalculate the common factor for the loss at the different scales.
+    scale_weight_factor = 0.
+    for scale_index in range(scale_index_count):
+      scale_weight_factor = scale_weight_factor + (1. / (4. ** scale_index))
+    scale_weight_factor = 1. / scale_weight_factor
+    
     with tf.name_scope(Naming.tensorboard_name(self.name + ' Weighted Means')):
-      if self.mean_weight > 0.:
-        result = tf.add(result, tf.scalar_mul(self.mean_weight, self.mean()))
-      if self.variation_weight > 0.:
-        result = tf.add(result, tf.scalar_mul(self.variation_weight, self.variation_mean()))
+      for scale_index in range(scale_index_count):
+        scale_factor = scale_weight_factor / (4. ** scale_index)
+        if self.mean_weight > 0.:
+          result = tf.add(result, tf.scalar_mul(self.mean_weight * scale_factor, self.mean(scale_index)))
+        if self.variation_weight > 0.:
+          result = tf.add(result, tf.scalar_mul(self.variation_weight * scale_factor, self.variation_mean(scale_index)))
       if self.ms_ssim_weight > 0.:
         result = tf.add(result, tf.scalar_mul(self.ms_ssim_weight, self.ms_ssim()))
     
     with tf.name_scope(Naming.tensorboard_name(self.name + ' Weighted Masked Means')):
-      if self.masked_mean_weight > 0.:
-        result = tf.add(result, tf.scalar_mul(self.masked_mean_weight, self.masked_mean()))
-      if self.masked_variation_weight > 0.:
-        result = tf.add(result, tf.scalar_mul(self.masked_variation_weight, self.masked_variation_mean()))
+      for scale_index in range(scale_index_count):
+        scale_factor = scale_weight_factor / (4. ** scale_index)
+        if self.masked_mean_weight > 0.:
+          result = tf.add(result, tf.scalar_mul(self.masked_mean_weight * scale_factor, self.masked_mean(scale_index)))
+        if self.masked_variation_weight > 0.:
+          result = tf.add(result, tf.scalar_mul(self.masked_variation_weight * scale_factor, self.masked_variation_mean(scale_index)))
       if self.masked_ms_ssim_weight > 0.:
         result = tf.add(result, tf.scalar_mul(self.masked_ms_ssim_weight, self.masked_ms_ssim()))
     return result
     
   
   def add_tracked_summaries(self):
-    if self.track_mean:
-      tf.summary.scalar(Naming.mean_name(self.name), self.mean())
-    if self.track_variation:
-      tf.summary.scalar(Naming.variation_mean_name(self.name), self.variation_mean())
+    scale_index_count = 1
+    if self.use_multiscale_metrics:
+      scale_index_count = len(self.target)
+    
+    for scale_index in range(scale_index_count):
+      if self.track_mean:
+        tf.summary.scalar(Naming.mean_name(self.name, scale_index=scale_index), self.mean(scale_index))
+      if self.track_variation:
+        tf.summary.scalar(Naming.variation_mean_name(self.name, scale_index=scale_index), self.variation_mean(scale_index))
     if self.track_ms_ssim:
       tf.summary.scalar(Naming.ms_ssim_name(self.name), self.ms_ssim())
     
-    if self.track_masked_mean:
-      tf.summary.scalar(Naming.mean_name(self.name, masked=True), self.masked_mean())
-    if self.track_masked_variation:
-      tf.summary.scalar(Naming.variation_mean_name(self.name, masked=True), self.masked_variation_mean())
+    for scale_index in range(scale_index_count): 
+      if self.track_masked_mean:
+        tf.summary.scalar(Naming.mean_name(self.name, masked=True, scale_index=scale_index), self.masked_mean(scale_index))
+      if self.track_masked_variation:
+        tf.summary.scalar(Naming.variation_mean_name(self.name, masked=True, scale_index=scale_index), self.masked_variation_mean(scale_index))
     if self.track_masked_ms_ssim:
-      tf.summary.scalar(Naming.ms_ssim_name(self.name, masked=True), self.masked_ms_ssim())
+      tf.summary.scalar(Naming.ms_ssim_name(self.name, masked=True), self.masked_ms_ssim(scale_index))
   
   def add_tracked_histograms(self):
-    if self.track_difference_histogram:
-      tf.summary.histogram(Naming.difference_name(self.name), self.difference())
-    if self.track_variation_difference_histogram:
-      tf.summary.histogram(Naming.variation_difference_name(self.name), self.variation_difference())
+    scale_index_count = 1
+    if self.use_multiscale_metrics:
+      scale_index_count = len(self.target)
     
-    if self.track_masked_difference_histogram:
-      tf.summary.histogram(Naming.difference_name(self.name, masked=True), self.masked_difference())
-    if self.track_masked_variation_difference_histogram:
-      tf.summary.histogram(Naming.variation_difference_name(self.name, masked=True), self.masked_variation_difference())
+    for scale_index in range(scale_index_count):
+      if self.track_difference_histogram:
+        tf.summary.histogram(Naming.difference_name(self.name, scale_index=scale_index), self.difference(scale_index))
+      if self.track_variation_difference_histogram:
+        tf.summary.histogram(Naming.variation_difference_name(self.name, scale_index=scale_index), self.variation_difference(scale_index))
+      
+      if self.track_masked_difference_histogram:
+        tf.summary.histogram(Naming.difference_name(self.name, masked=True, scale_index=scale_index), self.masked_difference(scale_index))
+      if self.track_masked_variation_difference_histogram:
+        tf.summary.histogram(Naming.variation_difference_name(self.name, masked=True, scale_index=scale_index), self.masked_variation_difference(scale_index))
     
   def add_tracked_metrics_to_dictionary(self, dictionary):
-    if self.track_mean:
-      dictionary[Naming.mean_name(self.name)] = tf.metrics.mean(self.mean())
-    if self.track_variation:
-      dictionary[Naming.variation_mean_name(self.name)] = tf.metrics.mean(self.variation_mean())
+    scale_index_count = 1
+    if self.use_multiscale_metrics:
+      scale_index_count = len(self.target)
+    
+    for scale_index in range(scale_index_count):
+      if self.track_mean:
+        dictionary[Naming.mean_name(self.name, scale_index=scale_index)] = tf.metrics.mean(self.mean(scale_index))
+      if self.track_variation:
+        dictionary[Naming.variation_mean_name(self.name, scale_index=scale_index)] = tf.metrics.mean(self.variation_mean(scale_index))
     if self.track_ms_ssim:
       dictionary[Naming.ms_ssim_name(self.name)] = tf.metrics.mean(self.ms_ssim())
     
-    if self.track_masked_mean:
-      dictionary[Naming.mean_name(self.name, masked=True)] = tf.metrics.mean(self.masked_mean())
-    if self.track_masked_variation:
-      dictionary[Naming.variation_mean_name(self.name, masked=True)] = tf.metrics.mean(self.masked_variation_mean())
+    for scale_index in range(scale_index_count):
+      if self.track_masked_mean:
+        dictionary[Naming.mean_name(self.name, masked=True, scale_index=scale_index)] = tf.metrics.mean(self.masked_mean(scale_index))
+      if self.track_masked_variation:
+        dictionary[Naming.variation_mean_name(self.name, masked=True, scale_index=scale_index)] = tf.metrics.mean(self.masked_variation_mean(scale_index))
     if self.track_masked_ms_ssim:
       dictionary[Naming.ms_ssim_name(self.name, masked=True)] = tf.metrics.mean(self.masked_ms_ssim())
 
@@ -444,21 +476,27 @@ class TrainingFeature(BaseTrainingFeature):
         track_masked_difference_histogram, track_masked_variation_difference_histogram)
   
   def initialize(self, source_features, predicted_features, target_features):
-    self.predicted = predicted_features[Naming.prediction_feature_name(self.name)]
-    self.target = target_features[Naming.target_feature_name(self.name)]
+    self.predicted = []
+    self.target = []
+    self.mask = []
+    self.mask_sum = []
     
-    corresponding_color_pass = None
-    if RenderPasses.is_color_render_pass(self.name):
-      corresponding_color_pass = self.name
-    elif self.name == RenderPasses.ENVIRONMENT or self.name == RenderPasses.EMISSION:
-      corresponding_color_pass = self.name
-    elif RenderPasses.is_direct_or_indirect_render_pass(self.name):
-      corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(self.name)
-    
-    if corresponding_color_pass != None:
-      corresponding_target_feature = target_features[Naming.target_feature_name(corresponding_color_pass)]
-      self.mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
-      self.mask_sum = tf.reduce_sum(self.mask)
+    for scale_index in range(len(target_features)):
+      self.predicted.append(predicted_features[scale_index][Naming.prediction_feature_name(self.name)])
+      self.target.append(target_features[scale_index][Naming.target_feature_name(self.name)])
+      
+      corresponding_color_pass = None
+      if RenderPasses.is_color_render_pass(self.name):
+        corresponding_color_pass = self.name
+      elif self.name == RenderPasses.ENVIRONMENT or self.name == RenderPasses.EMISSION:
+        corresponding_color_pass = self.name
+      elif RenderPasses.is_direct_or_indirect_render_pass(self.name):
+        corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(self.name)
+      
+      if corresponding_color_pass != None:
+        corresponding_target_feature = target_features[scale_index][Naming.target_feature_name(corresponding_color_pass)]
+        self.mask.append(Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last'))
+        self.mask_sum.append(tf.reduce_sum(self.mask[scale_index]))
 
 
 class CombinedTrainingFeature(BaseTrainingFeature):
@@ -487,22 +525,28 @@ class CombinedTrainingFeature(BaseTrainingFeature):
     self.indirect_training_feature = indirect_training_feature
   
   def initialize(self, source_features, predicted_features, target_features):
-    self.predicted = tf.multiply(
-        self.color_training_feature.predicted,
-        tf.add(
-            self.direct_training_feature.predicted,
-            self.indirect_training_feature.predicted))
-
-    self.target = tf.multiply(
-        self.color_training_feature.target,
-        tf.add(
-            self.direct_training_feature.target,
-            self.indirect_training_feature.target))
+    self.predicted = []
+    self.target = []
+    self.mask = []
+    self.mask_sum = []
     
-    corresponding_color_pass = RenderPasses.combined_to_color_render_pass(self.name)
-    corresponding_target_feature = target_features[Naming.target_feature_name(corresponding_color_pass)]
-    self.mask = Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last')
-    self.mask_sum = tf.reduce_sum(self.mask)
+    for scale_index in range(len(target_features)):
+      self.predicted.append(tf.multiply(
+          self.color_training_feature.predicted[scale_index],
+          tf.add(
+              self.direct_training_feature.predicted[scale_index],
+              self.indirect_training_feature.predicted[scale_index])))
+
+      self.target.append(tf.multiply(
+          self.color_training_feature.target[scale_index],
+          tf.add(
+              self.direct_training_feature.target[scale_index],
+              self.indirect_training_feature.target[scale_index])))
+      
+      corresponding_color_pass = RenderPasses.combined_to_color_render_pass(self.name)
+      corresponding_target_feature = target_features[scale_index][Naming.target_feature_name(corresponding_color_pass)]
+      self.mask.append(Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last'))
+      self.mask_sum.append(tf.reduce_sum(self.mask[scale_index]))
   
   
 class CombinedImageTrainingFeature(BaseTrainingFeature):
@@ -536,21 +580,27 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
     self.environment_training_feature = environment_training_feature
   
   def initialize(self, source_features, predicted_features, target_features):
-    self.predicted = tf.add_n([
-        self.diffuse_training_feature.predicted,
-        self.glossy_training_feature.predicted,
-        self.subsurface_training_feature.predicted,
-        self.transmission_training_feature.predicted,
-        self.emission_training_feature.predicted,
-        self.environment_training_feature.predicted])
+    self.predicted = []
+    self.target = []
+    self.mask = []
+    self.mask_sum = []
+    
+    for scale_index in range(len(target_features)):
+      self.predicted.append(tf.add_n([
+          self.diffuse_training_feature.predicted[scale_index],
+          self.glossy_training_feature.predicted[scale_index],
+          self.subsurface_training_feature.predicted[scale_index],
+          self.transmission_training_feature.predicted[scale_index],
+          self.emission_training_feature.predicted[scale_index],
+          self.environment_training_feature.predicted[scale_index]]))
 
-    self.target = tf.add_n([
-        self.diffuse_training_feature.target,
-        self.glossy_training_feature.target,
-        self.subsurface_training_feature.target,
-        self.transmission_training_feature.target,
-        self.emission_training_feature.target,
-        self.environment_training_feature.target])
+      self.target.append(tf.add_n([
+          self.diffuse_training_feature.target[scale_index],
+          self.glossy_training_feature.target[scale_index],
+          self.subsurface_training_feature.target[scale_index],
+          self.transmission_training_feature.target[scale_index],
+          self.emission_training_feature.target[scale_index],
+          self.environment_training_feature.target[scale_index]]))
 
 class TrainingFeatureLoader:
 
@@ -965,7 +1015,7 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
               source = prediction_feature.source[0]
             else:
               assert prediction_feature.preserve_source
-            source = prediction_feature.preserved_source
+              source = prediction_feature.preserved_source
             
             if data_format != source_data_format:
               source = Conv2dUtilities.convert_to_data_format(source, data_format)
@@ -1056,9 +1106,20 @@ def model_fn(features, labels, mode, params):
     predictions = predictions[0]
     return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
   
-  # TODO: Add multi scale losses (if needed according to the not existing json entry) (DeepBlender)
-  predictions = predictions[0]
-  targets = labels
+  
+  # Produce scaled targets if needed for the loss and metrics.
+  prepare_multiscale_targets = params['use_multiscale_loss'] or params['use_multiscale_metrics']
+  targets = []
+  targets.append(labels)
+  if prepare_multiscale_targets:
+    for scale_index in range(len(predictions)):
+      if scale_index > 0:
+        size = 2 ** scale_index
+        scaled_targets = {}
+        for key in labels:
+          scaled_target = MultiScalePrediction.scale_down(labels[key], heigh_width_scale_factor=size, data_format=data_format)
+          scaled_targets[key] = scaled_target
+        targets.append(scaled_targets)
   
   with tf.name_scope('loss_function'):
     with tf.name_scope('feature_loss'):
@@ -1561,6 +1622,8 @@ def main(parsed_arguments):
           'learning_rate': learning_rate,
           'batch_size': batch_size,
           'neural_network': neural_network,
+          'use_multiscale_loss': use_multiscale_loss,
+          'use_multiscale_metrics': use_multiscale_metrics,
           'training_features': training_features,
           'combined_training_features': combined_training_features,
           'combined_image_training_feature': combined_image_training_feature})

@@ -9,27 +9,27 @@ class Naming:
   # Naming for Tensorboard
 
   @staticmethod
-  def difference_name(name, masked=False):
-    result = Naming._tensorboard_statistics_name(name, ' Difference', masked=masked)
+  def difference_name(name, masked=False, internal=False, scale_index=None):
+    result = Naming._tensorboard_statistics_name(name, ' Difference', masked=masked, scale_index=scale_index)
     return result
   
   @staticmethod
-  def mean_name(name, masked=False):
-    result = Naming._tensorboard_statistics_name(name, ' Mean', masked=masked)
+  def mean_name(name, masked=False, internal=False, scale_index=None):
+    result = Naming._tensorboard_statistics_name(name, ' Mean', masked=masked, scale_index=scale_index)
     return result
   
   @staticmethod
-  def variation_difference_name(name, masked=False):
-    result = Naming._tensorboard_statistics_name(name, ' Variation Difference', masked=masked)
+  def variation_difference_name(name, masked=False, internal=False, scale_index=None):
+    result = Naming._tensorboard_statistics_name(name, ' Variation Difference', masked=masked, scale_index=scale_index)
     return result
   
   @staticmethod
-  def variation_mean_name(name, masked=False):
-    result = Naming._tensorboard_statistics_name(name, ' Variation Mean', masked=masked)
+  def variation_mean_name(name, masked=False, internal=False, scale_index=None):
+    result = Naming._tensorboard_statistics_name(name, ' Variation Mean', masked=masked, scale_index=scale_index)
     return result
   
   @staticmethod
-  def ms_ssim_name(name, masked=False):
+  def ms_ssim_name(name, masked=False, internal=False):
     result = Naming._tensorboard_statistics_name(name, ' MS SSIM', masked=masked)
     return result
   
@@ -39,12 +39,14 @@ class Naming:
     return result
   
   @staticmethod
-  def _tensorboard_statistics_name(name, statistics_name, masked=False):
+  def _tensorboard_statistics_name(name, statistics_name, masked=False, internal=False, scale_index=None):
     result = name
     if RenderPasses.is_combined_render_pass(result):
       result = 'Combined ' + result
     result = result + statistics_name
     result = Naming._masked_if_needed(result, masked=masked)
+    result = Naming._internal_if_needed(result, internal=internal)
+    result = Naming._scale_index_if_needed(result, scale_index=scale_index)
     result = Naming.tensorboard_name(result)
     return result
   
@@ -75,5 +77,17 @@ class Naming:
   def _masked_if_needed(name, masked):
     result = name
     if masked:
-      result = name + ' Masked'
+      result = result + ' Masked'
+    return result
+
+  def _internal_if_needed(name, internal):
+    result = name
+    if internal:
+      result = result + ' Internal'
+    return result
+    
+  def _scale_index_if_needed(name, scale_index):
+    result = name
+    if scale_index != None:
+      result = result + '/' + str(2 ** scale_index)
     return result
