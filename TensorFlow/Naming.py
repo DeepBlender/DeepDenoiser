@@ -15,7 +15,7 @@ class Naming:
   
   @staticmethod
   def mean_name(name, masked=False, internal=False, scale_index=None):
-    result = Naming._tensorboard_statistics_name(name, ' Mean', masked=masked, scale_index=scale_index)
+    result = Naming._tensorboard_statistics_name(name, ' Mean', masked=masked, internal=internal, scale_index=scale_index)
     return result
   
   @staticmethod
