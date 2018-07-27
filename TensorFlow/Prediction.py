@@ -86,7 +86,7 @@ def main(parsed_arguments):
   use_multiscale_predictions = neural_network['use_multiscale_predictions']
   use_kernel_predicion = neural_network['use_kernel_predicion']
   kernel_size = neural_network['kernel_size']
-
+  
   neural_network = NeuralNetwork(
       architecture=architecture, number_of_filters_for_convolution_blocks=number_of_filters_for_convolution_blocks,
       number_of_convolutions_per_block=number_of_convolutions_per_block, use_batch_normalization=use_batch_normalization,
@@ -118,6 +118,12 @@ def main(parsed_arguments):
           number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, invert_standardization, feature_variance,
           feature['feature_flags'], feature['number_of_channels'], feature_name)
       prediction_features.append(prediction_feature)
+  
+  if use_single_feature_prediction:
+    for prediction_feature in prediction_features:
+      if prediction_feature.is_target:
+        feature_flags.add_render_pass_name_to_feature_flag_names(prediction_feature.name, prediction_feature.feature_flag_names)
+    feature_flags.freeze()
   
   height = None
   width = None
