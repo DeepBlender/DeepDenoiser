@@ -47,6 +47,7 @@
 		],
 		
 		"use_multiscale_predictions": true,
+		"invert_standardization_after_multiscale_predictions": true,
 		"use_multiscale_loss": true,
 		"use_multiscale_metrics": true,
 		

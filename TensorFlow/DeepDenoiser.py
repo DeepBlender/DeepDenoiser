@@ -680,7 +680,8 @@ class NeuralNetwork:
   def __init__(
       self, architecture='U-Net', number_of_filters_for_convolution_blocks=[128, 128, 128], number_of_convolutions_per_block=5,
       use_batch_normalization=False, dropout_rate=0., use_single_feature_prediction=False,
-      feature_flags="", use_multiscale_predictions=True, use_kernel_predicion=True, kernel_size=5):
+      feature_flags="", use_multiscale_predictions=True, invert_standardization_after_multiscale_predictions=False,
+      use_kernel_predicion=True, kernel_size=5):
     self.architecture = architecture
     self.number_of_filters_for_convolution_blocks = number_of_filters_for_convolution_blocks
     self.number_of_convolutions_per_block = number_of_convolutions_per_block
@@ -689,6 +690,7 @@ class NeuralNetwork:
     self.use_single_feature_prediction = use_single_feature_prediction
     self.feature_flags = feature_flags
     self.use_multiscale_predictions = use_multiscale_predictions
+    self.invert_standardization_after_multiscale_predictions = invert_standardization_after_multiscale_predictions
     self.use_kernel_predicion = use_kernel_predicion
     self.kernel_size = kernel_size
   
@@ -871,10 +873,11 @@ def combined_features_model(prediction_features, output_prediction_features, is_
           prediction_feature.add_prediction(scale_index, prediction)
   
   
-  with tf.name_scope('invert_standardization'):
-    for prediction_feature in output_prediction_features:
-      if prediction_feature.invert_standardization:
-        prediction_feature.prediction_invert_standardization()
+  if not neural_network.invert_standardization_after_multiscale_predictions:
+    with tf.name_scope('invert_standardization'):
+      for prediction_feature in output_prediction_features:
+        if prediction_feature.invert_standardization:
+          prediction_feature.prediction_invert_standardization()
   
   
   with tf.name_scope('combine_multiscales'):
@@ -892,6 +895,13 @@ def combined_features_model(prediction_features, output_prediction_features, is_
           reuse = True
           
           prediction_feature.add_prediction(larger_scale_index, prediction)
+  
+  if neural_network.invert_standardization_after_multiscale_predictions:
+    with tf.name_scope('invert_standardization'):
+      for prediction_feature in output_prediction_features:
+        if prediction_feature.invert_standardization:
+          prediction_feature.prediction_invert_standardization()
+
   
   # Convert back to the source data format if needed.
   with tf.name_scope('revert_data_format_conversion'):
@@ -1011,9 +1021,11 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
                     neural_network.kernel_size, data_format=data_format)
               prediction_feature.add_prediction(scale_index, prediction)
         
-        with tf.name_scope('invert_standardization'):
-          if prediction_feature.invert_standardization:
-            prediction_feature.prediction_invert_standardization()
+        
+        if not neural_network.invert_standardization_after_multiscale_predictions:
+          with tf.name_scope('invert_standardization'):
+            if prediction_feature.invert_standardization:
+              prediction_feature.prediction_invert_standardization()
         
         with tf.name_scope('combine_multiscales'):
           if neural_network.use_multiscale_predictions:
@@ -1028,6 +1040,12 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
               multiscale_combine_reuse = True
               
               prediction_feature.add_prediction(larger_scale_index, prediction)
+        
+        if neural_network.invert_standardization_after_multiscale_predictions:
+          with tf.name_scope('invert_standardization'):
+            if prediction_feature.invert_standardization:
+              prediction_feature.prediction_invert_standardization()
+        
         
         # Convert back to the source data format if needed.
         with tf.name_scope('revert_data_format_conversion'):
@@ -1396,6 +1414,7 @@ def main(parsed_arguments):
   use_single_feature_prediction = neural_network['use_single_feature_prediction']
   feature_flags = FeatureFlags(neural_network['feature_flags'])
   use_multiscale_predictions = neural_network['use_multiscale_predictions']
+  invert_standardization_after_multiscale_predictions = neural_network['invert_standardization_after_multiscale_predictions']
   use_multiscale_loss = neural_network['use_multiscale_loss']
   use_multiscale_metrics = neural_network['use_multiscale_metrics']
   use_kernel_predicion = neural_network['use_kernel_predicion']
@@ -1572,6 +1591,7 @@ def main(parsed_arguments):
       number_of_convolutions_per_block=number_of_convolutions_per_block, use_batch_normalization=use_batch_normalization,
       dropout_rate=dropout_rate, use_single_feature_prediction=use_single_feature_prediction,
       feature_flags=feature_flags, use_multiscale_predictions=use_multiscale_predictions,
+      invert_standardization_after_multiscale_predictions=invert_standardization_after_multiscale_predictions,
       use_kernel_predicion=use_kernel_predicion, kernel_size=kernel_size)
   
   
