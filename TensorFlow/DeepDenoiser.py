@@ -122,11 +122,10 @@ class FeatureVariance:
 class PredictionFeature:
 
   def __init__(
-      self, number_of_sources, preserve_source, is_target, feature_standardization, invert_standardization, feature_variance,
+      self, number_of_sources, is_target, feature_standardization, invert_standardization, feature_variance,
       feature_flag_names, number_of_channels, name):
     
     self.number_of_sources = number_of_sources
-    self.preserve_source = preserve_source
     self.is_target = is_target
     self.feature_standardization = feature_standardization
     self.invert_standardization = invert_standardization
@@ -135,9 +134,6 @@ class PredictionFeature:
     self.number_of_channels = number_of_channels
     self.name = name
     self.predictions = []
-    
-    if self.preserve_source:
-      raise Exception('Preserve source should not be used because it does not support augmentation.')
 
   def initialize_sources_from_dictionary(self, dictionary):
     self.source = []
@@ -153,9 +149,6 @@ class PredictionFeature:
           assert len(self.variance) == index
           variance = self.feature_variance.variance(self.source[index], data_format='channels_last')
           self.variance.append(variance)
-    
-    if self.preserve_source:
-      self.preserved_source = self.source[0]
     
     with tf.name_scope(Naming.tensorboard_name('Standardize ' + self.name)):
       if self.feature_standardization != None:
@@ -747,6 +740,8 @@ def combined_features_model(prediction_features, output_prediction_features, is_
   
   # TODO: Add SourceEncoder (DeepBlender)
   
+  raise Exception('Do not use this at the moment!')
+  
   source_data_format = 'channels_last'
   source_concat_axis = Conv2dUtilities.channel_axis(prediction_features[0].source[0], data_format)
   
@@ -858,11 +853,7 @@ def combined_features_model(prediction_features, output_prediction_features, is_
   with tf.name_scope('kernel_predicions'):
     if neural_network.use_kernel_predicion:
       for prediction_feature in output_prediction_features:
-        if prediction_feature.invert_standardization:
-          source = prediction_feature.source[0]
-        else:
-          assert prediction_feature.preserve_source
-          source = prediction_feature.preserved_source
+        source = prediction_feature.source[0]
         
         if data_format != source_data_format:
           source = Conv2dUtilities.convert_to_data_format(source, data_format)
@@ -1004,11 +995,7 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
         
         with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
           if neural_network.use_kernel_predicion:
-            if prediction_feature.invert_standardization:
-              source = prediction_feature.source[0]
-            else:
-              assert prediction_feature.preserve_source
-              source = prediction_feature.preserved_source
+            source = prediction_feature.source[0]
             
             if data_format != source_data_format:
               source = Conv2dUtilities.convert_to_data_format(source, data_format)
@@ -1472,9 +1459,8 @@ def main(parsed_arguments):
           feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'],
           feature_name)
       invert_standardization = feature['invert_standardization']
-      preserve_source = not invert_standardization
       prediction_feature = PredictionFeature(
-          number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, invert_standardization, feature_variance,
+          number_of_sources_per_target, feature['is_target'], feature_standardization, invert_standardization, feature_variance,
           feature['feature_flags'], feature['number_of_channels'], feature_name)
       prediction_features.append(prediction_feature)
   

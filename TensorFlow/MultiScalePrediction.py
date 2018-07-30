@@ -66,7 +66,7 @@ class MultiScalePrediction:
         activation=activation_function, data_format=data_format)
     
     # TODO: Make this number configurable? (DeepBlender)
-    number_of_residual_blocks = 2
+    number_of_residual_blocks = 1
     for _ in range(number_of_residual_blocks):
       inputs = MultiScalePrediction._residual_block(inputs, activation_function, data_format=data_format)
     

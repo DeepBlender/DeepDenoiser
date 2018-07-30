@@ -25,20 +25,20 @@
 	"loss_difference_description": "Options: DIFFERENCE, ABSOLUTE, SMOOTH_ABSOLUTE, SQUARED, SMAPE.",
 	"loss_difference": "SMAPE",
 	
-	"learning_rate": 1e-4,
-	"batch_size": 16,
+	"learning_rate": 1e-3,
+	"batch_size": 8,
 	
 	"neural_network": {
 		"architecture_description": "Options: U-Net, Tiramisu",
 		"architecture": "U-Net",
-		"number_of_filters_for_convolution_blocks": [256, 256, 256],
-		"number_of_convolutions_per_block": 2,
+		"number_of_filters_for_convolution_blocks": [64, 128, 256],
+		"number_of_convolutions_per_block": 3,
 		"use_batch_normalization": false,
 		"dropout_rate": 0.0,
 		
 		"use_single_feature_prediction_description_1": "Should only one target feature be predicted at a time? Additionally, the feature flags need to be generated to guide the neural network.",
 		"use_single_feature_prediction_description_2": "The required feature flags are automatically calculated based on the feature flags of the actual target features.",
-		"use_single_feature_prediction": false,
+		"use_single_feature_prediction": true,
 		"feature_flags": [
 			"Diffuse", "Glossy", "Subsurface", "Transmission", "Volume",
 			"Color", "Direct", "Indirect",
@@ -57,7 +57,7 @@
 	
 	"combined_image": {
 		"loss_weights": {
-			"mean": 2.0,
+			"mean": 10.0,
 			"variation": 0.0,
 			"ms_ssim": 0.0
 		},
@@ -73,7 +73,7 @@
 	"combined_features": {
 		"Diffuse": {
 			"loss_weights": {
-				"mean": 1.0,
+				"mean": 2.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -99,7 +99,7 @@
 		},
 		"Glossy": {
 			"loss_weights": {
-				"mean": 1.0,
+				"mean": 2.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -125,7 +125,7 @@
 		},
 		"Subsurface": {
 			"loss_weights": {
-				"mean": 1.0,
+				"mean": 2.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -151,7 +151,7 @@
 		},
 		"Transmission": {
 			"loss_weights": {
-				"mean": 1.0,
+				"mean": 2.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -464,7 +464,7 @@
 			},
 			"invert_standardization": true,
 			"loss_weights": {
-				"mean": 1.0,
+				"mean": 2.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -508,7 +508,7 @@
 			},
 			"invert_standardization": true,
 			"loss_weights": {
-				"mean": 1.0,
+				"mean": 2.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -558,7 +558,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -602,7 +602,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -646,7 +646,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -690,7 +690,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -734,7 +734,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -778,7 +778,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -822,7 +822,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -866,7 +866,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -910,7 +910,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -954,7 +954,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -998,7 +998,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -1042,7 +1042,7 @@
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 1.0,
+				"mean": 0.5,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
