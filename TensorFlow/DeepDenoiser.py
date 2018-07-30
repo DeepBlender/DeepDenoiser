@@ -13,9 +13,10 @@ import multiprocessing
 
 import Utilities
 from Conv2dUtilities import Conv2dUtilities
+from FeatureFlags import FeatureFlags
+from SourceEncoder import SourceEncoder
 from KernelPrediction import KernelPrediction
 from MultiScalePrediction import MultiScalePrediction
-from FeatureFlags import FeatureFlags
 
 from UNet import UNet
 from Tiramisu import Tiramisu
@@ -65,7 +66,8 @@ def global_activation_function(features, name=None):
   # return tf.nn.crelu(features, name=name)
   # return tf.nn.elu(features, name=name)
   # return tf.nn.selu(features, name=name)
-
+  
+  
 class FeatureStandardization:
 
   def __init__(self, use_log1p, mean, variance, name):
@@ -684,14 +686,13 @@ class NeuralNetwork:
 
   def __init__(
       self, architecture='U-Net', number_of_filters_for_convolution_blocks=[128, 128, 128], number_of_convolutions_per_block=5,
-      use_batch_normalization=False, dropout_rate=0., number_of_sources_per_target=1, use_single_feature_prediction=False,
+      use_batch_normalization=False, dropout_rate=0., use_single_feature_prediction=False,
       feature_flags="", use_multiscale_predictions=True, use_kernel_predicion=True, kernel_size=5):
     self.architecture = architecture
     self.number_of_filters_for_convolution_blocks = number_of_filters_for_convolution_blocks
     self.number_of_convolutions_per_block = number_of_convolutions_per_block
     self.use_batch_normalization = use_batch_normalization
     self.dropout_rate = dropout_rate
-    self.number_of_sources_per_target = number_of_sources_per_target
     self.use_single_feature_prediction = use_single_feature_prediction
     self.feature_flags = feature_flags
     self.use_multiscale_predictions = use_multiscale_predictions
@@ -699,7 +700,7 @@ class NeuralNetwork:
     self.kernel_size = kernel_size
   
 
-def neural_network_model(inputs, output_size, neural_network, is_training, data_format):
+def neural_network_model(inputs, number_of_output_channels, neural_network, is_training, data_format):
 
   if neural_network.architecture == 'U-Net':
     unet = UNet(
@@ -729,20 +730,22 @@ def neural_network_model(inputs, output_size, neural_network, is_training, data_
   # Adjust the output to have the required number of channels.
   with tf.name_scope('Postprocess'):
     for index in range(len(inputs)):
-      inputs[index] = adjust_network_output(inputs[index], output_size, data_format)
+      inputs[index] = adjust_network_output(inputs[index], number_of_output_channels, data_format)
   
   return inputs
 
-def adjust_network_output(inputs, output_size, data_format):
+def adjust_network_output(inputs, number_of_output_channels, data_format):
   result = tf.layers.conv2d(
-      inputs=inputs, filters=output_size, kernel_size=(1, 1), padding='same',
+      inputs=inputs, filters=number_of_output_channels, kernel_size=(1, 1), padding='same',
       activation=global_activation_function, data_format=data_format)
   result = tf.layers.conv2d(
-      inputs=result, filters=output_size, kernel_size=(1, 1), padding='same',
+      inputs=result, filters=number_of_output_channels, kernel_size=(1, 1), padding='same',
       activation=None, data_format=data_format)
   return result
 
 def combined_features_model(prediction_features, output_prediction_features, is_training, neural_network, use_CPU_only, data_format):
+  
+  # TODO: Add SourceEncoder (DeepBlender)
   
   source_data_format = 'channels_last'
   source_concat_axis = Conv2dUtilities.channel_axis(prediction_features[0].source[0], data_format)
@@ -805,12 +808,12 @@ def combined_features_model(prediction_features, output_prediction_features, is_
   
   
   with tf.name_scope('feature_concatenation'):
-    output_size = 0
+    number_of_output_channels = 0
     for prediction_feature in output_prediction_features:
       if neural_network.use_kernel_predicion:
-        output_size = output_size + (neural_network.kernel_size ** 2)
+        number_of_output_channels = number_of_output_channels + (neural_network.kernel_size ** 2)
       else:
-        output_size = output_size + prediction_feature.number_of_channels
+        number_of_output_channels = number_of_output_channels + prediction_feature.number_of_channels
   
     concat_axis = Conv2dUtilities.channel_axis(prediction_inputs, data_format)
     
@@ -827,7 +830,7 @@ def combined_features_model(prediction_features, output_prediction_features, is_
   # HACK: Implementation trick to keep tensorboard cleaner.
   # with tf.name_scope('model'):
   with tf.variable_scope('model'):
-    outputs = neural_network_model(outputs, output_size, neural_network, is_training, data_format)
+    outputs = neural_network_model(outputs, number_of_output_channels, neural_network, is_training, data_format)
     if neural_network.use_multiscale_predictions:
       # Reverse the outputs, such that it is sorted from largest to smallest.
       outputs = list(reversed(outputs))
@@ -912,93 +915,83 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
   source_data_format = 'channels_last'
   source_concat_axis = Conv2dUtilities.channel_axis(prediction_features[0].source[0], source_data_format)
   
-  with tf.name_scope('prepare_auxiliary_inputs'):
-    auxiliary_inputs = []
-    for prediction_feature in prediction_features:
-      if not prediction_feature.is_target:
-        for index in range(prediction_feature.number_of_sources):
-          source = prediction_feature.source[index]
-          auxiliary_inputs.append(source)
-          if prediction_feature.feature_variance.use_variance:
-            source_variance = prediction_feature.variance[index]
-            auxiliary_inputs.append(source_variance)
-    if len(auxiliary_inputs) > 0:
-      auxiliary_inputs = tf.concat(auxiliary_inputs, source_concat_axis)
-    else:
-      auxiliary_inputs = None
+  if data_format is None:
+    # When running on GPU, transpose the data from channels_last (NHWC) to
+    # channels_first (NCHW) to improve performance.
+    # See https://www.tensorflow.org/performance/performance_guide#data_formats
+    data_format = (
+      'channels_first' if tf.test.is_built_with_cuda() else
+        'channels_last')
+    if use_CPU_only:
+      data_format = 'channels_last'
+  
+  number_of_main_network_input_channels = neural_network.number_of_filters_for_convolution_blocks[0]
   
   with tf.name_scope('single_feature_prediction'):
+    reuse_encoded_source = False
     reuse = False
     multiscale_combine_reuse = False
+    
+    source_features = []
+    for source_feature in prediction_features:
+      if not source_feature.is_target:
+        source_features.append(source_feature)
+    
+    encoded_source = None
     for prediction_feature in prediction_features:
-      prediction_inputs = []
-      auxiliary_prediction_inputs = []
       if prediction_feature.is_target:
-        with tf.name_scope('prepare_network_input'):
-          for index in range(prediction_feature.number_of_sources):
-            source = prediction_feature.source[index]
-            if index == 0:
-              prediction_inputs.append(source)
-              if prediction_feature.feature_variance.use_variance:
-                source_variance = prediction_feature.variance[index]
-                prediction_inputs.append(source_variance)
-            else:
-              auxiliary_prediction_inputs.append(source)
-              if prediction_feature.feature_variance.use_variance:
-                source_variance = prediction_feature.variance[index]
-                auxiliary_prediction_inputs.append(source_variance)
-        
-          prediction_inputs = tf.concat(prediction_inputs, source_concat_axis)
-          if len(auxiliary_prediction_inputs) > 0:
-            auxiliary_prediction_inputs = tf.concat(auxiliary_prediction_inputs, source_concat_axis)
-          else:
-            auxiliary_prediction_inputs = None
-                    
-          if auxiliary_prediction_inputs == None and auxiliary_inputs == None:
-            outputs = prediction_inputs
-          elif auxiliary_prediction_inputs == None:
-            outputs = tf.concat([prediction_inputs, auxiliary_inputs], source_concat_axis)
-          elif auxiliary_inputs == None:
-            outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs], source_concat_axis)
-          else:
-            outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], source_concat_axis)
-          
-          
-          # Adding the prediction feature flags does only work when the tensor is unbatched. This can be achieved with 'map_fn'.
-          # Alternatively, we could add the flags during the dataset preparation.
-          def add_prediction_feature_flags(inputs):
-            local_concat_axis = Conv2dUtilities.channel_axis(inputs, source_data_format)
-            inputs = tf.concat([prediction_feature_flags, inputs], local_concat_axis)
-            return inputs
-          
-          height, width = Conv2dUtilities.height_width(prediction_inputs, source_data_format)
-          prediction_feature_flags = neural_network.feature_flags.feature_flags(prediction_feature.name, height, width, source_data_format)
-          outputs = tf.map_fn(add_prediction_feature_flags, outputs)
         
         if neural_network.use_kernel_predicion:
-          output_size = neural_network.kernel_size ** 2
+          number_of_output_channels = neural_network.kernel_size ** 2
         else:
-          output_size = prediction_feature.number_of_channels
+          number_of_output_channels = prediction_feature.number_of_channels
         
-        if data_format is None:
-          # When running on GPU, transpose the data from channels_last (NHWC) to
-          # channels_first (NCHW) to improve performance.
-          # See https://www.tensorflow.org/performance/performance_guide#data_formats
-          data_format = (
-            'channels_first' if tf.test.is_built_with_cuda() else
-              'channels_last')
-          if use_CPU_only:
-            data_format = 'channels_last'
+        with tf.name_scope('prepare_network_input'):
+          for index in range(prediction_feature.number_of_sources):
+            prediction_inputs = []
+            source = prediction_feature.source[index]
+            prediction_inputs.append(source)
+            if prediction_feature.feature_variance.use_variance:
+              source_variance = prediction_feature.variance[index]
+              prediction_inputs.append(source_variance)
+            for source_feature in source_features:
+              source = source_feature.source[index]
+              prediction_inputs.append(source)
+              if source_feature.feature_variance.use_variance:
+                source_variance = source_feature.variance[index]
+                prediction_inputs.append(source_variance)
         
-        with tf.name_scope('data_format_conversion'):
-          if data_format != source_data_format:
-            outputs = Conv2dUtilities.convert_to_data_format(outputs, data_format)
-            concat_axis = Conv2dUtilities.channel_axis(outputs, data_format)
+            outputs = tf.concat(prediction_inputs, source_concat_axis)
+          
+            # Adding the prediction feature flags does only work when the tensor is unbatched. This can be achieved with 'map_fn'.
+            def add_prediction_feature_flags(inputs):
+              local_concat_axis = Conv2dUtilities.channel_axis(inputs, source_data_format)
+              inputs = tf.concat([prediction_feature_flags, inputs], local_concat_axis)
+              return inputs
+            
+            height, width = Conv2dUtilities.height_width(outputs, source_data_format)
+            prediction_feature_flags = neural_network.feature_flags.feature_flags(prediction_feature.name, height, width, source_data_format)
+            outputs = tf.map_fn(add_prediction_feature_flags, outputs)
         
+            with tf.name_scope('data_format_conversion'):
+              if data_format != source_data_format:
+                outputs = Conv2dUtilities.convert_to_data_format(outputs, data_format)
+                concat_axis = Conv2dUtilities.channel_axis(outputs, data_format)
+        
+            # TODO: No source encoding for now. More details in SourceEncoder (DeepBlender)
+            use_source_encoder = False
+            if use_source_encoder:
+              with tf.variable_scope('reused_source_encoder', reuse=reuse_encoded_source):
+                encoded_source = SourceEncoder.source_encoding(
+                    outputs, index, number_of_main_network_input_channels, encoded_source=encoded_source,
+                    activation_function=global_activation_function, data_format=data_format)
+                reuse_encoded_source = True
+            else:
+              encoded_source = outputs
         
         with tf.name_scope('model'):
           with tf.variable_scope('reused_model', reuse=reuse):
-            outputs = neural_network_model(outputs, output_size, neural_network, is_training, data_format)
+            outputs = neural_network_model(encoded_source, number_of_output_channels, neural_network, is_training, data_format)
             if neural_network.use_multiscale_predictions:
               # Reverse the outputs, such that it is sorted from largest to smallest.
               outputs = list(reversed(outputs))
@@ -1369,6 +1362,9 @@ def source_index_tuples(number_of_sources_per_example, number_of_source_index_tu
       index = random.randint(0, number_of_sources_per_example - 1)
       index_tuples.append([index])
   else:
+  
+    raise Exception('Multiple source inputs are currently not supported!')
+  
     for _ in range(number_of_source_index_tuples):
       tuple = []
       while len(tuple) < number_of_sources_per_target:
@@ -1410,7 +1406,6 @@ def main(parsed_arguments):
   number_of_convolutions_per_block = neural_network['number_of_convolutions_per_block']
   use_batch_normalization = neural_network['use_batch_normalization']
   dropout_rate = neural_network['dropout_rate']
-  number_of_sources_per_target = neural_network['number_of_sources_per_target']
   use_single_feature_prediction = neural_network['use_single_feature_prediction']
   feature_flags = FeatureFlags(neural_network['feature_flags'])
   use_multiscale_predictions = neural_network['use_multiscale_predictions']
@@ -1419,6 +1414,7 @@ def main(parsed_arguments):
   use_kernel_predicion = neural_network['use_kernel_predicion']
   kernel_size = neural_network['kernel_size']
   
+  number_of_sources_per_target = parsed_json['number_of_sources_per_target']
   number_of_source_index_tuples = parsed_json['number_of_source_index_tuples']
   
   data_augmentation = parsed_json['data_augmentation']
@@ -1588,7 +1584,7 @@ def main(parsed_arguments):
   neural_network = NeuralNetwork(
       architecture=architecture, number_of_filters_for_convolution_blocks=number_of_filters_for_convolution_blocks,
       number_of_convolutions_per_block=number_of_convolutions_per_block, use_batch_normalization=use_batch_normalization,
-      dropout_rate=dropout_rate, number_of_sources_per_target=number_of_sources_per_target, use_single_feature_prediction=use_single_feature_prediction,
+      dropout_rate=dropout_rate, use_single_feature_prediction=use_single_feature_prediction,
       feature_flags=feature_flags, use_multiscale_predictions=use_multiscale_predictions,
       use_kernel_predicion=use_kernel_predicion, kernel_size=kernel_size)
   
