@@ -53,7 +53,8 @@
 		
 		"kernel_usage_description": "If kernel prediction is used, The actual kernel has a size of: kernel_size * kernel_size.",
 		"use_kernel_predicion": true,
-		"kernel_size": 5
+		"kernel_size": 5,
+		"use_standardized_source_for_kernel_prediction": true
 	},
 	
 	"combined_image": {

@@ -122,10 +122,11 @@ class FeatureVariance:
 class PredictionFeature:
 
   def __init__(
-      self, number_of_sources, is_target, feature_standardization, invert_standardization, feature_variance,
+      self, number_of_sources, preserve_source, is_target, feature_standardization, invert_standardization, feature_variance,
       feature_flag_names, number_of_channels, name):
     
     self.number_of_sources = number_of_sources
+    self.preserve_source = preserve_source
     self.is_target = is_target
     self.feature_standardization = feature_standardization
     self.invert_standardization = invert_standardization
@@ -138,9 +139,14 @@ class PredictionFeature:
   def initialize_sources_from_dictionary(self, dictionary):
     self.source = []
     self.variance = []
+    if self.preserve_source:
+      self.preserved_source = []
+    
     for index in range(self.number_of_sources):
-      source_at_index = dictionary[Naming.source_feature_name(self.name, index=index)]
-      self.source.append(source_at_index)
+      source = dictionary[Naming.source_feature_name(self.name, index=index)]
+      self.source.append(source)
+      if self.preserve_source:
+        self.preserved_source.append(source)
 
   def standardize(self):
     with tf.name_scope(Naming.tensorboard_name(self.name + ' Variance')):
@@ -681,7 +687,7 @@ class NeuralNetwork:
       self, architecture='U-Net', number_of_filters_for_convolution_blocks=[128, 128, 128], number_of_convolutions_per_block=5,
       use_batch_normalization=False, dropout_rate=0., use_single_feature_prediction=False,
       feature_flags="", use_multiscale_predictions=True, invert_standardization_after_multiscale_predictions=False,
-      use_kernel_predicion=True, kernel_size=5):
+      use_kernel_predicion=True, kernel_size=5, use_standardized_source_for_kernel_prediction=True):
     self.architecture = architecture
     self.number_of_filters_for_convolution_blocks = number_of_filters_for_convolution_blocks
     self.number_of_convolutions_per_block = number_of_convolutions_per_block
@@ -693,6 +699,7 @@ class NeuralNetwork:
     self.invert_standardization_after_multiscale_predictions = invert_standardization_after_multiscale_predictions
     self.use_kernel_predicion = use_kernel_predicion
     self.kernel_size = kernel_size
+    self.use_standardized_source_for_kernel_prediction = use_standardized_source_for_kernel_prediction
   
 
 def neural_network_model(inputs, number_of_output_channels, neural_network, is_training, data_format):
@@ -855,7 +862,10 @@ def combined_features_model(prediction_features, output_prediction_features, is_
   with tf.name_scope('kernel_predicions'):
     if neural_network.use_kernel_predicion:
       for prediction_feature in output_prediction_features:
-        source = prediction_feature.source[0]
+        if neural_network.use_standardized_source_for_kernel_prediction:
+          source = prediction_feature.source[0]
+        else:
+          source = prediction_feature.preserved_source[0]
         
         if data_format != source_data_format:
           source = Conv2dUtilities.convert_to_data_format(source, data_format)
@@ -1005,7 +1015,10 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
         
         with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
           if neural_network.use_kernel_predicion:
-            source = prediction_feature.source[0]
+            if neural_network.use_standardized_source_for_kernel_prediction:
+              source = prediction_feature.source[0]
+            else:
+              source = prediction_feature.preserved_source[0]
             
             if data_format != source_data_format:
               source = Conv2dUtilities.convert_to_data_format(source, data_format)
@@ -1419,6 +1432,8 @@ def main(parsed_arguments):
   use_multiscale_metrics = neural_network['use_multiscale_metrics']
   use_kernel_predicion = neural_network['use_kernel_predicion']
   kernel_size = neural_network['kernel_size']
+  use_standardized_source_for_kernel_prediction = neural_network['use_standardized_source_for_kernel_prediction']
+  preserve_source = not use_standardized_source_for_kernel_prediction
   
   number_of_sources_per_target = parsed_json['number_of_sources_per_target']
   number_of_source_index_tuples = parsed_json['number_of_source_index_tuples']
@@ -1478,8 +1493,9 @@ def main(parsed_arguments):
           feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'],
           feature_name)
       invert_standardization = feature['invert_standardization']
+      
       prediction_feature = PredictionFeature(
-          number_of_sources_per_target, feature['is_target'], feature_standardization, invert_standardization, feature_variance,
+          number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, invert_standardization, feature_variance,
           feature['feature_flags'], feature['number_of_channels'], feature_name)
       prediction_features.append(prediction_feature)
   
@@ -1592,7 +1608,8 @@ def main(parsed_arguments):
       dropout_rate=dropout_rate, use_single_feature_prediction=use_single_feature_prediction,
       feature_flags=feature_flags, use_multiscale_predictions=use_multiscale_predictions,
       invert_standardization_after_multiscale_predictions=invert_standardization_after_multiscale_predictions,
-      use_kernel_predicion=use_kernel_predicion, kernel_size=kernel_size)
+      use_kernel_predicion=use_kernel_predicion, kernel_size=kernel_size,
+      use_standardized_source_for_kernel_prediction=use_standardized_source_for_kernel_prediction)
   
   
   # TODO: CPU only has to be configurable. (DeepBlender)

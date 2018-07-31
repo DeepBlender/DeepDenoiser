@@ -80,19 +80,27 @@ def main(parsed_arguments):
   number_of_convolutions_per_block = neural_network['number_of_convolutions_per_block']
   use_batch_normalization = neural_network['use_batch_normalization']
   dropout_rate = neural_network['dropout_rate']
-  number_of_sources_per_target = neural_network['number_of_sources_per_target']
   use_single_feature_prediction = neural_network['use_single_feature_prediction']
   feature_flags = FeatureFlags(neural_network['feature_flags'])
   use_multiscale_predictions = neural_network['use_multiscale_predictions']
+  invert_standardization_after_multiscale_predictions = neural_network['invert_standardization_after_multiscale_predictions']
+  use_multiscale_loss = neural_network['use_multiscale_loss']
+  use_multiscale_metrics = neural_network['use_multiscale_metrics']
   use_kernel_predicion = neural_network['use_kernel_predicion']
   kernel_size = neural_network['kernel_size']
+  use_standardized_source_for_kernel_prediction = neural_network['use_standardized_source_for_kernel_prediction']
+  preserve_source = not use_standardized_source_for_kernel_prediction
+  
+  number_of_sources_per_target = parsed_json['number_of_sources_per_target']
   
   neural_network = NeuralNetwork(
       architecture=architecture, number_of_filters_for_convolution_blocks=number_of_filters_for_convolution_blocks,
       number_of_convolutions_per_block=number_of_convolutions_per_block, use_batch_normalization=use_batch_normalization,
-      dropout_rate=dropout_rate, number_of_sources_per_target=number_of_sources_per_target, use_single_feature_prediction=use_single_feature_prediction,
+      dropout_rate=dropout_rate, use_single_feature_prediction=use_single_feature_prediction,
       feature_flags=feature_flags, use_multiscale_predictions=use_multiscale_predictions,
-      use_kernel_predicion=use_kernel_predicion, kernel_size=kernel_size)
+      invert_standardization_after_multiscale_predictions=invert_standardization_after_multiscale_predictions,
+      use_kernel_predicion=use_kernel_predicion, kernel_size=kernel_size,
+      use_standardized_source_for_kernel_prediction=use_standardized_source_for_kernel_prediction)
   
   # The names have to be sorted, otherwise the channels would be randomly mixed.
   feature_names = sorted(list(features.keys()))
@@ -113,7 +121,6 @@ def main(parsed_arguments):
           feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'],
           feature_name)
       invert_standardization = feature['invert_standardization']
-      preserve_source = not invert_standardization
       prediction_feature = PredictionFeature(
           number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, invert_standardization, feature_variance,
           feature['feature_flags'], feature['number_of_channels'], feature_name)
