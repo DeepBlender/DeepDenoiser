@@ -685,7 +685,7 @@ class NeuralNetwork:
 
   def __init__(
       self, architecture='U-Net', number_of_filters_for_convolution_blocks=[128, 128, 128], number_of_convolutions_per_block=5,
-      use_batch_normalization=False, dropout_rate=0., use_single_feature_prediction=False,
+      use_batch_normalization=False, dropout_rate=0.,
       feature_flags="", use_multiscale_predictions=True, invert_standardization_after_multiscale_predictions=False,
       use_kernel_predicion=True, kernel_size=5, use_standardized_source_for_kernel_prediction=True):
     self.architecture = architecture
@@ -693,7 +693,6 @@ class NeuralNetwork:
     self.number_of_convolutions_per_block = number_of_convolutions_per_block
     self.use_batch_normalization = use_batch_normalization
     self.dropout_rate = dropout_rate
-    self.use_single_feature_prediction = use_single_feature_prediction
     self.feature_flags = feature_flags
     self.use_multiscale_predictions = use_multiscale_predictions
     self.invert_standardization_after_multiscale_predictions = invert_standardization_after_multiscale_predictions
@@ -744,181 +743,6 @@ def adjust_network_output(inputs, number_of_output_channels, data_format):
       inputs=result, filters=number_of_output_channels, kernel_size=(1, 1), padding='same',
       activation=None, data_format=data_format)
   return result
-
-def combined_features_model(prediction_features, output_prediction_features, is_training, neural_network, use_CPU_only, data_format):
-  
-  # TODO: Add SourceEncoder (DeepBlender)
-  
-  raise Exception('Do not use this at the moment!')
-  
-  source_data_format = 'channels_last'
-  source_concat_axis = Conv2dUtilities.channel_axis(prediction_features[0].source[0], data_format)
-  
-  with tf.name_scope('bundle_features'):
-    prediction_inputs = []
-    auxiliary_prediction_inputs = []
-    auxiliary_inputs = []
-    for prediction_feature in prediction_features:
-      if prediction_feature.is_target:
-        for index in range(prediction_feature.number_of_sources):
-          source = prediction_feature.source[index]
-          if index == 0:
-            prediction_inputs.append(source)
-            if prediction_feature.feature_variance.use_variance:
-              source_variance = prediction_feature.variance[index]
-              prediction_inputs.append(source_variance)
-          else:
-            auxiliary_prediction_inputs.append(source)
-            if prediction_feature.feature_variance.use_variance:
-              source_variance = prediction_feature.variance[index]
-              auxiliary_prediction_inputs.append(source_variance)
-      else:
-        for index in range(prediction_feature.number_of_sources):
-          source = prediction_feature.source[index]
-          auxiliary_inputs.append(source)
-          if prediction_feature.feature_variance.use_variance:
-            source_variance = prediction_feature.variance[index]
-            auxiliary_inputs.append(source_variance)
-          
-    prediction_inputs = tf.concat(prediction_inputs, source_concat_axis)
-    
-    if len(auxiliary_prediction_inputs) > 0:
-      auxiliary_prediction_inputs = tf.concat(auxiliary_prediction_inputs, source_concat_axis)
-    else:
-      auxiliary_prediction_inputs = None
-    if len(auxiliary_inputs) > 0:
-      auxiliary_inputs = tf.concat(auxiliary_inputs, source_concat_axis)
-    else:
-      auxiliary_inputs = None
-
-
-  with tf.name_scope('data_format_conversion'):    
-    if data_format is None:
-      # When running on GPU, transpose the data from channels_last (NHWC) to
-      # channels_first (NCHW) to improve performance.
-      # See https://www.tensorflow.org/performance/performance_guide#data_formats
-      data_format = (
-        'channels_first' if tf.test.is_built_with_cuda() else
-          'channels_last')
-      if use_CPU_only:
-        data_format = 'channels_last'
-    
-    if data_format != source_data_format:
-      prediction_inputs = Conv2dUtilities.convert_to_data_format(prediction_inputs, data_format)
-      if auxiliary_prediction_inputs != None:
-        auxiliary_prediction_inputs = Conv2dUtilities.convert_to_data_format(auxiliary_prediction_inputs, data_format)
-      if auxiliary_inputs != None:
-        auxiliary_inputs = Conv2dUtilities.convert_to_data_format(auxiliary_inputs, data_format)
-  
-  
-  with tf.name_scope('feature_concatenation'):
-    number_of_output_channels = 0
-    for prediction_feature in output_prediction_features:
-      if neural_network.use_kernel_predicion:
-        number_of_output_channels = number_of_output_channels + (neural_network.kernel_size ** 2)
-      else:
-        number_of_output_channels = number_of_output_channels + prediction_feature.number_of_channels
-  
-    concat_axis = Conv2dUtilities.channel_axis(prediction_inputs, data_format)
-    
-    if auxiliary_prediction_inputs == None and auxiliary_inputs == None:
-      outputs = prediction_inputs
-    elif auxiliary_prediction_inputs == None:
-      outputs = tf.concat([prediction_inputs, auxiliary_inputs], concat_axis)
-    elif auxiliary_inputs == None:
-      outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs], concat_axis)
-    else:
-      outputs = tf.concat([prediction_inputs, auxiliary_prediction_inputs, auxiliary_inputs], concat_axis)
-  
-  
-  # HACK: Implementation trick to keep tensorboard cleaner.
-  # with tf.name_scope('model'):
-  with tf.variable_scope('model'):
-    outputs = neural_network_model(outputs, number_of_output_channels, neural_network, is_training, data_format)
-    if neural_network.use_multiscale_predictions:
-      # Reverse the outputs, such that it is sorted from largest to smallest.
-      outputs = list(reversed(outputs))
-
-  
-  with tf.name_scope('split'):
-    size_splits = []
-    for prediction_feature in output_prediction_features:
-      if neural_network.use_kernel_predicion:
-        size_splits.append(neural_network.kernel_size ** 2)
-      else:
-        size_splits.append(prediction_feature.number_of_channels)
-  
-    predictions_tuple = []
-    for output in outputs:
-      prediction_tuple = tf.split(output, size_splits, concat_axis)
-      predictions_tuple.append(prediction_tuple)
-  
-  for scale_index in range(len(predictions_tuple)):
-    prediction_tuple = predictions_tuple[scale_index]
-    for index, prediction in enumerate(prediction_tuple):
-      output_prediction_features[index].add_prediction(scale_index, prediction)
-
-  
-  with tf.name_scope('kernel_predicions'):
-    if neural_network.use_kernel_predicion:
-      for prediction_feature in output_prediction_features:
-        if neural_network.use_standardized_source_for_kernel_prediction:
-          source = prediction_feature.source[0]
-        else:
-          source = prediction_feature.preserved_source[0]
-        
-        if data_format != source_data_format:
-          source = Conv2dUtilities.convert_to_data_format(source, data_format)
-        
-        for scale_index in range(len(prediction_feature.predictions)):
-          scaled_source = source
-          
-          if scale_index > 0:
-            size = 2 ** scale_index
-            scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
-          with tf.name_scope(Naming.tensorboard_name(prediction_feature.name + ' Kernel Prediction')):
-            prediction = KernelPrediction.kernel_prediction(
-                scaled_source, prediction_feature.predictions[scale_index],
-                neural_network.kernel_size, data_format=data_format)
-          prediction_feature.add_prediction(scale_index, prediction)
-  
-  
-  if not neural_network.invert_standardization_after_multiscale_predictions:
-    with tf.name_scope('invert_standardization'):
-      for prediction_feature in output_prediction_features:
-        if prediction_feature.invert_standardization:
-          prediction_feature.prediction_invert_standardization()
-  
-  
-  with tf.name_scope('combine_multiscales'):
-    if neural_network.use_multiscale_predictions:
-      reuse = False
-      for prediction_feature in output_prediction_features:
-        for scale_index in range(len(prediction_feature.predictions) - 1, 0, -1):
-          larger_scale_index = scale_index - 1
-          
-          small_prediction = prediction_feature.predictions[scale_index]
-          prediction = prediction_feature.predictions[larger_scale_index]
-          
-          with tf.variable_scope('reused_compose_scales', reuse=reuse):
-            prediction = MultiScalePrediction.compose_scales(small_prediction, prediction, data_format=data_format)
-          reuse = True
-          
-          prediction_feature.add_prediction(larger_scale_index, prediction)
-  
-  if neural_network.invert_standardization_after_multiscale_predictions:
-    with tf.name_scope('invert_standardization'):
-      for prediction_feature in output_prediction_features:
-        if prediction_feature.invert_standardization:
-          prediction_feature.prediction_invert_standardization()
-
-  
-  # Convert back to the source data format if needed.
-  with tf.name_scope('revert_data_format_conversion'):
-    if data_format != source_data_format:
-      for prediction_feature in output_prediction_features:
-        for scale_index in range(len(prediction_feature.predictions)):
-          prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], source_data_format)
 
 
 def single_feature_model(prediction_features, output_prediction_features, is_training, neural_network, use_CPU_only, data_format):
@@ -1083,12 +907,8 @@ def model(prediction_features, mode, neural_network, use_CPU_only, data_format):
     for prediction_feature in prediction_features:
       prediction_feature.standardize()
 
-  if neural_network.use_single_feature_prediction:
-    single_feature_model(
-        prediction_features, output_prediction_features, is_training, neural_network, use_CPU_only, data_format)
-  else:
-    combined_features_model(
-        prediction_features, output_prediction_features, is_training, neural_network, use_CPU_only, data_format)
+  single_feature_model(
+      prediction_features, output_prediction_features, is_training, neural_network, use_CPU_only, data_format)
   
   prediction_dictionaries = []
   for scale_index in range(len(output_prediction_features[0].predictions)):
@@ -1424,7 +1244,6 @@ def main(parsed_arguments):
   number_of_convolutions_per_block = neural_network['number_of_convolutions_per_block']
   use_batch_normalization = neural_network['use_batch_normalization']
   dropout_rate = neural_network['dropout_rate']
-  use_single_feature_prediction = neural_network['use_single_feature_prediction']
   feature_flags = FeatureFlags(neural_network['feature_flags'])
   use_multiscale_predictions = neural_network['use_multiscale_predictions']
   invert_standardization_after_multiscale_predictions = neural_network['invert_standardization_after_multiscale_predictions']
@@ -1499,11 +1318,10 @@ def main(parsed_arguments):
           feature['feature_flags'], feature['number_of_channels'], feature_name)
       prediction_features.append(prediction_feature)
   
-  if use_single_feature_prediction:
-    for prediction_feature in prediction_features:
-      if prediction_feature.is_target:
-        feature_flags.add_render_pass_name_to_feature_flag_names(prediction_feature.name, prediction_feature.feature_flag_names)
-    feature_flags.freeze()
+  for prediction_feature in prediction_features:
+    if prediction_feature.is_target:
+      feature_flags.add_render_pass_name_to_feature_flag_names(prediction_feature.name, prediction_feature.feature_flag_names)
+  feature_flags.freeze()
   
   # Training features.
 
@@ -1605,8 +1423,7 @@ def main(parsed_arguments):
   neural_network = NeuralNetwork(
       architecture=architecture, number_of_filters_for_convolution_blocks=number_of_filters_for_convolution_blocks,
       number_of_convolutions_per_block=number_of_convolutions_per_block, use_batch_normalization=use_batch_normalization,
-      dropout_rate=dropout_rate, use_single_feature_prediction=use_single_feature_prediction,
-      feature_flags=feature_flags, use_multiscale_predictions=use_multiscale_predictions,
+      dropout_rate=dropout_rate, feature_flags=feature_flags, use_multiscale_predictions=use_multiscale_predictions,
       invert_standardization_after_multiscale_predictions=invert_standardization_after_multiscale_predictions,
       use_kernel_predicion=use_kernel_predicion, kernel_size=kernel_size,
       use_standardized_source_for_kernel_prediction=use_standardized_source_for_kernel_prediction)

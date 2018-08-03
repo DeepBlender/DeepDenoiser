@@ -36,9 +36,6 @@
 		"use_batch_normalization": false,
 		"dropout_rate": 0.0,
 		
-		"use_single_feature_prediction_description_1": "Should only one target feature be predicted at a time? Additionally, the feature flags need to be generated to guide the neural network.",
-		"use_single_feature_prediction_description_2": "The required feature flags are automatically calculated based on the feature flags of the actual target features.",
-		"use_single_feature_prediction": true,
 		"feature_flags": [
 			"Diffuse", "Glossy", "Subsurface", "Transmission", "Volume",
 			"Color", "Direct", "Indirect",
