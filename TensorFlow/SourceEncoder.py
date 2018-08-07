@@ -7,68 +7,65 @@ from Conv2dUtilities import Conv2dUtilities
 
 class SourceEncoder:
 
-  # TODO: In depth testing! (DeepBlender)
-  # The overall idea is to have multiple source inputs which were computed using different seeds.
-  # Those are fed one after the other into the source encoder to refine and enhance the encoded source
-  # which is then passed along to the actual denoiser.
-  # Instead of combining the noisy sources into an encoded source, we may consider to have two input modules.
-  # One for the prediction of a noisy source and the other one which also takes a noisy source, but an already
-  # computed denoised one as well.
+  # Remark: The source encoder is not like the one mentioned in the publication. For now it just prepares the data.
 
-  @staticmethod
-  def source_encoding(inputs, inputs_index, number_of_output_channels, encoded_source=None, activation_function=tf.nn.relu, data_format='channels_last'):
-    assert Conv2dUtilities.has_valid_shape(inputs)
-    # Logical implication 'a => b' has to be written as 'not (a) or (b)'
-    assert not (encoded_source != None) or (Conv2dUtilities.has_valid_shape(encoded_source))
-    assert not (encoded_source != None) or (
-        Conv2dUtilities.height_width(encoded_source, data_format) == Conv2dUtilities.height_width(inputs, data_format))
-    assert not (encoded_source != None) or (
-        Conv2dUtilities.number_of_channels(encoded_source, data_format) == number_of_output_channels)
+  def __init__(
+      self, prediction_features, feature_flags, use_all_targets_as_input, number_of_output_channels,
+      activation_function=tf.nn.relu, source_data_format='channels_first', data_format='channels_last'):
+    self.feature_flags = feature_flags
+    self.use_all_targets_as_input = use_all_targets_as_input
+    self.number_of_output_channels = number_of_output_channels
+    self.activation_function = activation_function
+    self.source_data_format = source_data_format
+    self.data_format = data_format
+  
+    self.source_features = []
+    self.target_features = []
+    for feature in prediction_features:
+      if feature.is_target:
+        self.target_features.append(feature)
+      else:
+        self.source_features.append(feature)
+  
+  def prepare_neural_network_input(self, prediction_feature):
+    source_concat_axis = Conv2dUtilities.channel_axis(prediction_feature.source[0], self.source_data_format)
     
-    height, width = Conv2dUtilities.height_width(inputs, data_format)
-    
-    if data_format == 'channels_last':
-      inputs_weight_shape = [height, width, 1]
-      encoded_source_shape = [height, width, number_of_output_channels]
+    # Prepare all the features we need.
+    features = []
+    if self.use_all_targets_as_input:
+      for feature in self.target_features:
+        features.append(feature)
     else:
-      inputs_weight_shape = [1, height, width]
-      encoded_source_shape = [number_of_output_channels, height, width]
+      features.append(prediction_feature)
     
-    inputs_weight = tf.multiply(1. / (inputs_index + 1.), tf.ones(inputs_weight_shape, tf.float32))
+    for feature in self.source_features:
+      features.append(feature)
     
-    # Inputs need to consist of the original inputs, the inputs weight and the encoded source.
     
-    if inputs_index == 0:
-      encoded_source = tf.zeros(encoded_source_shape, tf.float32)
-      
-      # Adding the inputs weight and the encoded source does only work when the tensor is unbatched. This can be achieved with 'map_fn'.
-      def add_weight_and_encoded_source(inputs):
-        concat_axis = Conv2dUtilities.channel_axis(inputs, data_format)
-        inputs = tf.concat([inputs, inputs_weight, encoded_source], concat_axis)
-        return inputs
+    # Merge the features into a tensor.
+    result = []
+    for index in range(len(prediction_feature.source)):
+      for feature in features:
+        source = feature.source[index]
+        result.append(source)
+        if feature.feature_variance.use_variance:
+          variance = feature.variance[index]
+          result.append(variance)
+    result = tf.concat(result, source_concat_axis)
+    
+    
+    # Adding the prediction feature flags does only work when the tensor is unbatched. This can be achieved with 'map_fn'.
+    def add_prediction_feature_flags(inputs):
+      local_concat_axis = Conv2dUtilities.channel_axis(inputs, self.source_data_format)
+      height, width = Conv2dUtilities.height_width(inputs, self.source_data_format)
+      prediction_feature_flags = self.feature_flags.feature_flags(prediction_feature.name, height, width, self.source_data_format)
+      inputs = tf.concat([inputs, prediction_feature_flags], local_concat_axis)
+      return inputs
+    result = tf.map_fn(add_prediction_feature_flags, result)
 
-      inputs = tf.map_fn(add_weight_and_encoded_source, inputs)
     
-    else:
-      # Adding the inputs weight and the encoded source does only work when the tensor is unbatched. This can be achieved with 'map_fn'.
-      def add_weight(inputs):
-        concat_axis = Conv2dUtilities.channel_axis(inputs, data_format)
-        inputs = tf.concat([inputs, inputs_weight], concat_axis)
-        return inputs
+    if self.data_format != self.source_data_format:
+      result = Conv2dUtilities.convert_to_data_format(result, self.data_format)
 
-      inputs = tf.map_fn(add_weight, inputs)
-      
-      concat_axis = Conv2dUtilities.channel_axis(inputs, data_format)
-      inputs = tf.concat([inputs, encoded_source], concat_axis)
-    
-    
-    number_of_convolutions = 2
-    residual = inputs
-    for _ in range(number_of_convolutions):
-      residual = activation_function(residual)
-      residual = tf.layers.conv2d(
-        inputs=residual, filters=number_of_output_channels, kernel_size=(3, 3), padding='same',
-        activation=None, data_format=data_format)
-    
-    result = tf.add(encoded_source, residual)
     return result
+  

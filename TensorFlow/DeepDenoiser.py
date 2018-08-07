@@ -745,7 +745,7 @@ def adjust_network_output(inputs, number_of_output_channels, data_format):
   return result
 
 
-def single_feature_model(prediction_features, output_prediction_features, is_training, neural_network, use_CPU_only, data_format):
+def single_feature_model(prediction_features, output_prediction_features, is_training, neural_network, use_all_targets_as_input, use_CPU_only, data_format):
   
   source_data_format = 'channels_last'
   source_concat_axis = Conv2dUtilities.channel_axis(prediction_features[0].source[0], source_data_format)
@@ -762,17 +762,15 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
   
   number_of_main_network_input_channels = neural_network.number_of_filters_for_convolution_blocks[0]
   
+  source_encoder = SourceEncoder(
+      prediction_features, neural_network.feature_flags, use_all_targets_as_input, number_of_main_network_input_channels,
+      activation_function=tf.nn.relu, source_data_format=source_data_format, data_format=data_format)
+  
   with tf.name_scope('single_feature_prediction'):
     reuse_encoded_source = False
     reuse = False
     multiscale_combine_reuse = False
     
-    source_features = []
-    for source_feature in prediction_features:
-      if not source_feature.is_target:
-        source_features.append(source_feature)
-    
-    encoded_source = None
     for prediction_feature in prediction_features:
       if prediction_feature.is_target:
         
@@ -782,47 +780,7 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
           number_of_output_channels = prediction_feature.number_of_channels
         
         with tf.name_scope('prepare_network_input'):
-          for index in range(prediction_feature.number_of_sources):
-            prediction_inputs = []
-            source = prediction_feature.source[index]
-            prediction_inputs.append(source)
-            if prediction_feature.feature_variance.use_variance:
-              source_variance = prediction_feature.variance[index]
-              prediction_inputs.append(source_variance)
-            for source_feature in source_features:
-              source = source_feature.source[index]
-              prediction_inputs.append(source)
-              if source_feature.feature_variance.use_variance:
-                source_variance = source_feature.variance[index]
-                prediction_inputs.append(source_variance)
-        
-            outputs = tf.concat(prediction_inputs, source_concat_axis)
-          
-            # Adding the prediction feature flags does only work when the tensor is unbatched. This can be achieved with 'map_fn'.
-            def add_prediction_feature_flags(inputs):
-              local_concat_axis = Conv2dUtilities.channel_axis(inputs, source_data_format)
-              inputs = tf.concat([prediction_feature_flags, inputs], local_concat_axis)
-              return inputs
-            
-            height, width = Conv2dUtilities.height_width(outputs, source_data_format)
-            prediction_feature_flags = neural_network.feature_flags.feature_flags(prediction_feature.name, height, width, source_data_format)
-            outputs = tf.map_fn(add_prediction_feature_flags, outputs)
-        
-            with tf.name_scope('data_format_conversion'):
-              if data_format != source_data_format:
-                outputs = Conv2dUtilities.convert_to_data_format(outputs, data_format)
-                concat_axis = Conv2dUtilities.channel_axis(outputs, data_format)
-        
-            # TODO: No source encoding for now. More details in SourceEncoder (DeepBlender)
-            use_source_encoder = False
-            if use_source_encoder:
-              with tf.variable_scope('reused_source_encoder', reuse=reuse_encoded_source):
-                encoded_source = SourceEncoder.source_encoding(
-                    outputs, index, number_of_main_network_input_channels, encoded_source=encoded_source,
-                    activation_function=global_activation_function, data_format=data_format)
-                reuse_encoded_source = True
-            else:
-              encoded_source = outputs
+          encoded_source = source_encoder.prepare_neural_network_input(prediction_feature)
         
         with tf.name_scope('model'):
           with tf.variable_scope('reused_model', reuse=reuse):
@@ -891,7 +849,7 @@ def single_feature_model(prediction_features, output_prediction_features, is_tra
               prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], source_data_format)
 
 
-def model(prediction_features, mode, neural_network, use_CPU_only, data_format):
+def model(prediction_features, mode, neural_network, use_all_targets_as_input, use_CPU_only, data_format):
   
   is_training = False
   if mode == tf.estimator.ModeKeys.TRAIN:
@@ -908,7 +866,7 @@ def model(prediction_features, mode, neural_network, use_CPU_only, data_format):
       prediction_feature.standardize()
 
   single_feature_model(
-      prediction_features, output_prediction_features, is_training, neural_network, use_CPU_only, data_format)
+      prediction_features, output_prediction_features, is_training, neural_network, use_all_targets_as_input, use_CPU_only, data_format)
   
   prediction_dictionaries = []
   for scale_index in range(len(output_prediction_features[0].predictions)):
@@ -926,11 +884,12 @@ def model_fn(features, labels, mode, params):
   for prediction_feature in prediction_features:
     prediction_feature.initialize_sources_from_dictionary(features)
   
+  use_all_targets_as_input = params['use_all_targets_as_input']
   neural_network = params['neural_network']
   
   data_format = params['data_format']
   predictions = model(
-      prediction_features, mode, neural_network,
+      prediction_features, mode, neural_network, use_all_targets_as_input,
       params['use_CPU_only'], data_format)
 
   if mode == tf.estimator.ModeKeys.PREDICT:
@@ -1201,7 +1160,8 @@ def source_index_tuples(number_of_sources_per_example, number_of_source_index_tu
       index_tuples.append([index])
   else:
   
-    raise Exception('Multiple source inputs are currently not supported!')
+    if number_of_sources_per_target > 2:
+      raise Exception('More than two source inputs are currently not supported!')
   
     for _ in range(number_of_source_index_tuples):
       tuple = []
@@ -1237,6 +1197,8 @@ def main(parsed_arguments):
   base_tfrecords_directory = parsed_json['base_tfrecords_directory']
   modes = parsed_json['modes']
   
+  source_encoder = parsed_json['source_encoder']
+  use_all_targets_as_input = source_encoder['use_all_targets_as_input']
   
   neural_network = parsed_json['neural_network']
   architecture = neural_network['architecture']
@@ -1458,6 +1420,7 @@ def main(parsed_arguments):
           'learning_rate': learning_rate,
           'batch_size': batch_size,
           'neural_network': neural_network,
+          'use_all_targets_as_input': use_all_targets_as_input,
           'use_multiscale_loss': use_multiscale_loss,
           'use_multiscale_metrics': use_multiscale_metrics,
           'training_features': training_features,

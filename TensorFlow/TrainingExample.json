@@ -28,6 +28,10 @@
 	"learning_rate": 1e-3,
 	"batch_size": 8,
 	
+	"source_encoder": {
+		"use_all_targets_as_input": false
+	},
+	
 	"neural_network": {
 		"architecture_description": "Options: U-Net, Tiramisu",
 		"architecture": "U-Net",
