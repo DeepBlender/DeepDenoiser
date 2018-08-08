@@ -17,9 +17,10 @@
 	
 	"data_augmentation": {
 		"use_rotate_90": true,
-		"use_flip_left_right": true,
+		"use_flip_left_right": false,
 		"use_rgb_permutation_description": "Pick a permutation of the rgb channels randomly, and use it at least for all passes/aovs from an example which use rgb colors.",
-		"use_rgb_permutation": true
+		"use_rgb_permutation": true,
+		"use_normal_rotation": true
 	},
 	
 	"loss_difference_description": "Options: DIFFERENCE, ABSOLUTE, SMOOTH_ABSOLUTE, SQUARED, SMAPE.",
@@ -270,7 +271,7 @@
 			}
 		},
 		"Normal": {
-			"is_source": false,
+			"is_source": true,
 			"is_target": false,
 			"number_of_channels": 3,
 			"feature_flags": [],
@@ -314,7 +315,7 @@
 			}
 		},
 		"Screen Space Normal": {
-			"is_source": true,
+			"is_source": false,
 			"is_target": false,
 			"number_of_channels": 3,
 			"feature_flags": [],

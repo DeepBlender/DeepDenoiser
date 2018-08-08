@@ -672,6 +672,13 @@ class TrainingFeatureAugmentation:
       if self.is_target:
         self.target = DataAugmentation.permute_rgb(self.target, permute, self.name)
   
+  def rotate_normal(self, normal_rotation, data_format):
+    if self.name == RenderPasses.NORMAL:
+      for index in range(self.number_of_sources):
+        self.source[index] = DataAugmentation.rotate_normal(self.source[index], normal_rotation, data_format)
+      if self.is_target:
+        self.target = DataAugmentation.rotate_normal(self.target, normal_rotation, data_format)
+  
   def add_to_sources_dictionary(self, sources):
     for index in range(self.number_of_sources):
       sources[Naming.source_feature_name(self.name, index=index)] = self.source[index]
@@ -1074,6 +1081,9 @@ def input_fn_tfrecords(
       flip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
       rotate = tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32)[0]
       permute = tf.random_uniform([1], minval=0, maxval=6, dtype=tf.int32)[0]
+      #if data_augmentation_usage.use_normal_rotation:
+      normal_rotation = tf.random_uniform([3], dtype=tf.float32)
+      normal_rotation = DataAugmentation.random_rotation_matrix(normal_rotation)
       
       for training_feature_augmentation in training_features_augmentation:
         training_feature_augmentation.intialize_from_dictionaries(sources, targets)
@@ -1086,6 +1096,9 @@ def input_fn_tfrecords(
 
         if data_augmentation_usage.use_rgb_permutation:
           training_feature_augmentation.permute_rgb(permute, data_format)
+        
+        if data_augmentation_usage.use_normal_rotation:
+          training_feature_augmentation.rotate_normal(normal_rotation, data_format)
     
         training_feature_augmentation.add_to_sources_dictionary(sources)
         training_feature_augmentation.add_to_targets_dictionary(targets)
@@ -1221,7 +1234,7 @@ def main(parsed_arguments):
   
   data_augmentation = parsed_json['data_augmentation']
   data_augmentation_usage = DataAugmentationUsage(
-      data_augmentation['use_rotate_90'], data_augmentation['use_flip_left_right'], data_augmentation['use_rgb_permutation'])
+      data_augmentation['use_rotate_90'], data_augmentation['use_flip_left_right'], data_augmentation['use_rgb_permutation'], data_augmentation['use_normal_rotation'])
   
   loss_difference = parsed_json['loss_difference']
   loss_difference = LossDifferenceEnum[loss_difference]
