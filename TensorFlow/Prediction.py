@@ -12,13 +12,13 @@ import numpy as np
 import tensorflow as tf
 import multiprocessing
 
-from DeepDenoiser import *
+from Architecture import Architecture
 
 from RenderPasses import RenderPasses
 from Naming import Naming
 from RenderDirectory import RenderDirectory
 
-parser = argparse.ArgumentParser(description='Training and inference for the DeepDenoiser.')
+parser = argparse.ArgumentParser(description='Prediction for the DeepDenoiser.')
 
 parser.add_argument(
     'json_filename',
@@ -33,7 +33,7 @@ parser.add_argument(
     help='Number of threads to use')
 
 parser.add_argument(
-    '--data_format', type=str, default=None,
+    '--data_format', type=str, default='channels_first',
     choices=['channels_first', 'channels_last'],
     help='A flag to override the data format used in the model. channels_first '
          'provides a performance boost on GPU but is not always compatible '
@@ -57,87 +57,39 @@ def input_fn_predict(features, height, width):
   
   return (features, 0)
 
+def model_fn(features, labels, mode, params):
+  architecture = params['architecture']
+  predictions = architecture.predict(features, mode)
+  if mode == tf.estimator.ModeKeys.PREDICT:
+    predictions = predictions[0]
+    return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
+
 def main(parsed_arguments):
   if not isinstance(parsed_arguments.threads, int):
     parsed_arguments.threads = int(parsed_arguments.threads)
 
   try:
-    json_filename = parsed_arguments.json_filename
-    json_content = open(json_filename, 'r').read()
-    parsed_json = json.loads(json_content)
+    architecture_json_filename = parsed_arguments.json_filename
+    architecture_json_content = open(architecture_json_filename, 'r').read()
+    parsed_architecture_json = json.loads(architecture_json_content)
   except:
-    print('Expected a valid json file as argument.')
+    print('Expected a valid architecture json file.')
   
   assert os.path.isdir(parsed_arguments.input)
   
-  model_directory = parsed_json['model_directory']
-  features = parsed_json['features']
   
-  
-  neural_network = parsed_json['neural_network']
-  architecture = neural_network['architecture']
-  number_of_filters_for_convolution_blocks = neural_network['number_of_filters_for_convolution_blocks']
-  number_of_convolutions_per_block = neural_network['number_of_convolutions_per_block']
-  use_batch_normalization = neural_network['use_batch_normalization']
-  dropout_rate = neural_network['dropout_rate']
-  use_single_feature_prediction = neural_network['use_single_feature_prediction']
-  feature_flags = FeatureFlags(neural_network['feature_flags'])
-  use_multiscale_predictions = neural_network['use_multiscale_predictions']
-  invert_standardization_after_multiscale_predictions = neural_network['invert_standardization_after_multiscale_predictions']
-  use_multiscale_loss = neural_network['use_multiscale_loss']
-  use_multiscale_metrics = neural_network['use_multiscale_metrics']
-  use_kernel_predicion = neural_network['use_kernel_predicion']
-  kernel_size = neural_network['kernel_size']
-  use_standardized_source_for_kernel_prediction = neural_network['use_standardized_source_for_kernel_prediction']
-  preserve_source = not use_standardized_source_for_kernel_prediction
-  
-  number_of_sources_per_target = parsed_json['number_of_sources_per_target']
-  
-  neural_network = NeuralNetwork(
-      architecture=architecture, number_of_filters_for_convolution_blocks=number_of_filters_for_convolution_blocks,
-      number_of_convolutions_per_block=number_of_convolutions_per_block, use_batch_normalization=use_batch_normalization,
-      dropout_rate=dropout_rate, use_single_feature_prediction=use_single_feature_prediction,
-      feature_flags=feature_flags, use_multiscale_predictions=use_multiscale_predictions,
-      invert_standardization_after_multiscale_predictions=invert_standardization_after_multiscale_predictions,
-      use_kernel_predicion=use_kernel_predicion, kernel_size=kernel_size,
-      use_standardized_source_for_kernel_prediction=use_standardized_source_for_kernel_prediction)
-  
-  # The names have to be sorted, otherwise the channels would be randomly mixed.
-  feature_names = sorted(list(features.keys()))
-  
-  prediction_features = []
-  for feature_name in feature_names:
-    feature = features[feature_name]
-    
-    # REMARK: It is assumed that there are no features which are only a target, without also being a source.
-    if feature['is_source']:
-      feature_variance = feature['feature_variance']
-      feature_variance = FeatureVariance(
-          feature_variance['use_variance'], feature_variance['variance_mode'], feature_variance['relative_variance'],
-          feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'],
-          feature_name)
-      feature_standardization = feature['standardization']
-      feature_standardization = FeatureStandardization(
-          feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'],
-          feature_name)
-      invert_standardization = feature['invert_standardization']
-      prediction_feature = PredictionFeature(
-          number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, invert_standardization, feature_variance,
-          feature['feature_flags'], feature['number_of_channels'], feature_name)
-      prediction_features.append(prediction_feature)
-  
-  if use_single_feature_prediction:
-    for prediction_feature in prediction_features:
-      if prediction_feature.is_target:
-        feature_flags.add_render_pass_name_to_feature_flag_names(prediction_feature.name, prediction_feature.feature_flag_names)
-    feature_flags.freeze()
+  architecture = Architecture(parsed_architecture_json, source_data_format='channels_last', data_format=parsed_arguments.data_format)
+  if architecture.data_format == 'channels_first':
+    use_CPU_only = False
+  else:
+    use_CPU_only = True
   
   height = None
   width = None
   
   exr_files = RenderDirectory._exr_files(parsed_arguments.input)
   features = {}
-  for prediction_feature in prediction_features:
+  for prediction_feature in architecture.prediction_features:
     exr_loaded = False
     for exr_file in exr_files:
       if prediction_feature.name in exr_file:
@@ -163,8 +115,8 @@ def main(parsed_arguments):
       # TODO: Improve (DeepBlender)
       raise Exception('Image for \'' + render_pass + '\' could not be loaded or does not exist.')
   
+  
   use_XLA = True
-  use_CPU_only = True
   
   run_config = None
   if use_XLA:
@@ -178,11 +130,10 @@ def main(parsed_arguments):
   
   estimator = tf.estimator.Estimator(
       model_fn=model_fn,
-      model_dir=model_directory,
+      model_dir=architecture.model_directory,
       config=run_config,
       params={
-          'prediction_features': prediction_features,
-          'neural_network': neural_network,
+          'architecture': architecture,
           'use_CPU_only': use_CPU_only,
           'data_format': parsed_arguments.data_format})
   

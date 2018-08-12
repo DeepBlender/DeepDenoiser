@@ -1,5 +1,5 @@
 {
-	"model_directory": "../Models/Example",
+	"architecture": "ArchitectureExample.json",
 	
 	"base_tfrecords_directory": "../TFRecords/Example",
 	"modes": [
@@ -8,12 +8,11 @@
 		"testing"
 	],
 	
-	"number_of_sources_per_target_description_1": "The number of sources which are used per example. E.g. 2 would generate ((source_a, source_b), target) tuples where a and b are randomly picked.",
-	"number_of_sources_per_target_description_2": "Right now, the only valid value is 1.",
-	"number_of_sources_per_target": 1,
-	
 	"number_of_source_index_tuples_description": "The number of tuples (source(s), target) which need to be generated.",
 	"number_of_source_index_tuples": 8,
+	
+	"learning_rate": 1e-3,
+	"batch_size": 8,
 	
 	"data_augmentation": {
 		"use_rotate_90": true,
@@ -26,38 +25,8 @@
 	"loss_difference_description": "Options: DIFFERENCE, ABSOLUTE, SMOOTH_ABSOLUTE, SQUARED, SMAPE.",
 	"loss_difference": "SMAPE",
 	
-	"learning_rate": 1e-3,
-	"batch_size": 8,
-	
-	"source_encoder": {
-		"use_all_targets_as_input": false
-	},
-	
-	"neural_network": {
-		"architecture_description": "Options: U-Net, Tiramisu",
-		"architecture": "U-Net",
-		"number_of_filters_for_convolution_blocks": [64, 128, 256],
-		"number_of_convolutions_per_block": 3,
-		"use_batch_normalization": false,
-		"dropout_rate": 0.0,
-		
-		"feature_flags": [
-			"Diffuse", "Glossy", "Subsurface", "Transmission", "Volume",
-			"Color", "Direct", "Indirect",
-			"Environment", "Emission",
-			"Shadow", "Ambient Occlusion"
-		],
-		
-		"use_multiscale_predictions": true,
-		"invert_standardization_after_multiscale_predictions": true,
-		"use_multiscale_loss": true,
-		"use_multiscale_metrics": true,
-		
-		"kernel_usage_description": "If kernel prediction is used, The actual kernel has a size of: kernel_size * kernel_size.",
-		"use_kernel_predicion": true,
-		"kernel_size": 5,
-		"use_standardized_source_for_kernel_prediction": true
-	},
+	"use_multiscale_loss": true,
+	"use_multiscale_metrics": true,
 	
 	"combined_image": {
 		"loss_weights": {
@@ -183,24 +152,6 @@
 	
 	"features": {
 		"Alpha": {
-			"is_source": false,
-			"is_target": false,
-			"number_of_channels": 1,
-			"feature_flags": [],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": false,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -227,24 +178,6 @@
 			}
 		},
 		"Depth": {
-			"is_source": false,
-			"is_target": false,
-			"number_of_channels": 1,
-			"feature_flags": [],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -271,24 +204,6 @@
 			}
 		},
 		"Normal": {
-			"is_source": true,
-			"is_target": false,
-			"number_of_channels": 3,
-			"feature_flags": [],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": false,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -315,24 +230,6 @@
 			}
 		},
 		"Screen Space Normal": {
-			"is_source": false,
-			"is_target": false,
-			"number_of_channels": 3,
-			"feature_flags": [],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": false,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -360,24 +257,6 @@
 		},
 		
 		"Ambient Occlusion": {
-			"is_source": false,
-			"is_target": false,
-			"number_of_channels": 3,
-			"feature_flags": ["Ambient Occlusion"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -404,24 +283,6 @@
 			}
 		},
 		"Shadow": {
-			"is_source": false,
-			"is_target": false,
-			"number_of_channels": 3,
-			"feature_flags": ["Shadow"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 0.0,
 				"variation": 0.0,
@@ -449,24 +310,6 @@
 		},
 		
 		"Emission": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Emission"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 2.0,
 				"variation": 0.0,
@@ -493,24 +336,6 @@
 			}
 		},
 		"Environment": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Environment"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 2.0,
 				"variation": 0.0,
@@ -538,31 +363,13 @@
 		},
 		
 		"Diffuse Color": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Diffuse", "Color"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -582,31 +389,13 @@
 			}
 		},
 		"Diffuse Direct": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Diffuse", "Direct"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -626,31 +415,13 @@
 			}
 		},
 		"Diffuse Indirect": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Diffuse", "Indirect"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -670,31 +441,13 @@
 			}
 		},
 		"Glossy Color": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Glossy", "Color"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -714,31 +467,13 @@
 			}
 		},
 		"Glossy Direct": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Glossy", "Direct"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -758,31 +493,13 @@
 			}
 		},
 		"Glossy Indirect": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Glossy", "Indirect"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -802,31 +519,13 @@
 			}
 		},
 		"Subsurface Color": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Subsurface", "Color"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -846,31 +545,13 @@
 			}
 		},
 		"Subsurface Direct": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Subsurface", "Direct"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -890,31 +571,13 @@
 			}
 		},
 		"Subsurface Indirect": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Subsurface", "Indirect"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -934,31 +597,13 @@
 			}
 		},
 		"Transmission Color": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Transmission", "Color"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -978,31 +623,13 @@
 			}
 		},
 		"Transmission Direct": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Transmission", "Direct"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -1022,31 +649,13 @@
 			}
 		},
 		"Transmission Indirect": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Transmission", "Indirect"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true,
 			"loss_weights": {
 				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
 			"loss_weights_masked": {
-				"mean": 0.5,
+				"mean": 1.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},

@@ -11,7 +11,7 @@ class SourceEncoder:
 
   def __init__(
       self, prediction_features, feature_flags, use_all_targets_as_input, number_of_output_channels,
-      activation_function=tf.nn.relu, source_data_format='channels_first', data_format='channels_last'):
+      activation_function=tf.nn.relu, source_data_format='channels_last', data_format='channels_first'):
     self.feature_flags = feature_flags
     self.use_all_targets_as_input = use_all_targets_as_input
     self.number_of_output_channels = number_of_output_channels

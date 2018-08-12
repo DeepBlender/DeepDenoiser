@@ -11,15 +11,10 @@ import random
 import tensorflow as tf
 import multiprocessing
 
-import Utilities
-from Conv2dUtilities import Conv2dUtilities
-from FeatureFlags import FeatureFlags
-from SourceEncoder import SourceEncoder
-from KernelPrediction import KernelPrediction
-from MultiScalePrediction import MultiScalePrediction
+from Architecture import Architecture
 
-from UNet import UNet
-from Tiramisu import Tiramisu
+from Conv2dUtilities import Conv2dUtilities
+from MultiScalePrediction import MultiScalePrediction
 
 from DataAugmentation import DataAugmentation
 from DataAugmentation import DataAugmentationUsage
@@ -29,7 +24,7 @@ from Naming import Naming
 from RenderPasses import RenderPasses
 from FeatureEngineering import FeatureEngineering
 
-parser = argparse.ArgumentParser(description='Training and inference for the DeepDenoiser.')
+parser = argparse.ArgumentParser(description='Training for the DeepDenoiser.')
 
 parser.add_argument(
     'json_filename',
@@ -52,139 +47,12 @@ parser.add_argument(
     help='Number of epochs after which a validation is made.')
 
 parser.add_argument(
-    '--data_format', type=str, default=None,
+    '--data_format', type=str, default='channels_first',
     choices=['channels_first', 'channels_last'],
     help='A flag to override the data format used in the model. channels_first '
          'provides a performance boost on GPU but is not always compatible '
          'with CPU. If left unspecified, the data format will be chosen '
          'automatically based on whether TensorFlow was built for CPU or GPU.')
-
-def global_activation_function(features, name=None):
-  # HACK: Quick way to experiment with other activation function.
-  return tf.nn.relu(features, name=name)
-  # return tf.nn.leaky_relu(features, name=name)
-  # return tf.nn.crelu(features, name=name)
-  # return tf.nn.elu(features, name=name)
-  # return tf.nn.selu(features, name=name)
-  
-  
-class FeatureStandardization:
-
-  def __init__(self, use_log1p, mean, variance, name):
-    self.use_log1p = use_log1p
-    self.mean = mean
-    self.variance = variance
-    self.name = name
-
-  def use_mean(self):
-    return self.mean != 0.
-  
-  def use_variance(self):
-    return self.variance != 1.
-
-  def standardize(self, feature, index):
-    if self.use_log1p:
-      feature = Utilities.signed_log1p(feature)
-    if self.use_mean():
-      feature = tf.subtract(feature, self.mean)
-    if self.use_variance():
-      feature = tf.divide(feature, tf.sqrt(self.variance))
-    return feature
-    
-  def invert_standardization(self, feature):
-    if self.use_variance():
-      feature = tf.multiply(feature, tf.sqrt(self.variance))
-    if self.use_mean():
-      feature = tf.add(feature, self.mean)
-    if self.use_log1p:
-      feature = Utilities.signed_expm1(feature)
-    return feature
-
-
-class FeatureVariance:
-
-  def __init__(self, use_variance, variance_mode, relative_variance, compute_before_standardization, compress_to_one_channel, name):
-    self.use_variance = use_variance
-    self.variance_mode = variance_mode
-    self.relative_variance = relative_variance
-    self.compute_before_standardization = compute_before_standardization
-    self.compress_to_one_channel = compress_to_one_channel
-    self.name = name
-  
-  def variance(self, inputs, epsilon=1e-4, data_format='channels_last'):
-    assert self.use_variance
-    result = FeatureEngineering.variance(
-        inputs, variance_mode=self.variance_mode, relative_variance=self.relative_variance, compress_to_one_channel=self.compress_to_one_channel,
-        epsilon=epsilon, data_format=data_format)
-    return result
-  
-
-class PredictionFeature:
-
-  def __init__(
-      self, number_of_sources, preserve_source, is_target, feature_standardization, invert_standardization, feature_variance,
-      feature_flag_names, number_of_channels, name):
-    
-    self.number_of_sources = number_of_sources
-    self.preserve_source = preserve_source
-    self.is_target = is_target
-    self.feature_standardization = feature_standardization
-    self.invert_standardization = invert_standardization
-    self.feature_variance = feature_variance
-    self.feature_flag_names = feature_flag_names
-    self.number_of_channels = number_of_channels
-    self.name = name
-    self.predictions = []
-
-  def initialize_sources_from_dictionary(self, dictionary):
-    self.source = []
-    self.variance = []
-    if self.preserve_source:
-      self.preserved_source = []
-    
-    for index in range(self.number_of_sources):
-      source = dictionary[Naming.source_feature_name(self.name, index=index)]
-      self.source.append(source)
-      if self.preserve_source:
-        self.preserved_source.append(source)
-
-  def standardize(self):
-    with tf.name_scope(Naming.tensorboard_name(self.name + ' Variance')):
-      if self.feature_variance.use_variance and self.feature_variance.compute_before_standardization:
-        for index in range(self.number_of_sources):
-          assert len(self.variance) == index
-          variance = self.feature_variance.variance(self.source[index], data_format='channels_last')
-          self.variance.append(variance)
-    
-    with tf.name_scope(Naming.tensorboard_name('Standardize ' + self.name)):
-      if self.feature_standardization != None:
-        for index in range(self.number_of_sources):
-          self.source[index] = self.feature_standardization.standardize(self.source[index], index)
-    
-    with tf.name_scope(Naming.tensorboard_name(self.name + ' Variance')):
-      if self.feature_variance.use_variance and not self.feature_variance.compute_before_standardization:
-        for index in range(self.number_of_sources):
-          assert len(self.variance) == index
-          variance = self.feature_variance.variance(self.source[index], data_format='channels_last')
-          self.variance.append(variance)
-  
-  def prediction_invert_standardization(self):
-    with tf.name_scope(Naming.tensorboard_name('Invert Standardization ' + self.name)):
-      if self.feature_standardization != None:
-        for index in range(len(self.predictions)):
-          self.predictions[index] = self.feature_standardization.invert_standardization(self.predictions[index])
-  
-  def add_prediction(self, scale_index, prediction):
-    if not self.is_target:
-      raise Exception('Adding a prediction for a feature that is not a target is not allowed.')
-    while len(self.predictions) <= scale_index:
-      self.predictions.append(None)
-    self.predictions[scale_index] = prediction
-  
-  def add_prediction_to_dictionary(self, scale_index, dictionary):
-    if self.is_target:
-      dictionary[Naming.prediction_feature_name(self.name)] = self.predictions[scale_index]
-
 
 class BaseTrainingFeature:
 
@@ -688,221 +556,9 @@ class TrainingFeatureAugmentation:
       targets[Naming.target_feature_name(self.name)] = self.target
 
 
-class NeuralNetwork:
-
-  def __init__(
-      self, architecture='U-Net', number_of_filters_for_convolution_blocks=[128, 128, 128], number_of_convolutions_per_block=5,
-      use_batch_normalization=False, dropout_rate=0.,
-      feature_flags="", use_multiscale_predictions=True, invert_standardization_after_multiscale_predictions=False,
-      use_kernel_predicion=True, kernel_size=5, use_standardized_source_for_kernel_prediction=True):
-    self.architecture = architecture
-    self.number_of_filters_for_convolution_blocks = number_of_filters_for_convolution_blocks
-    self.number_of_convolutions_per_block = number_of_convolutions_per_block
-    self.use_batch_normalization = use_batch_normalization
-    self.dropout_rate = dropout_rate
-    self.feature_flags = feature_flags
-    self.use_multiscale_predictions = use_multiscale_predictions
-    self.invert_standardization_after_multiscale_predictions = invert_standardization_after_multiscale_predictions
-    self.use_kernel_predicion = use_kernel_predicion
-    self.kernel_size = kernel_size
-    self.use_standardized_source_for_kernel_prediction = use_standardized_source_for_kernel_prediction
-  
-
-def neural_network_model(inputs, number_of_output_channels, neural_network, is_training, data_format):
-
-  if neural_network.architecture == 'U-Net':
-    unet = UNet(
-        number_of_filters_for_convolution_blocks=neural_network.number_of_filters_for_convolution_blocks,
-        number_of_convolutions_per_block=neural_network.number_of_convolutions_per_block,
-        use_multiscale_output=neural_network.use_multiscale_predictions,
-        activation_function=global_activation_function,
-        use_batch_normalization=neural_network.use_batch_normalization,
-        dropout_rate=neural_network.dropout_rate,
-        data_format=data_format)
-    inputs = unet.unet(inputs, is_training)
-  else:
-    assert neural_network.architecture == 'Tiramisu'
-    tiramisu = Tiramisu(
-        # TODO: Make it configurable as well (DeepBlender)
-        number_of_preprocessing_convolution_filters=neural_network.number_of_filters_for_convolution_blocks[0],
-        
-        number_of_filters_for_convolution_blocks=neural_network.number_of_filters_for_convolution_blocks,
-        number_of_convolutions_per_block=neural_network.number_of_convolutions_per_block,
-        use_multiscale_output=neural_network.use_multiscale_predictions,
-        activation_function=global_activation_function,
-        use_batch_normalization=neural_network.use_batch_normalization,
-        dropout_rate=neural_network.dropout_rate,
-        data_format=data_format)
-    inputs = tiramisu.tiramisu(inputs, is_training)
-  
-  # Adjust the output to have the required number of channels.
-  with tf.name_scope('Postprocess'):
-    for index in range(len(inputs)):
-      inputs[index] = adjust_network_output(inputs[index], number_of_output_channels, data_format)
-  
-  return inputs
-
-def adjust_network_output(inputs, number_of_output_channels, data_format):
-  result = tf.layers.conv2d(
-      inputs=inputs, filters=number_of_output_channels, kernel_size=(1, 1), padding='same',
-      activation=global_activation_function, data_format=data_format)
-  result = tf.layers.conv2d(
-      inputs=result, filters=number_of_output_channels, kernel_size=(1, 1), padding='same',
-      activation=None, data_format=data_format)
-  return result
-
-
-def single_feature_model(prediction_features, output_prediction_features, is_training, neural_network, use_all_targets_as_input, use_CPU_only, data_format):
-  
-  source_data_format = 'channels_last'
-  source_concat_axis = Conv2dUtilities.channel_axis(prediction_features[0].source[0], source_data_format)
-  
-  if data_format is None:
-    # When running on GPU, transpose the data from channels_last (NHWC) to
-    # channels_first (NCHW) to improve performance.
-    # See https://www.tensorflow.org/performance/performance_guide#data_formats
-    data_format = (
-      'channels_first' if tf.test.is_built_with_cuda() else
-        'channels_last')
-    if use_CPU_only:
-      data_format = 'channels_last'
-  
-  number_of_main_network_input_channels = neural_network.number_of_filters_for_convolution_blocks[0]
-  
-  source_encoder = SourceEncoder(
-      prediction_features, neural_network.feature_flags, use_all_targets_as_input, number_of_main_network_input_channels,
-      activation_function=tf.nn.relu, source_data_format=source_data_format, data_format=data_format)
-  
-  with tf.name_scope('single_feature_prediction'):
-    reuse_encoded_source = False
-    reuse = False
-    multiscale_combine_reuse = False
-    
-    for prediction_feature in prediction_features:
-      if prediction_feature.is_target:
-        
-        if neural_network.use_kernel_predicion:
-          number_of_output_channels = neural_network.kernel_size ** 2
-        else:
-          number_of_output_channels = prediction_feature.number_of_channels
-        
-        with tf.name_scope('prepare_network_input'):
-          encoded_source = source_encoder.prepare_neural_network_input(prediction_feature)
-        
-        with tf.name_scope('model'):
-          with tf.variable_scope('reused_model', reuse=reuse):
-            outputs = neural_network_model(encoded_source, number_of_output_channels, neural_network, is_training, data_format)
-            if neural_network.use_multiscale_predictions:
-              # Reverse the outputs, such that it is sorted from largest to smallest.
-              outputs = list(reversed(outputs))
-        
-        # Reuse the variables after the first pass.
-        reuse = True
-        
-        for scale_index in range(len(outputs)):
-          prediction_feature.add_prediction(scale_index, outputs[scale_index])
-        
-        with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
-          if neural_network.use_kernel_predicion:
-            if neural_network.use_standardized_source_for_kernel_prediction:
-              source = prediction_feature.source[0]
-            else:
-              source = prediction_feature.preserved_source[0]
-            
-            if data_format != source_data_format:
-              source = Conv2dUtilities.convert_to_data_format(source, data_format)
-
-            for scale_index in range(len(prediction_feature.predictions)):
-              scaled_source = source
-              if scale_index > 0:
-                size = 2 ** scale_index
-                scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=data_format)
-              with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
-                prediction = KernelPrediction.kernel_prediction(
-                    scaled_source, prediction_feature.predictions[scale_index],
-                    neural_network.kernel_size, data_format=data_format)
-              prediction_feature.add_prediction(scale_index, prediction)
-        
-        
-        if not neural_network.invert_standardization_after_multiscale_predictions:
-          with tf.name_scope('invert_standardization'):
-            if prediction_feature.invert_standardization:
-              prediction_feature.prediction_invert_standardization()
-        
-        with tf.name_scope('combine_multiscales'):
-          if neural_network.use_multiscale_predictions:
-            for scale_index in range(len(prediction_feature.predictions) - 1, 0, -1):
-              larger_scale_index = scale_index - 1
-              
-              small_prediction = prediction_feature.predictions[scale_index]
-              prediction = prediction_feature.predictions[larger_scale_index]
-              
-              with tf.variable_scope('reused_compose_scales', reuse=multiscale_combine_reuse):
-                prediction = MultiScalePrediction.compose_scales(small_prediction, prediction, data_format=data_format)
-              multiscale_combine_reuse = True
-              
-              prediction_feature.add_prediction(larger_scale_index, prediction)
-        
-        if neural_network.invert_standardization_after_multiscale_predictions:
-          with tf.name_scope('invert_standardization'):
-            if prediction_feature.invert_standardization:
-              prediction_feature.prediction_invert_standardization()
-        
-        
-        # Convert back to the source data format if needed.
-        with tf.name_scope('revert_data_format_conversion'):
-          if data_format != source_data_format:
-            for scale_index in range(len(prediction_feature.predictions)):
-              prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], source_data_format)
-
-
-def model(prediction_features, mode, neural_network, use_all_targets_as_input, use_CPU_only, data_format):
-  
-  is_training = False
-  if mode == tf.estimator.ModeKeys.TRAIN:
-    is_training = True
-  
-  output_prediction_features = []
-  for prediction_feature in prediction_features:
-    if prediction_feature.is_target:
-      output_prediction_features.append(prediction_feature)
-        
-  # Standardization of the data
-  with tf.name_scope('standardize'):
-    for prediction_feature in prediction_features:
-      prediction_feature.standardize()
-
-  single_feature_model(
-      prediction_features, output_prediction_features, is_training, neural_network, use_all_targets_as_input, use_CPU_only, data_format)
-  
-  prediction_dictionaries = []
-  for scale_index in range(len(output_prediction_features[0].predictions)):
-    prediction_dictionary = {}
-    for prediction_feature in output_prediction_features:
-      prediction_feature.add_prediction_to_dictionary(scale_index, prediction_dictionary)
-    prediction_dictionaries.append(prediction_dictionary)
-      
-  return prediction_dictionaries
-
-
 def model_fn(features, labels, mode, params):
-  prediction_features = params['prediction_features']
-  
-  for prediction_feature in prediction_features:
-    prediction_feature.initialize_sources_from_dictionary(features)
-  
-  use_all_targets_as_input = params['use_all_targets_as_input']
-  neural_network = params['neural_network']
-  
-  data_format = params['data_format']
-  predictions = model(
-      prediction_features, mode, neural_network, use_all_targets_as_input,
-      params['use_CPU_only'], data_format)
-
-  if mode == tf.estimator.ModeKeys.PREDICT:
-    predictions = predictions[0]
-    return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
-  
+  architecture = params['architecture']
+  predictions = architecture.predict(features, mode)
   
   # Produce scaled targets if needed for the loss and metrics.
   prepare_multiscale_targets = params['use_multiscale_loss'] or params['use_multiscale_metrics']
@@ -914,7 +570,7 @@ def model_fn(features, labels, mode, params):
         size = 2 ** scale_index
         scaled_targets = {}
         for key in labels:
-          scaled_target = MultiScalePrediction.scale_down(labels[key], heigh_width_scale_factor=size, data_format=data_format)
+          scaled_target = MultiScalePrediction.scale_down(labels[key], heigh_width_scale_factor=size, data_format=architecture.source_data_format)
           scaled_targets[key] = scaled_target
         targets.append(scaled_targets)
   
@@ -1081,9 +737,9 @@ def input_fn_tfrecords(
       flip = tf.random_uniform([1], minval=0, maxval=2, dtype=tf.int32)[0]
       rotate = tf.random_uniform([1], minval=0, maxval=4, dtype=tf.int32)[0]
       permute = tf.random_uniform([1], minval=0, maxval=6, dtype=tf.int32)[0]
-      #if data_augmentation_usage.use_normal_rotation:
-      normal_rotation = tf.random_uniform([3], dtype=tf.float32)
-      normal_rotation = DataAugmentation.random_rotation_matrix(normal_rotation)
+      if data_augmentation_usage.use_normal_rotation:
+        normal_rotation = tf.random_uniform([3], dtype=tf.float32)
+        normal_rotation = DataAugmentation.random_rotation_matrix(normal_rotation)
       
       for training_feature_augmentation in training_features_augmentation:
         training_feature_augmentation.intialize_from_dictionaries(sources, targets)
@@ -1203,34 +859,29 @@ def main(parsed_arguments):
     json_content = open(json_filename, 'r').read()
     parsed_json = json.loads(json_content)
   except:
-    print('Expected a valid json file as argument.')
+    print('Expected a valid training json file.')
   
+  try:
+    directory = os.path.dirname(os.path.abspath(json_filename))
+    architecture_json_filename = os.path.join(directory, parsed_json['architecture'])
+    architecture_json_content = open(architecture_json_filename, 'r').read()
+    parsed_architecture_json = json.loads(architecture_json_content)
+  except:
+    print('Expected a valid architecture json file.')
   
-  model_directory = parsed_json['model_directory']
+  architecture = Architecture(parsed_architecture_json, source_data_format='channels_last', data_format=parsed_arguments.data_format)
+  if architecture.data_format == 'channels_first':
+    use_CPU_only = False
+  else:
+    use_CPU_only = True
+  
   base_tfrecords_directory = parsed_json['base_tfrecords_directory']
   modes = parsed_json['modes']
   
-  source_encoder = parsed_json['source_encoder']
-  use_all_targets_as_input = source_encoder['use_all_targets_as_input']
-  
-  neural_network = parsed_json['neural_network']
-  architecture = neural_network['architecture']
-  number_of_filters_for_convolution_blocks = neural_network['number_of_filters_for_convolution_blocks']
-  number_of_convolutions_per_block = neural_network['number_of_convolutions_per_block']
-  use_batch_normalization = neural_network['use_batch_normalization']
-  dropout_rate = neural_network['dropout_rate']
-  feature_flags = FeatureFlags(neural_network['feature_flags'])
-  use_multiscale_predictions = neural_network['use_multiscale_predictions']
-  invert_standardization_after_multiscale_predictions = neural_network['invert_standardization_after_multiscale_predictions']
-  use_multiscale_loss = neural_network['use_multiscale_loss']
-  use_multiscale_metrics = neural_network['use_multiscale_metrics']
-  use_kernel_predicion = neural_network['use_kernel_predicion']
-  kernel_size = neural_network['kernel_size']
-  use_standardized_source_for_kernel_prediction = neural_network['use_standardized_source_for_kernel_prediction']
-  preserve_source = not use_standardized_source_for_kernel_prediction
-  
-  number_of_sources_per_target = parsed_json['number_of_sources_per_target']
   number_of_source_index_tuples = parsed_json['number_of_source_index_tuples']
+  
+  learning_rate = parsed_json['learning_rate']
+  batch_size = parsed_json['batch_size']
   
   data_augmentation = parsed_json['data_augmentation']
   data_augmentation_usage = DataAugmentationUsage(
@@ -1239,17 +890,14 @@ def main(parsed_arguments):
   loss_difference = parsed_json['loss_difference']
   loss_difference = LossDifferenceEnum[loss_difference]
   
-  learning_rate = parsed_json['learning_rate']
-  batch_size = parsed_json['batch_size']
+  use_multiscale_loss = parsed_json['use_multiscale_loss']
+  use_multiscale_metrics = parsed_json['use_multiscale_metrics']
   
-  features = parsed_json['features']
   combined_features = parsed_json['combined_features']
   combined_image = parsed_json['combined_image']
+  features = parsed_json['features']
   
-  # The names have to be sorted, otherwise the channels would be randomly mixed.
-  feature_names = sorted(list(features.keys()))
-  
-  
+
   training_tfrecords_directory = os.path.join(base_tfrecords_directory, 'training')
   validation_tfrecords_directory = os.path.join(base_tfrecords_directory, 'validation')
   
@@ -1271,40 +919,14 @@ def main(parsed_arguments):
   validation_number_of_sources_per_example = validation_statistics['number_of_sources_per_example']
   
   
-  prediction_features = []
-  for feature_name in feature_names:
-    feature = features[feature_name]
-    
-    # REMARK: It is assumed that there are no features which are only a target, without also being a source.
-    if feature['is_source']:
-      feature_variance = feature['feature_variance']
-      feature_variance = FeatureVariance(
-          feature_variance['use_variance'], feature_variance['variance_mode'], feature_variance['relative_variance'],
-          feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'],
-          feature_name)
-      feature_standardization = feature['standardization']
-      feature_standardization = FeatureStandardization(
-          feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'],
-          feature_name)
-      invert_standardization = feature['invert_standardization']
-      
-      prediction_feature = PredictionFeature(
-          number_of_sources_per_target, preserve_source, feature['is_target'], feature_standardization, invert_standardization, feature_variance,
-          feature['feature_flags'], feature['number_of_channels'], feature_name)
-      prediction_features.append(prediction_feature)
-  
-  for prediction_feature in prediction_features:
-    if prediction_feature.is_target:
-      feature_flags.add_render_pass_name_to_feature_flag_names(prediction_feature.name, prediction_feature.feature_flag_names)
-  feature_flags.freeze()
-  
   # Training features.
 
   training_features = []
   feature_name_to_training_feature = {}
-  for feature_name in feature_names:
+  for prediction_feature in architecture.prediction_features:
+    feature_name = prediction_feature.name
     feature = features[feature_name]
-    if feature['is_source'] and feature['is_target']:
+    if prediction_feature.is_target:
       
       # Training loss
       loss_weights = feature['loss_weights']
@@ -1327,11 +949,11 @@ def main(parsed_arguments):
 
   training_features_loader = []
   training_features_augmentation = []
-  for prediction_feature in prediction_features:
+  for prediction_feature in architecture.prediction_features:
     training_features_loader.append(TrainingFeatureLoader(
         prediction_feature.is_target, prediction_feature.number_of_channels, prediction_feature.name))
     training_features_augmentation.append(TrainingFeatureAugmentation(
-        number_of_sources_per_target, prediction_feature.is_target,
+        architecture.number_of_sources_per_target, prediction_feature.is_target,
         prediction_feature.number_of_channels, prediction_feature.name))
 
   
@@ -1395,19 +1017,7 @@ def main(parsed_arguments):
         0., 0.)
   
   
-  neural_network = NeuralNetwork(
-      architecture=architecture, number_of_filters_for_convolution_blocks=number_of_filters_for_convolution_blocks,
-      number_of_convolutions_per_block=number_of_convolutions_per_block, use_batch_normalization=use_batch_normalization,
-      dropout_rate=dropout_rate, feature_flags=feature_flags, use_multiscale_predictions=use_multiscale_predictions,
-      invert_standardization_after_multiscale_predictions=invert_standardization_after_multiscale_predictions,
-      use_kernel_predicion=use_kernel_predicion, kernel_size=kernel_size,
-      use_standardized_source_for_kernel_prediction=use_standardized_source_for_kernel_prediction)
-  
-  
-  # TODO: CPU only has to be configurable. (DeepBlender)
-
   use_XLA = True
-  use_CPU_only = False
   
   run_config = None
   if use_XLA:
@@ -1424,16 +1034,13 @@ def main(parsed_arguments):
   
   estimator = tf.estimator.Estimator(
       model_fn=model_fn,
-      model_dir=model_directory,
+      model_dir=architecture.model_directory,
       config=run_config,
       params={
-          'prediction_features': prediction_features,
+          'architecture': architecture,
           'use_CPU_only': use_CPU_only,
-          'data_format': parsed_arguments.data_format,
           'learning_rate': learning_rate,
           'batch_size': batch_size,
-          'neural_network': neural_network,
-          'use_all_targets_as_input': use_all_targets_as_input,
           'use_multiscale_loss': use_multiscale_loss,
           'use_multiscale_metrics': use_multiscale_metrics,
           'training_features': training_features,
@@ -1442,7 +1049,7 @@ def main(parsed_arguments):
   
   if parsed_arguments.validate:
     index_tuples, required_indices = source_index_tuples(
-        validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
+        validation_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
     evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
         index_tuples, required_indices, data_augmentation_usage, training_tiles_height_width,
         batch_size, parsed_arguments.threads)
@@ -1456,14 +1063,14 @@ def main(parsed_arguments):
       for _ in range(number_of_training_epochs):
         epochs_to_train = 1
         index_tuples, required_indices = source_index_tuples(
-            training_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
+            training_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
         train(
             training_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
             epochs_to_train, index_tuples, required_indices, data_augmentation_usage, training_tiles_height_width,
             batch_size, parsed_arguments.threads)
       
       index_tuples, required_indices = source_index_tuples(
-          validation_number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target)
+          validation_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
       evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
           index_tuples, required_indices, data_augmentation_usage, training_tiles_height_width,
           batch_size, parsed_arguments.threads)

@@ -58,7 +58,7 @@ class UNet:
           activation=self.activation_function, data_format=self.data_format)
       return inputs
 
-  def unet(self, inputs, is_training):
+  def predict(self, inputs, is_training):
     with tf.name_scope('U-Net'):
       results = []
     

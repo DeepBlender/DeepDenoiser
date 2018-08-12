@@ -64,7 +64,7 @@ class Tiramisu:
           activation=self.activation_function, data_format=self.data_format)
       return inputs
 
-  def tiramisu(self, inputs, is_training):
+  def predict(self, inputs, is_training):
     with tf.name_scope('Tiramisu'):
       results = []
       
