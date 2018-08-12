@@ -13,7 +13,7 @@
 				"Color", "Direct", "Indirect",
 				"Environment", "Emission",
 				"Shadow", "Ambient Occlusion"
-			],
+			]
 		},
 	
 		"core_architecture": {
