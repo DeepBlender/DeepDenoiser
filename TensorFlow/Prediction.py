@@ -115,27 +115,24 @@ def main(parsed_arguments):
       # TODO: Improve (DeepBlender)
       raise Exception('Image for \'' + render_pass + '\' could not be loaded or does not exist.')
   
-  
+
+  if use_CPU_only:
+    print('cpu')
+    session_config = tf.ConfigProto(device_count = {'GPU': 0})
+  else:
+    session_config = tf.ConfigProto()
+
   use_XLA = True
-  
-  run_config = None
   if use_XLA:
-    if use_CPU_only:
-      session_config = tf.ConfigProto(device_count = {'GPU': 0})
-    else:
-      session_config = tf.ConfigProto()
     session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
-    run_config = tf.estimator.RunConfig(session_config=session_config)
   
+  run_config = tf.estimator.RunConfig(session_config=session_config)
   
   estimator = tf.estimator.Estimator(
       model_fn=model_fn,
       model_dir=architecture.model_directory,
       config=run_config,
-      params={
-          'architecture': architecture,
-          'use_CPU_only': use_CPU_only,
-          'data_format': parsed_arguments.data_format})
+      params={'architecture': architecture})
   
   
   predictions = estimator.predict(input_fn=lambda: input_fn_predict(features, height, width))

@@ -1017,20 +1017,20 @@ def main(parsed_arguments):
         0., 0.)
   
   
-  use_XLA = True
+  if use_CPU_only:
+    session_config = tf.ConfigProto(device_count = {'GPU': 0})
+  else:
+    session_config = tf.ConfigProto()
   
-  run_config = None
+  use_XLA = True
   if use_XLA:
-    if use_CPU_only:
-      session_config = tf.ConfigProto(device_count = {'GPU': 0})
-    else:
-      session_config = tf.ConfigProto()
     session_config.graph_options.optimizer_options.global_jit_level = tf.OptimizerOptions.ON_1
-    save_summary_steps = 100
-    save_checkpoints_step = 500
-    run_config = tf.estimator.RunConfig(
-        session_config=session_config, save_summary_steps=save_summary_steps,
-        save_checkpoints_steps=save_checkpoints_step)
+    
+  save_summary_steps = 100
+  save_checkpoints_step = 500
+  run_config = tf.estimator.RunConfig(
+      session_config=session_config, save_summary_steps=save_summary_steps,
+      save_checkpoints_steps=save_checkpoints_step)
   
   estimator = tf.estimator.Estimator(
       model_fn=model_fn,
@@ -1038,7 +1038,6 @@ def main(parsed_arguments):
       config=run_config,
       params={
           'architecture': architecture,
-          'use_CPU_only': use_CPU_only,
           'learning_rate': learning_rate,
           'batch_size': batch_size,
           'use_multiscale_loss': use_multiscale_loss,
