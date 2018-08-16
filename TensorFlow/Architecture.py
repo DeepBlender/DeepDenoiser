@@ -355,7 +355,7 @@ class Architecture:
     
     self.multiscale_predictor = MultiScalePredictor(
         self.use_multiscale_predictions, multiscale_prediction_json['invert_standardization_after_multiscale_predictions'],
-        self.source_data_format, self.data_format)
+        source_data_format=self.source_data_format, data_format=self.data_format)
     
     self.data_format_reverter = DataFormatReverter(source_data_format=self.source_data_format, data_format=self.data_format)
     
@@ -387,6 +387,9 @@ class Architecture:
             with tf.variable_scope('reused_core_architecture', reuse=reuse_core_architecture):
               inputs = self.core_architecture.predict(inputs, is_training)
               
+              # Reuse the variables after the first pass.
+              reuse_core_architecture = True
+              
               with tf.name_scope('Postprocess'):
                 for index in range(len(inputs)):
                   inputs[index] = self.core_architecture_postprocess.predict(inputs[index])
@@ -394,9 +397,6 @@ class Architecture:
               if self.use_multiscale_predictions:
                 # Reverse the inputs, such that it is sorted from largest to smallest.
                 inputs = list(reversed(inputs))
-          
-          # Reuse the variables after the first pass.
-          reuse_core_architecture = True
           
           for scale_index in range(len(inputs)):
             prediction_feature.add_prediction(scale_index, inputs[scale_index])
