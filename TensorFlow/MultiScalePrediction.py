@@ -68,7 +68,7 @@ class MultiScalePrediction:
     # TODO: Make this number configurable? (DeepBlender)
     number_of_residual_blocks = 2
     for _ in range(number_of_residual_blocks):
-      inputs = MultiScalePrediction._residual_block(inputs, activation_function, data_format=data_format)
+      inputs = MultiScalePrediction._residual_block(inputs, activation_function, residual_weight=1.0, data_format=data_format)
     
     inputs = tf.layers.conv2d(
         inputs=inputs, filters=1, kernel_size=(1, 1), padding='same',
@@ -78,7 +78,7 @@ class MultiScalePrediction:
     return inputs
   
   @staticmethod
-  def _residual_block(inputs, activation_function, data_format='channels_last'):
+  def _residual_block(inputs, activation_function, residual_weight=1.0, data_format='channels_last'):
     residual = inputs
     
     number_of_filters = Conv2dUtilities.number_of_channels(inputs, data_format)
@@ -89,5 +89,5 @@ class MultiScalePrediction:
         inputs=residual, filters=number_of_filters, kernel_size=(3, 3), padding='same',
         activation=None, data_format=data_format)
       
-    inputs = tf.add(inputs, residual)
+    inputs = tf.add(inputs, tf.multiply(residual_weight, residual))
     return inputs
