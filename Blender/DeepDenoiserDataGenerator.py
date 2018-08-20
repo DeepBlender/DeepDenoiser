@@ -69,6 +69,9 @@ class DeepDenoiserDataGenerator:
     scene = bpy.context.scene
     cycles = scene.cycles
     
+    # No branched path tracing for now.
+    cycles.progressive = 'PATH'
+
     cycles.use_square_samples = False
     cycles.samples = samples_per_pixel
     
