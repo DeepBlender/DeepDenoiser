@@ -41,6 +41,7 @@ class RenderPasses:
 
 class DeepDenoiserDataGenerator:
 
+  @staticmethod
   def prepare_image_settings():
     render = bpy.context.scene.render
     image_settings = render.image_settings
@@ -57,10 +58,12 @@ class DeepDenoiserDataGenerator:
     render.use_file_extension = True
     render.use_stamp = False
 
+  @staticmethod
   def prepare_relative_frame_number(relative_frame_number):
     bpy.context.scene.frame_current = bpy.context.scene.deep_denoiser_generator_property_group.main_frame + relative_frame_number
     assert relative_frame_number == DeepDenoiserDataGenerator.current_relative_frame_number()
   
+  @staticmethod
   def prepare_cycles(samples_per_pixel, seed):
     bpy.context.scene.render.engine = 'CYCLES'
     scene = bpy.context.scene
@@ -81,6 +84,7 @@ class DeepDenoiserDataGenerator:
     cycles.sample_clamp_indirect = 0.0
     cycles.light_sampling_threshold = 0.0
   
+  @staticmethod
   def prepare_passes():
     render_layer = bpy.context.scene.render.layers[0]
     cycles_render_layer = render_layer.cycles
@@ -120,7 +124,8 @@ class DeepDenoiserDataGenerator:
 
     render_layer.use_pass_shadow = True
     render_layer.use_pass_ambient_occlusion = True
-    
+
+  @staticmethod  
   def prepare_compositor(target_folder):
     samples_per_pixel = DeepDenoiserDataGenerator.current_samples_per_pixel()
     relative_frame_number = DeepDenoiserDataGenerator.current_relative_frame_number()
@@ -205,17 +210,20 @@ class DeepDenoiserDataGenerator:
     viewer_node.location = (300, 150)
     links.new(input_node.outputs[RenderPasses.NORMAL], viewer_node.inputs[0])
 
+  @staticmethod
   def connect_pass_to_new_file_output(links, input_node, pass_name, output_node, short_output_name):
     output_name = DeepDenoiserDataGenerator.extended_name(short_output_name)
     output_slot = output_node.layer_slots.new(output_name)
     links.new(input_node.outputs[pass_name], output_node.inputs[output_name])
-      
+
+  @staticmethod
   def blend_filename():
     blend_filename = bpy.path.basename(bpy.context.blend_data.filepath)
     result = os.path.splitext(blend_filename)[0]
     result = result.replace('_', ' ')
     return result
 
+  @staticmethod
   def extended_name(name):
     samples_per_pixel = DeepDenoiserDataGenerator.current_samples_per_pixel()
     relative_frame_number = DeepDenoiserDataGenerator.current_relative_frame_number()
@@ -227,6 +235,7 @@ class DeepDenoiserDataGenerator:
         name + '_')
     return result
   
+  @staticmethod
   def reset_render_jobs():
     render_jobs = bpy.context.scene.render_jobs
     
@@ -240,27 +249,32 @@ class DeepDenoiserDataGenerator:
     
     bpy.context.scene.selected_render_job_index = 0
   
+  @staticmethod
   def current_relative_frame_number():
     scene = bpy.context.scene
     result = scene.frame_current - scene.deep_denoiser_generator_property_group.main_frame
     return result
   
+  @staticmethod
   def current_samples_per_pixel():
     result = bpy.context.scene.cycles.samples
     return result
   
+  @staticmethod
   def current_seed():
     result = bpy.context.scene.cycles.seed
     return result
   
+  @staticmethod
   def seed(samples_per_pixel, samples_per_pixel_render_index, relative_frame_number):
     initial_seed = bpy.context.scene.deep_denoiser_generator_property_group.seed
-    seed = random.seed(initial_seed + samples_per_pixel)
+    random.seed(initial_seed + samples_per_pixel)
     for _ in range(samples_per_pixel_render_index + 1):
       seed = random.randint(seed_min, seed_max)
     seed = seed + relative_frame_number
     return seed
   
+  @staticmethod
   def is_resolution_valid():
     result = True
     resolution_x = bpy.context.scene.render.resolution_x
@@ -269,6 +283,7 @@ class DeepDenoiserDataGenerator:
       result = False
     return result
   
+  @staticmethod
   def calculate_screen_space_normals(target_folder, samples_per_pixel):
     image = bpy.data.images['Viewer Node']
     pixels = image.pixels
@@ -312,6 +327,7 @@ class DeepDenoiserDataGenerator:
     file_path = bpy.path.abspath(file_path)
     screen_space_normal_image.save_render(file_path)
   
+  @staticmethod
   def render(target_folder, samples_per_pixel, samples_per_pixel_render_index, relative_frame_numbers):
     for relative_frame_number in relative_frame_numbers:
       seed = DeepDenoiserDataGenerator.seed(samples_per_pixel, samples_per_pixel_render_index, relative_frame_number)
