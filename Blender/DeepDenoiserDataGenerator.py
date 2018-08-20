@@ -217,7 +217,7 @@ class DeepDenoiserDataGenerator:
   def connect_pass_to_new_file_output(links, input_node, pass_name, output_node, short_output_name):
     output_name = DeepDenoiserDataGenerator.extended_name(short_output_name)
     output_slot = output_node.layer_slots.new(output_name)
-    links.new(input_node.outputs[pass_name], output_node.inputs[output_name])
+    links.new(input_node.outputs[pass_name], output_slot)
 
   @staticmethod
   def blend_filename():
