@@ -507,7 +507,6 @@ class RENDER_JOB_prepare(bpy.types.Operator):
   bl_description = "Prepare all the Blender settings to experiment with the same settings that are used when rendering"
 
   def execute(self, context):
-    render = bpy.context.scene.render
     target_folder = context.scene.deep_denoiser_generator_property_group.target_folder
     seed = context.scene.deep_denoiser_generator_property_group.seed
     
@@ -529,7 +528,6 @@ class RENDER_JOB_render_main_frame_noisy(bpy.types.Operator):
   bl_description = "Render main frame noisy"
 
   def execute(self, context):
-    render = bpy.context.scene.render
     target_folder = context.scene.deep_denoiser_generator_property_group.target_folder
     render_jobs = context.scene.render_jobs
     
@@ -546,7 +544,6 @@ class RENDER_JOB_render_main_frame_noiseless(bpy.types.Operator):
   bl_description = "Render main frame noiseless"
 
   def execute(self, context):
-    render = bpy.context.scene.render
     target_folder = context.scene.deep_denoiser_generator_property_group.target_folder
     
     samples_per_pixel = context.scene.deep_denoiser_generator_property_group.main_frame_samples_per_pixel
@@ -559,7 +556,6 @@ class RENDER_JOB_render_main_frame(bpy.types.Operator):
   bl_description = "Render main frame noiseless and noisy"
 
   def execute(self, context):
-    render = bpy.context.scene.render
     target_folder = context.scene.deep_denoiser_generator_property_group.target_folder
     render_jobs = context.scene.render_jobs
     
@@ -581,7 +577,6 @@ class RENDER_JOB_render_pre_post_noisy(bpy.types.Operator):
   bl_description = "Render noisy frames before and after the main frame"
 
   def execute(self, context):
-    render = bpy.context.scene.render
     target_folder = context.scene.deep_denoiser_generator_property_group.target_folder
     render_jobs = context.scene.render_jobs
     
@@ -599,7 +594,6 @@ class RENDER_JOB_render_all(bpy.types.Operator):
   bl_description = "Render everything"
 
   def execute(self, context):
-    render = bpy.context.scene.render
     target_folder = context.scene.deep_denoiser_generator_property_group.target_folder
     render_jobs = context.scene.render_jobs
     
