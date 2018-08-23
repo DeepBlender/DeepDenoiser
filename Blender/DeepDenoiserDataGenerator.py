@@ -146,10 +146,13 @@ class DeepDenoiserDataGenerator:
     output_node = node_tree.nodes.new('CompositorNodeOutputFile')
     output_node.layer_slots.clear()
     output_node.location = (300, 0)
-    output_node.base_path = (
-        target_folder + '/' + DeepDenoiserDataGenerator.blend_filename() + '/' +
-        DeepDenoiserDataGenerator.blend_filename() + '_' +
+    path = os.path.join(target_folder, DeepDenoiserDataGenerator.blend_filename())
+    path = os.path.join(
+        path, DeepDenoiserDataGenerator.blend_filename() + '_' +
         str(samples_per_pixel) + '_' + str(relative_frame_number) + '_' + str(seed))
+    path = bpy.path.abspath(path)
+    path = os.path.realpath(path)
+    output_node.base_path = path
 
     
     links = node_tree.links
@@ -322,12 +325,14 @@ class DeepDenoiserDataGenerator:
     relative_frame_number = DeepDenoiserDataGenerator.current_relative_frame_number()
     seed = DeepDenoiserDataGenerator.current_seed()
     
-    file_path = (
-        target_folder + '/' + DeepDenoiserDataGenerator.blend_filename() + '/' +
-        DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel) + '_' + str(relative_frame_number) + '_' + str(seed) + '/' +
-        DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel) + '_' + str(relative_frame_number) + '_' + str(seed) + '_' +
+    file_path = os.path.join(target_folder, DeepDenoiserDataGenerator.blend_filename())
+    file_path = os.path.join(
+        file_path, DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel) + '_' + str(relative_frame_number) + '_' + str(seed))
+    file_path = os.path.join(
+        file_path, DeepDenoiserDataGenerator.blend_filename() + '_' + str(samples_per_pixel) + '_' + str(relative_frame_number) + '_' + str(seed) + '_' +
         RenderPasses.SCREEN_SPACE_NORMAL + '_' + current_frame + '.exr')
     file_path = bpy.path.abspath(file_path)
+    file_path = os.path.realpath(file_path)
     screen_space_normal_image.save_render(file_path)
   
   @staticmethod
