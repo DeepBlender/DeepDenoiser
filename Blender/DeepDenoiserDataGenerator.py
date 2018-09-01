@@ -80,12 +80,6 @@ class DeepDenoiserDataGenerator:
     
     cycles_render_layer = scene.render.layers.active.cycles
     cycles_render_layer.use_denoising = False
-    
-    # Those should be learned by the DeepDenoiser.
-    cycles.blur_glossy = 0.0
-    cycles.sample_clamp_direct = 0.0
-    cycles.sample_clamp_indirect = 0.0
-    cycles.light_sampling_threshold = 0.0
   
   @staticmethod
   def prepare_passes():
