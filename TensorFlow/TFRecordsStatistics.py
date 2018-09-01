@@ -52,7 +52,9 @@ class TFRecordsStatistics:
       self.means_log1p[source_feature_name] = []
       self.variances_log1p[source_feature_name] = []
       
-      if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
+      if (
+          RenderPasses.is_direct_or_indirect_render_pass(source_render_pass) and not
+          RenderPasses.is_volume_render_pass(source_render_pass)):
         source_feature_name = Naming.source_feature_name(source_render_pass, masked=True)
         self.minimums[source_feature_name] = math.inf
         self.maximums[source_feature_name] = -math.inf
@@ -74,7 +76,9 @@ class TFRecordsStatistics:
       self.means_log1p[target_feature_name] = []
       self.variances_log1p[target_feature_name] = []
       
-      if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
+      if (
+          RenderPasses.is_direct_or_indirect_render_pass(target_render_pass) and not
+          RenderPasses.is_volume_render_pass(target_render_pass)):
         target_feature_name = Naming.target_feature_name(target_render_pass, masked=True)
         self.minimums[target_feature_name] = math.inf
         self.maximums[target_feature_name] = -math.inf
@@ -98,7 +102,9 @@ class TFRecordsStatistics:
             source_feature_name = Naming.source_feature_name(source_render_pass)
             source_feature = source_features[Naming.source_feature_name(source_render_pass, index=source_index)]
             self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, False, target_features)
-            if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
+            if (
+                RenderPasses.is_direct_or_indirect_render_pass(source_render_pass) and not
+                RenderPasses.is_volume_render_pass(source_render_pass)):
               # TODO: Make sure the required target feature is present!
               source_feature_name = Naming.source_feature_name(source_render_pass, masked=True)
               self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, True, target_features)
@@ -107,7 +113,9 @@ class TFRecordsStatistics:
           target_feature_name = Naming.target_feature_name(target_render_pass)
           target_feature = target_features[target_feature_name]
           self._first_statistics_iteration(source_feature, target_render_pass, target_feature_name, False, target_features)
-          if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
+          if (
+              RenderPasses.is_direct_or_indirect_render_pass(target_render_pass) and not
+              RenderPasses.is_volume_render_pass(target_render_pass)):
             target_feature_name = Naming.target_feature_name(target_render_pass, masked=True)
             self._first_statistics_iteration(target_feature, target_render_pass, target_feature_name, True, target_features)
           
@@ -141,7 +149,9 @@ class TFRecordsStatistics:
             source_feature_name = Naming.source_feature_name(source_render_pass)
             source_feature = source_features[Naming.source_feature_name(source_render_pass, index=source_index)]
             self._second_statistics_iteration(source_feature, source_render_pass, source_feature_name, False, target_features)
-            if RenderPasses.is_direct_or_indirect_render_pass(source_render_pass):
+            if (
+                RenderPasses.is_direct_or_indirect_render_pass(source_render_pass) and not
+                RenderPasses.is_volume_render_pass(source_render_pass)):
               source_feature_name = Naming.source_feature_name(source_render_pass, masked=True)
               self._second_statistics_iteration(source_feature, source_render_pass, source_feature_name, True, target_features)
             
@@ -149,7 +159,9 @@ class TFRecordsStatistics:
           target_feature_name = Naming.target_feature_name(target_render_pass)
           target_feature = target_features[target_feature_name]
           self._second_statistics_iteration(source_feature, target_render_pass, target_feature_name, False, target_features)
-          if RenderPasses.is_direct_or_indirect_render_pass(target_render_pass):
+          if (
+              RenderPasses.is_direct_or_indirect_render_pass(target_render_pass) and not
+              RenderPasses.is_volume_render_pass(target_render_pass)):
             target_feature_name = Naming.target_feature_name(target_render_pass, masked=True)
             self._second_statistics_iteration(target_feature, target_render_pass, target_feature_name, True, target_features)
         

@@ -41,7 +41,7 @@ class Naming:
   @staticmethod
   def _tensorboard_statistics_name(name, statistics_name, masked=False, internal=False, scale_index=None):
     result = name
-    if RenderPasses.is_combined_render_pass(result):
+    if RenderPasses.is_combined_feature_render_pass(result):
       result = 'Combined ' + result
     result = result + statistics_name
     result = Naming._masked_if_needed(result, masked=masked)

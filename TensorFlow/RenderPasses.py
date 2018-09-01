@@ -44,12 +44,16 @@ class RenderPasses:
     return result
 
   @staticmethod
-  def is_combined_render_pass(render_pass_name):
+  def is_combined_feature_render_pass(render_pass_name):
     result = (
         render_pass_name == 'Diffuse' or render_pass_name == 'Glossy' or
         render_pass_name == 'Subsurface' or render_pass_name == 'Transmission')
     return result
   
+  @staticmethod
+  def is_volume_render_pass(render_pass_name):
+    return 'Volume' in render_pass_name
+
   @staticmethod
   def is_direct_or_indirect_render_pass(render_pass_name):
     return render_pass_name.endswith(' Direct') or render_pass_name.endswith(' Indirect')

@@ -1,12 +1,15 @@
 {
-	"base_render_directory_description": "The directory relative to which the render_directories are located as specified in the modes.",
-	"base_render_directory": "../OpenEXR",
+	"REMARK": "It is assumes that this file is part of the dataset and that the paths are relative to the directory of this file.",
+
+	"base_exr_description": "The location where the OpenEXRs can be found for all modes.",
+	"base_exr_directory": "../OpenEXR",
 	
 	"base_tfrecords_directory_description": "The generated tfrecords files are stored in child directories named according to the mode.",
 	"base_tfrecords_directory": "../TFRecords/Example",
 	
 	"modes":{
 		"training":{
+			"group_by_samples_per_pixel": false,
 			"tiles_height_width": 64,
 			"examples_per_tfrecords": 16,
 			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
@@ -17,6 +20,7 @@
 			]
 		},
 		"validation":{
+			"group_by_samples_per_pixel": true,
 			"tiles_height_width": 64,
 			"examples_per_tfrecords": 16,
 			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
@@ -26,6 +30,7 @@
 			]
 		},
 		"testing":{
+			"group_by_samples_per_pixel": true,
 			"tiles_height_width": 64,
 			"examples_per_tfrecords": 16,
 			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
@@ -37,14 +42,14 @@
 	},
 	
 	"source":{
-		"samples_per_pixel": 16,
-		"number_of_sources_per_example": 8,
+		"samples_per_pixel": [2, 4, 8, 16, 32, 64, 128, 256, 512, 1024],
+		"number_of_sources_per_example": 2,
 		"features":{
 			"use_alpha": true,
-			"use_depth": true,
+			"use_depth": false,
 			"use_mist": false,
-			"use_normal": false,
-			"use_screen_space_normal": true,
+			"use_normal": true,
+			"use_screen_space_normal": false,
 			"use_motion_vector": false,
 			"use_object_id": false,
 			"use_material_id": false,
@@ -65,14 +70,14 @@
 			"use_subsurface_direct": true,
 			"use_subsurface_indirect": true,
 			"use_subsurface_color": true,
-			"use_volume_direct": false,
-			"use_volume_indirect": false
+			"use_volume_direct": true,
+			"use_volume_indirect": true
 		}
 	},
 	"target":{
 		"samples_per_pixel": "best",
 		"features":{
-			"use_alpha": false,
+			"use_alpha": true,
 			"use_depth": false,
 			"use_mist": false,
 			"use_normal": false,
@@ -97,8 +102,8 @@
 			"use_subsurface_direct": true,
 			"use_subsurface_indirect": true,
 			"use_subsurface_color": true,
-			"use_volume_direct": false,
-			"use_volume_indirect": false
+			"use_volume_direct": true,
+			"use_volume_indirect": true
 		}
 	}
 }

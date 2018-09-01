@@ -14,7 +14,7 @@ class RenderDirectory:
     self.unload_images()
     
     # This is ensured by the Blender script.
-    self.samples_per_pixel = int(self.directory.split('_')[-2])
+    self.samples_per_pixel = int(self.directory.split('_')[-3])
   
   def required_files_exist(self, render_passes_usage):
     # TODO: Using missing_render_pass_files in this way is not the best idea. (DeepBlender)
