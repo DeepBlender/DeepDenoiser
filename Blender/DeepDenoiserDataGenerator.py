@@ -1,6 +1,8 @@
 
 # The RenderPasses and UI code are kept in this file to make it executable in Blender without the need to install it as addon.
 
+# TODO: Make sure there is just one layer and that layer has to be active.
+
 import bpy
 import os
 import sys
@@ -283,6 +285,15 @@ class DeepDenoiserDataGenerator:
       result = False
     return result
   
+  @staticmethod
+  def is_render_layer_valid():
+    result = False
+    if (
+        len(bpy.context.scene.render.layers) == 1 and
+        bpy.context.scene.render.layers[0].use):
+      result = True
+    return result
+
   @staticmethod
   def calculate_screen_space_normals(target_folder, samples_per_pixel):
     image = bpy.data.images['Viewer Node']
@@ -667,6 +678,13 @@ class DeepDenoiserDataGeneratorPanel(bpy.types.Panel):
       inner_column.label(text="Resolution Error", icon='ERROR')
       inner_column.label(text="Both the x and y resolutions have to be multiples of 128!")
     
+    is_render_layer_valid = DeepDenoiserDataGenerator.is_render_layer_valid()
+    if not is_render_layer_valid:
+      box = layout.box()
+      inner_column = box.column()
+      inner_column.label(text="Render Layer Error", icon='ERROR')
+      inner_column.label(text="The scene is only allowed to have one render layer and that one has to be active!")
+
     column = layout.column()
     column.label(text="Frames:")
     column.prop(scene.deep_denoiser_generator_property_group, 'main_frame', text='Main frame')
@@ -705,7 +723,7 @@ class DeepDenoiserDataGeneratorPanel(bpy.types.Panel):
     column.operator('deep_blender.render_jobs_reset', icon='FILE_REFRESH', text='')
     
     column = layout.column()
-    if not is_resolution_valid:
+    if not is_resolution_valid or not is_render_layer_valid:
       column.enabled = False
     column.label(text="Render:")
     if not is_resolution_valid:
