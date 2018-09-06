@@ -206,7 +206,7 @@ def main(parsed_arguments):
   try:
     json_filename = parsed_arguments.json_filename
     absolute_json_directory = os.path.dirname(os.path.abspath(json_filename))
-    json_content = open(json_filename, 'r').read()
+    json_content = open(json_filename, 'r', encoding='utf-8').read()
     parsed_json = json.loads(json_content)
   except:
     print('Expected a valid json file as argument.')
