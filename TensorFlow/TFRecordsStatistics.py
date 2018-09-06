@@ -18,7 +18,6 @@ from FeatureStatistics import FeatureStatistics
 import Utilities
 from Conv2dUtilities import Conv2dUtilities
 
-
 class TFRecordsStatistics:
   def __init__(self, tfrecords_creator):
     self.tfrecords_creator = tfrecords_creator
@@ -49,6 +48,7 @@ class TFRecordsStatistics:
       self.maximums = {}
       self.means = {}
       self.variances = {}
+      self.coverage = {}
       self.minimums_log1p = {}
       self.maximums_log1p = {}
       self.means_log1p = {}
@@ -60,6 +60,7 @@ class TFRecordsStatistics:
         self.maximums[source_feature_name] = -math.inf
         self.means[source_feature_name] = []
         self.variances[source_feature_name] = []
+        self.coverage[source_feature_name] = []
         self.minimums_log1p[source_feature_name] = math.inf
         self.maximums_log1p[source_feature_name] = -math.inf
         self.means_log1p[source_feature_name] = []
@@ -73,6 +74,7 @@ class TFRecordsStatistics:
           self.maximums[source_feature_name] = -math.inf
           self.means[source_feature_name] = []
           self.variances[source_feature_name] = []
+          self.coverage[source_feature_name] = []
           self.minimums_log1p[source_feature_name] = math.inf
           self.maximums_log1p[source_feature_name] = -math.inf
           self.means_log1p[source_feature_name] = []
@@ -84,6 +86,7 @@ class TFRecordsStatistics:
         self.maximums[target_feature_name] = -math.inf
         self.means[target_feature_name] = []
         self.variances[target_feature_name] = []
+        self.coverage[target_feature_name] = []
         self.minimums_log1p[target_feature_name] = math.inf
         self.maximums_log1p[target_feature_name] = -math.inf
         self.means_log1p[target_feature_name] = []
@@ -97,6 +100,7 @@ class TFRecordsStatistics:
           self.maximums[target_feature_name] = -math.inf
           self.means[target_feature_name] = []
           self.variances[target_feature_name] = []
+          self.coverage[target_feature_name] = []
           self.minimums_log1p[target_feature_name] = math.inf
           self.maximums_log1p[target_feature_name] = -math.inf
           self.means_log1p[target_feature_name] = []
@@ -141,13 +145,18 @@ class TFRecordsStatistics:
       for feature_name in self.minimums:
         self.minimums[feature_name] = self.minimums[feature_name].numpy().item()
         self.maximums[feature_name] = self.maximums[feature_name].numpy().item()
-        mean = self.means[feature_name]
-        self.means[feature_name] = tf.reduce_mean(mean).numpy().item()
+        if len(self.means[feature_name]) == 0:
+          self.means[feature_name].append(0.)
+        self.means[feature_name] = tf.reduce_mean(self.means[feature_name]).numpy().item()
+        if len(self.coverage[feature_name]) == 0:
+          self.coverage[feature_name].append(0.)
+        self.coverage[feature_name] = tf.reduce_mean(self.coverage[feature_name]).numpy().item()
         
         self.minimums_log1p[feature_name] = self.minimums_log1p[feature_name].numpy().item()
         self.maximums_log1p[feature_name] = self.maximums_log1p[feature_name].numpy().item()
-        mean_log1p = self.means_log1p[feature_name]
-        self.means_log1p[feature_name] = tf.reduce_mean(mean_log1p).numpy().item()
+        if len(self.means_log1p[feature_name]) == 0:
+          self.means_log1p[feature_name].append(0.)
+        self.means_log1p[feature_name] = tf.reduce_mean(self.means_log1p[feature_name]).numpy().item()
       
       
       # Iterate again through all the tfrecords to compute the variance, based on the mean.
@@ -185,11 +194,13 @@ class TFRecordsStatistics:
       # Join the results again.
       
       for feature_name in self.variances:
-        variance = self.variances[feature_name]
-        self.variances[feature_name] = tf.reduce_mean(variance).numpy().item()
+        if len(self.variances[feature_name]) == 0:
+          self.variances[feature_name].append(0.)
+        self.variances[feature_name] = tf.reduce_mean(self.variances[feature_name]).numpy().item()
         
-        variance_log1p = self.variances_log1p[feature_name]
-        self.variances_log1p[feature_name] = tf.reduce_mean(variance_log1p).numpy().item()
+        if len(self.variances_log1p[feature_name]) == 0:
+          self.variances_log1p[feature_name].append(0.)
+        self.variances_log1p[feature_name] = tf.reduce_mean(self.variances_log1p[feature_name]).numpy().item()
       
       
       # Integrate the results into statistics.
@@ -199,10 +210,10 @@ class TFRecordsStatistics:
         # REMARK: The 'current_' prefix is only used to avoid a name clash.
         current_statistics = Statistics(
             self.minimums[feature_name], self.maximums[feature_name],
-            self.means[feature_name], self.variances[feature_name])
+            self.means[feature_name], self.variances[feature_name], self.coverage[feature_name])
         current_statistics_log1p = Statistics(
             self.minimums_log1p[feature_name], self.maximums_log1p[feature_name],
-            self.means_log1p[feature_name], self.variances_log1p[feature_name])
+            self.means_log1p[feature_name], self.variances_log1p[feature_name], self.coverage[feature_name])
         feature_statistics = FeatureStatistics(
             RenderPasses.number_of_channels(feature_name.split('/')[-1]), current_statistics, current_statistics_log1p)
         statistics[feature_name] = feature_statistics
@@ -223,6 +234,7 @@ class TFRecordsStatistics:
   def _first_statistics_iteration(self, feature, render_pass_name, feature_name, use_mask, target_features):
     
     feature_log1p = Utilities.signed_log1p(feature)
+    channel_axis = Conv2dUtilities.channel_axis(feature, 'channels_last')
     
     if use_mask:
       # For direct and indirect passes, we only care about the relevant pixels. We create a mask for this.
@@ -235,7 +247,7 @@ class TFRecordsStatistics:
       mask_sum = tf.reduce_sum(mask)
       
       # Adjust the mask, such that it can be multiplied with the feature.
-      mask = tf.stack([mask, mask, mask], axis=2)
+      mask = tf.stack([mask, mask, mask], axis=channel_axis)
       
       
       self.minimums[feature_name] = tf.minimum(self.minimums[feature_name], tf.reduce_min(feature))
@@ -243,6 +255,13 @@ class TFRecordsStatistics:
       if tf.greater(mask_sum, 0.):
         self.means[feature_name].append(tf.reduce_sum(tf.divide(tf.multiply(feature, mask), mask_sum)))
       
+      if tf.greater(mask_sum, 0.):
+        coverage_feature = feature
+        if RenderPasses.ALPHA in feature_name:
+          coverage_feature = tf.subtract(feature, 1.)
+        non_zero_coverage_feature = Conv2dUtilities.non_zero_mask(coverage_feature, data_format='channels_last')
+        self.coverage[feature_name].append(tf.reduce_sum(tf.divide(non_zero_coverage_feature, mask_sum)))
+
       self.minimums_log1p[feature_name] = tf.minimum(self.minimums_log1p[feature_name], tf.reduce_min(feature_log1p))
       self.maximums_log1p[feature_name] = tf.maximum(self.maximums_log1p[feature_name], tf.reduce_max(feature_log1p))
       if tf.greater(mask_sum, 0.):
@@ -253,6 +272,12 @@ class TFRecordsStatistics:
       self.maximums[feature_name] = tf.maximum(self.maximums[feature_name], tf.reduce_max(feature))
       self.means[feature_name].append(tf.reduce_mean(feature))
       
+      coverage_feature = feature
+      if RenderPasses.ALPHA in feature_name:
+        coverage_feature = tf.subtract(feature, 1.)
+      non_zero_coverage_feature = Conv2dUtilities.non_zero_mask(coverage_feature, data_format='channels_last')
+      self.coverage[feature_name].append(tf.reduce_mean(non_zero_coverage_feature))
+
       self.minimums_log1p[feature_name] = tf.minimum(self.minimums_log1p[feature_name], tf.reduce_min(feature_log1p))
       self.maximums_log1p[feature_name] = tf.maximum(self.maximums_log1p[feature_name], tf.reduce_max(feature_log1p))
       self.means_log1p[feature_name].append(tf.reduce_mean(feature_log1p))
