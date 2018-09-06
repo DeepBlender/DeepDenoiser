@@ -60,6 +60,10 @@ class DeepDenoiserDataGenerator:
     render.use_file_extension = True
     render.use_stamp = False
 
+    # Save buffers have to be disabled due to a bug.
+    # If it is enabled, the volumetric passes are not saved.
+    render.use_save_buffers = False
+
   @staticmethod
   def prepare_relative_frame_number(relative_frame_number):
     bpy.context.scene.frame_current = bpy.context.scene.deep_denoiser_generator_property_group.main_frame + relative_frame_number
