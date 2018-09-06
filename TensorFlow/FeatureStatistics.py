@@ -5,7 +5,7 @@ class FeatureStatistics:
     self.statistics_log1p = statistics_log1p
 
 class Statistics:
-  def __init__(self, minimum, maximum, mean, variance, coverage=None):
+  def __init__(self, minimum, maximum, mean, variance, coverage):
     self.minimum = minimum
     self.maximum = maximum
     self.mean = mean
