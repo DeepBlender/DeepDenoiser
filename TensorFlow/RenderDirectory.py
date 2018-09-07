@@ -92,8 +92,20 @@ class RenderDirectory:
   @staticmethod
   def _load_exr(exr_path):
     try:
+
+      # image_type = cv2.IMREAD_UNCHANGED
+      # image = cv2.imread(exr_path, image_type)
+
+
+      # Images have to be loaded indirectly to allow utf-8 paths.
+
+      stream = open(exr_path, "rb")
+      bytes = bytearray(stream.read())
+      np_array = np.asarray(bytes, dtype=np.uint8)
+      
       image_type = cv2.IMREAD_UNCHANGED
-      image = cv2.imread(exr_path, image_type)
+      image = cv2.imdecode(np_array, image_type)
+
       
       # REMARK: This dummy call avoids an error message (Assertion Failed)
       shape = image.shape
