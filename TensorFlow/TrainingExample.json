@@ -153,7 +153,7 @@
 	"features": {
 		"Alpha": {
 			"loss_weights": {
-				"mean": 0.0,
+				"mean": 4.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},
@@ -163,7 +163,7 @@
 				"ms_ssim": 0.0
 			},
 			"statistics": {
-				"track_mean": false,
+				"track_mean": true,
 				"track_variation": false,
 				"track_ms_ssim": false,
 				"track_difference_histogram": false,
@@ -651,6 +651,58 @@
 		"Transmission Indirect": {
 			"loss_weights": {
 				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Volume Direct": {
+			"loss_weights": {
+				"mean": 2.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
+			"loss_weights_masked": {
+				"mean": 1.0,
+				"variation": 0.0,
+				"ms_ssim": 0.0
+			},
+			"statistics": {
+				"track_mean": false,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			},
+			"statistics_masked": {
+				"track_mean": true,
+				"track_variation": false,
+				"track_ms_ssim": false,
+				"track_difference_histogram": false,
+				"track_variation_difference_histogram": false
+			}
+		},
+		"Volume Indirect": {
+			"loss_weights": {
+				"mean": 2.0,
 				"variation": 0.0,
 				"ms_ssim": 0.0
 			},

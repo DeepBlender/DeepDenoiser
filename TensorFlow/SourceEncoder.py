@@ -29,7 +29,7 @@ class SourceEncoder:
   
   def prepare_neural_network_input(self, prediction_feature):
     source_concat_axis = Conv2dUtilities.channel_axis(prediction_feature.source[0], self.source_data_format)
-    
+
     # Prepare all the features we need.
     features = []
     if self.use_all_targets_as_input:
@@ -47,6 +47,12 @@ class SourceEncoder:
     for index in range(len(prediction_feature.source)):
       for feature in features:
         source = feature.source[index]
+
+        # Each input feature needs exactly three channels.
+        if Conv2dUtilities.number_of_channels(source, source_concat_axis) != 3:
+          assert Conv2dUtilities.number_of_channels(source, source_concat_axis) == 1
+          source = tf.concat([source, source, source], source_concat_axis)
+
         result.append(source)
         if feature.feature_variance.use_variance:
           variance = feature.variance[index]

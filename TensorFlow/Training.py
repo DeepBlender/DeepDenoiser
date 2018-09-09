@@ -89,6 +89,23 @@ class BaseTrainingFeature:
     self.track_masked_difference_histogram = track_masked_difference_histogram
     self.track_masked_variation_difference_histogram = track_masked_variation_difference_histogram
   
+    self.predicted = []
+    self.target = []
+    self.mask = []
+    self.mask_sum = []
+
+    if self.name == RenderPasses.ALPHA:
+      if (
+          self.masked_mean_weight != 0. or
+          self.masked_variation_weight != 0. or
+          self.masked_ms_ssim_weight != 0. or
+          self.track_masked_mean or
+          self.track_masked_variation or
+          self.track_masked_ms_ssim or
+          self.track_masked_difference_histogram or
+          self.track_masked_variation_difference_histogram):
+        raise Exception('Masking is not supported for the alpha pass, because it does not seem to make sense.')
+
   
   def difference(self, scale_index):
     with tf.name_scope(Naming.difference_name(self.name, internal=True, scale_index=scale_index)):
@@ -284,7 +301,8 @@ class BaseTrainingFeature:
     image_batch = tf.subtract(
         BaseTrainingFeature.__shift_left(image_batch), BaseTrainingFeature.__shift_right(image_batch))
     return image_batch
-    
+
+  @staticmethod
   def __vertical_variation(image_batch):
     # 'channels_last' or NHWC
     image_batch = tf.subtract(
@@ -345,11 +363,6 @@ class TrainingFeature(BaseTrainingFeature):
         track_masked_difference_histogram, track_masked_variation_difference_histogram)
   
   def initialize(self, source_features, predicted_features, target_features):
-    self.predicted = []
-    self.target = []
-    self.mask = []
-    self.mask_sum = []
-    
     for scale_index in range(len(target_features)):
       self.predicted.append(predicted_features[scale_index][Naming.prediction_feature_name(self.name)])
       self.target.append(target_features[scale_index][Naming.target_feature_name(self.name)])
@@ -359,9 +372,11 @@ class TrainingFeature(BaseTrainingFeature):
         corresponding_color_pass = self.name
       elif self.name == RenderPasses.ENVIRONMENT or self.name == RenderPasses.EMISSION:
         corresponding_color_pass = self.name
+      elif self.name == RenderPasses.VOLUME_DIRECT or self.name == RenderPasses.VOLUME_INDIRECT:
+        corresponding_color_pass = self.name
       elif RenderPasses.is_direct_or_indirect_render_pass(self.name):
         corresponding_color_pass = RenderPasses.direct_or_indirect_to_color_render_pass(self.name)
-      
+
       if corresponding_color_pass != None:
         corresponding_target_feature = target_features[scale_index][Naming.target_feature_name(corresponding_color_pass)]
         self.mask.append(Conv2dUtilities.non_zero_mask(corresponding_target_feature, data_format='channels_last'))
@@ -369,6 +384,8 @@ class TrainingFeature(BaseTrainingFeature):
 
 
 class CombinedTrainingFeature(BaseTrainingFeature):
+
+  # TODO: Add alpha which can be a mask if invisible.
 
   def __init__(
       self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
@@ -394,11 +411,6 @@ class CombinedTrainingFeature(BaseTrainingFeature):
     self.indirect_training_feature = indirect_training_feature
   
   def initialize(self, source_features, predicted_features, target_features):
-    self.predicted = []
-    self.target = []
-    self.mask = []
-    self.mask_sum = []
-    
     for scale_index in range(len(target_features)):
       self.predicted.append(tf.multiply(
           self.color_training_feature.predicted[scale_index],
@@ -420,10 +432,13 @@ class CombinedTrainingFeature(BaseTrainingFeature):
   
 class CombinedImageTrainingFeature(BaseTrainingFeature):
 
+  # TODO: Add alpha which can be a mask if invisible.
+
   def __init__(
       self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
       diffuse_training_feature, glossy_training_feature,
       subsurface_training_feature, transmission_training_feature,
+      volume_direct_training_feature, volume_indirect_training_feature,
       emission_training_feature, environment_training_feature,
       mean_weight, variation_weight, ms_ssim_weight,
       masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
@@ -445,21 +460,20 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
     self.glossy_training_feature = glossy_training_feature
     self.subsurface_training_feature = subsurface_training_feature
     self.transmission_training_feature = transmission_training_feature
+    self.volume_direct_training_feature = volume_direct_training_feature
+    self.volume_indirect_training_feature = volume_indirect_training_feature
     self.emission_training_feature = emission_training_feature
     self.environment_training_feature = environment_training_feature
   
   def initialize(self, source_features, predicted_features, target_features):
-    self.predicted = []
-    self.target = []
-    self.mask = []
-    self.mask_sum = []
-    
     for scale_index in range(len(target_features)):
       self.predicted.append(tf.add_n([
           self.diffuse_training_feature.predicted[scale_index],
           self.glossy_training_feature.predicted[scale_index],
           self.subsurface_training_feature.predicted[scale_index],
           self.transmission_training_feature.predicted[scale_index],
+          self.volume_direct_training_feature.predicted[scale_index],
+          self.volume_indirect_training_feature.predicted[scale_index],
           self.emission_training_feature.predicted[scale_index],
           self.environment_training_feature.predicted[scale_index]]))
 
@@ -468,6 +482,8 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
           self.glossy_training_feature.target[scale_index],
           self.subsurface_training_feature.target[scale_index],
           self.transmission_training_feature.target[scale_index],
+          self.volume_direct_training_feature.target[scale_index],
+          self.volume_indirect_training_feature.target[scale_index],
           self.emission_training_feature.target[scale_index],
           self.environment_training_feature.target[scale_index]]))
 
@@ -616,7 +632,7 @@ def model_fn(features, labels, mode, params):
   if mode == tf.estimator.ModeKeys.TRAIN:
     learning_rate = params['learning_rate']
     global_step = tf.train.get_or_create_global_step()
-    first_decay_steps = 1000
+    first_decay_steps = 2000
     t_mul = 1.3 # Use t_mul more steps after each restart.
     m_mul = 0.8 # Multiply the learning rate after each restart with this number.
     alpha = 1 / 100. # Learning rate decays from 1 * learning_rate to alpha * learning_rate.
@@ -804,14 +820,14 @@ def train(
 
 def evaluate(
     tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-    index_tuples, required_indices, data_augmentation_usage, tiles_height_width, batch_size, threads):
+    index_tuples, required_indices, data_augmentation_usage, tiles_height_width, batch_size, threads, name):
   
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Evaluate the model
   estimator.evaluate(input_fn=lambda: input_fn_tfrecords(
       files, training_features_loader, training_features_augmentation, 1, index_tuples, required_indices, data_augmentation_usage,
-      tiles_height_width, batch_size, threads))
+      tiles_height_width, batch_size, threads), name=name)
 
 def source_index_tuples(number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target):
   if number_of_sources_per_example < number_of_sources_per_target:
@@ -850,13 +866,38 @@ def source_index_tuples(number_of_sources_per_example, number_of_source_index_tu
   return index_tuples, required_indices
   
 
+def evaluation_jsons(base_tfrecords_directory, mode_name):
+  result = []
+  files = os.listdir(base_tfrecords_directory)
+  for file in files:
+    filename, extension = os.path.splitext(file)
+    if (
+        filename.startswith(mode_name) and
+        extension == '.json' and
+        os.path.isfile(os.path.join(base_tfrecords_directory, file))):
+      result.append(file)
+  return result
+
+def extract_evaluation_json_information(base_tfrecords_directory, json_filename):
+  name, _ = os.path.splitext(json_filename)
+  samples_per_pixel = name.split('_')[-1]
+
+  statistics_filename = os.path.join(base_tfrecords_directory, json_filename)
+  statistics_content = open(statistics_filename, 'r', encoding='utf-8').read()
+  statistics = json.loads(statistics_content)
+  tiles_height_width = statistics['tiles_height_width']
+  number_of_sources_per_example = statistics['number_of_sources_per_example']
+
+  return name, samples_per_pixel, tiles_height_width, number_of_sources_per_example
+
+
 def main(parsed_arguments):
   if not isinstance(parsed_arguments.threads, int):
     parsed_arguments.threads = int(parsed_arguments.threads)
 
   try:
     json_filename = parsed_arguments.json_filename
-    json_content = open(json_filename, 'r').read()
+    json_content = open(json_filename, 'r', encoding='utf-8').read()
     parsed_json = json.loads(json_content)
   except:
     print('Expected a valid training json file.')
@@ -899,24 +940,18 @@ def main(parsed_arguments):
   
 
   training_tfrecords_directory = os.path.join(base_tfrecords_directory, 'training')
-  validation_tfrecords_directory = os.path.join(base_tfrecords_directory, 'validation')
   
   if not 'training' in modes:
     raise Exception('No training mode found.')
   if not 'validation' in modes:
     raise Exception('No validation mode found.')
   training_statistics_filename = os.path.join(base_tfrecords_directory, 'training.json')
-  validation_statistics_filename = os.path.join(base_tfrecords_directory, 'validation.json')
   
-  training_statistics_content = open(training_statistics_filename, 'r').read()
+  training_statistics_content = open(training_statistics_filename, 'r', encoding='utf-8').read()
   training_statistics = json.loads(training_statistics_content)
-  validation_statistics_content = open(validation_statistics_filename, 'r').read()
-  validation_statistics = json.loads(validation_statistics_content)
   
   training_tiles_height_width = training_statistics['tiles_height_width']
   training_number_of_sources_per_example = training_statistics['number_of_sources_per_example']
-  validation_tiles_height_width = validation_statistics['tiles_height_width']
-  validation_number_of_sources_per_example = validation_statistics['number_of_sources_per_example']
   
   
   # Training features.
@@ -1007,6 +1042,8 @@ def main(parsed_arguments):
         combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_GLOSSY],
         combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_SUBSURFACE],
         combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_TRANSMISSION],
+        feature_name_to_training_feature[RenderPasses.VOLUME_DIRECT],
+        feature_name_to_training_feature[RenderPasses.VOLUME_INDIRECT],
         feature_name_to_training_feature[RenderPasses.EMISSION],
         feature_name_to_training_feature[RenderPasses.ENVIRONMENT],
         loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
@@ -1047,11 +1084,20 @@ def main(parsed_arguments):
           'combined_image_training_feature': combined_image_training_feature})
   
   if parsed_arguments.validate:
-    index_tuples, required_indices = source_index_tuples(
-        validation_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
-    evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-        index_tuples, required_indices, data_augmentation_usage, training_tiles_height_width,
-        batch_size, parsed_arguments.threads)
+
+    mode_name = 'validation'
+    files = evaluation_jsons(base_tfrecords_directory, mode_name)
+    for file in files:
+      validation_data_augmentation_usage = DataAugmentationUsage(False, False, False, False)
+
+      name, samples_per_pixel, validation_tiles_height_width, validation_number_of_sources_per_example = extract_evaluation_json_information(base_tfrecords_directory, file)
+      validation_tfrecords_directory = os.path.join(base_tfrecords_directory, mode_name, samples_per_pixel)
+
+      index_tuples, required_indices = source_index_tuples(
+          validation_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
+      evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+          index_tuples, required_indices, validation_data_augmentation_usage, validation_tiles_height_width,
+          batch_size, parsed_arguments.threads, name)
   else:
     remaining_number_of_epochs = parsed_arguments.train_epochs
     while remaining_number_of_epochs > 0:
@@ -1068,11 +1114,20 @@ def main(parsed_arguments):
             epochs_to_train, index_tuples, required_indices, data_augmentation_usage, training_tiles_height_width,
             batch_size, parsed_arguments.threads)
       
-      index_tuples, required_indices = source_index_tuples(
-          validation_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
-      evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
-          index_tuples, required_indices, data_augmentation_usage, training_tiles_height_width,
-          batch_size, parsed_arguments.threads)
+      # Vaidation
+      mode_name = 'validation'
+      files = evaluation_jsons(base_tfrecords_directory, mode_name)
+      for file in files:
+        validation_data_augmentation_usage = DataAugmentationUsage(False, False, False, False)
+
+        name, samples_per_pixel, validation_tiles_height_width, validation_number_of_sources_per_example = extract_evaluation_json_information(base_tfrecords_directory, file)
+        validation_tfrecords_directory = os.path.join(base_tfrecords_directory, mode_name, samples_per_pixel)
+
+        index_tuples, required_indices = source_index_tuples(
+            validation_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
+        evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+            index_tuples, required_indices, validation_data_augmentation_usage, validation_tiles_height_width,
+            batch_size, parsed_arguments.threads, name)
       
       remaining_number_of_epochs = remaining_number_of_epochs - number_of_training_epochs
 

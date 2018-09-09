@@ -11,7 +11,7 @@
 			"feature_flags": [
 				"Diffuse", "Glossy", "Subsurface", "Transmission", "Volume",
 				"Color", "Direct", "Indirect",
-				"Environment", "Emission",
+				"Alpha", "Environment", "Emission",
 				"Shadow", "Ambient Occlusion"
 			]
 		},
@@ -41,10 +41,10 @@
 	
 	"features": {
 		"Alpha": {
-			"is_source": false,
-			"is_target": false,
+			"is_source": true,
+			"is_target": true,
 			"number_of_channels": 1,
-			"feature_flags": [],
+			"feature_flags": ["Alpha"],
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",

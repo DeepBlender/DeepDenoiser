@@ -134,7 +134,14 @@ class PredictionFeature:
   
   def add_prediction_to_dictionary(self, scale_index, dictionary):
     if self.is_target:
-      dictionary[Naming.prediction_feature_name(self.name)] = self.predictions[scale_index]
+      prediction = self.predictions[scale_index]
+      
+      # Make sure the prediction has the correct amount of channels.
+      if Conv2dUtilities.number_of_channels(prediction, 'channels_last') != self.number_of_channels:
+        assert self.number_of_channels == 1
+        channel_axis = Conv2dUtilities.channel_axis(prediction, 'channels_last')
+        prediction, _ = tf.split(prediction, [1, 2], channel_axis)
+      dictionary[Naming.prediction_feature_name(self.name)] = prediction
 
 class CoreArchitecture:
 
@@ -207,6 +214,12 @@ class KernelPredictor:
       
       if self.data_format != self.source_data_format:
         source = Conv2dUtilities.convert_to_data_format(source, self.data_format)
+
+      # Ensure we always have 3 channels as input.
+      if Conv2dUtilities.number_of_channels(source, self.data_format) != 3:
+        assert Conv2dUtilities.number_of_channels(source, self.data_format) == 1
+        channel_axis = Conv2dUtilities.channel_axis(source, self.data_format)
+        source = tf.concat([source, source, source], channel_axis)
 
       for scale_index in range(len(prediction_feature.predictions)):
         scaled_source = source
@@ -345,7 +358,8 @@ class Architecture:
     if self.use_kernel_prediction:
       number_of_output_channels = kernel_prediction_json['kernel_size'] ** 2
     else:
-      number_of_output_channels = prediction_features[0].number_of_channels
+      # The number of actual output channels is always 3.
+      number_of_output_channels = 3
     self.core_architecture_postprocess = AdjustNumberOfChannels(
         number_of_output_channels, activation_function=tf.nn.relu, data_format=self.data_format)
     
