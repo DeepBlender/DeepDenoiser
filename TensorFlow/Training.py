@@ -11,6 +11,8 @@ import random
 import tensorflow as tf
 import multiprocessing
 
+from FeatureFlags import FeatureFlags
+from FeatureFlags import FeatureFlagMode
 from Architecture import Architecture
 
 from Conv2dUtilities import Conv2dUtilities
@@ -684,7 +686,7 @@ def model_fn(features, labels, mode, params):
     #with tf.name_scope('combined'):
     if combined_image_training_feature != None:
       combined_image_training_feature.add_tracked_metrics_to_dictionary(eval_metric_ops)
-    
+  
   return tf.estimator.EstimatorSpec(
       mode=mode,
       loss=loss,
@@ -693,9 +695,10 @@ def model_fn(features, labels, mode, params):
 
 
 def input_fn_tfrecords(
-    files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, data_augmentation_usage,
+    files, training_features_loader, feature_flags, training_features_augmentation,
+    number_of_epochs, index_tuples, required_indices, data_augmentation_usage,
     tiles_height_width, batch_size, threads, data_format='channels_last'):
-  
+
   def fast_feature_parser(serialized_example):
     assert len(index_tuples) == 1
     
@@ -717,7 +720,10 @@ def input_fn_tfrecords(
     for training_feature_loader in training_features_loader:
       training_feature_loader.add_to_sources_dictionary(sources, index_tuple)
       training_feature_loader.add_to_targets_dictionary(targets)
-    
+
+      if feature_flags != None:
+        feature_flags.add_to_source_dictionary(sources, tiles_height_width, tiles_height_width)
+
     return sources, targets
   
   def feature_parser(serialized_example):
@@ -740,6 +746,9 @@ def input_fn_tfrecords(
       for training_feature_loader in training_features_loader:
         training_feature_loader.add_to_sources_dictionary(sources, index_tuple)
         training_feature_loader.add_to_targets_dictionary(targets)
+
+        if feature_flags != None:
+          feature_flags.add_to_source_dictionary(sources, tiles_height_width, tiles_height_width)
       
       if dataset == None:
         dataset = tf.data.Dataset.from_tensors((sources, targets))
@@ -796,7 +805,7 @@ def input_fn_tfrecords(
   
   dataset = dataset.batch(batch_size)
   
-  prefetch_buffer_size = 1
+  prefetch_buffer_size = 5
   dataset = dataset.prefetch(buffer_size=prefetch_buffer_size)
   
   iterator = dataset.make_one_shot_iterator()
@@ -808,25 +817,27 @@ def input_fn_tfrecords(
 
 
 def train(
-    tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+    tfrecords_directory, estimator, training_features_loader, feature_flags, training_features_augmentation,
     number_of_epochs, index_tuples, required_indices, data_augmentation_usage, tiles_height_width, batch_size, threads):
   
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Train the model
   estimator.train(input_fn=lambda: input_fn_tfrecords(
-      files, training_features_loader, training_features_augmentation, number_of_epochs, index_tuples, required_indices, data_augmentation_usage,
+      files, training_features_loader, feature_flags, training_features_augmentation,
+      number_of_epochs, index_tuples, required_indices, data_augmentation_usage,
       tiles_height_width, batch_size, threads))
 
 def evaluate(
-    tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+    tfrecords_directory, estimator, training_features_loader, feature_flags, training_features_augmentation,
     index_tuples, required_indices, data_augmentation_usage, tiles_height_width, batch_size, threads, name):
   
   files = tf.data.Dataset.list_files(tfrecords_directory + '/*')
 
   # Evaluate the model
   estimator.evaluate(input_fn=lambda: input_fn_tfrecords(
-      files, training_features_loader, training_features_augmentation, 1, index_tuples, required_indices, data_augmentation_usage,
+      files, training_features_loader, feature_flags, training_features_augmentation,
+      1, index_tuples, required_indices, data_augmentation_usage,
       tiles_height_width, batch_size, threads), name=name)
 
 def source_index_tuples(number_of_sources_per_example, number_of_source_index_tuples, number_of_sources_per_target):
@@ -915,7 +926,7 @@ def main(parsed_arguments):
     use_CPU_only = False
   else:
     use_CPU_only = True
-  
+
   base_tfrecords_directory = parsed_json['base_tfrecords_directory']
   modes = parsed_json['modes']
   
@@ -1053,7 +1064,6 @@ def main(parsed_arguments):
         0., 0., 0.,
         0., 0.)
   
-  
   if use_CPU_only:
     session_config = tf.ConfigProto(device_count = {'GPU': 0})
   else:
@@ -1082,7 +1092,7 @@ def main(parsed_arguments):
           'training_features': training_features,
           'combined_training_features': combined_training_features,
           'combined_image_training_feature': combined_image_training_feature})
-  
+
   if parsed_arguments.validate:
 
     mode_name = 'validation'
@@ -1095,7 +1105,7 @@ def main(parsed_arguments):
 
       index_tuples, required_indices = source_index_tuples(
           validation_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
-      evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+      evaluate(validation_tfrecords_directory, estimator, training_features_loader, architecture.feature_flags, training_features_augmentation,
           index_tuples, required_indices, validation_data_augmentation_usage, validation_tiles_height_width,
           batch_size, parsed_arguments.threads, name)
   else:
@@ -1110,7 +1120,7 @@ def main(parsed_arguments):
         index_tuples, required_indices = source_index_tuples(
             training_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
         train(
-            training_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+            training_tfrecords_directory, estimator, training_features_loader, architecture.feature_flags, training_features_augmentation,
             epochs_to_train, index_tuples, required_indices, data_augmentation_usage, training_tiles_height_width,
             batch_size, parsed_arguments.threads)
       
@@ -1125,7 +1135,7 @@ def main(parsed_arguments):
 
         index_tuples, required_indices = source_index_tuples(
             validation_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
-        evaluate(validation_tfrecords_directory, estimator, training_features_loader, training_features_augmentation,
+        evaluate(validation_tfrecords_directory, estimator, training_features_loader, architecture.feature_flags, training_features_augmentation,
             index_tuples, required_indices, validation_data_augmentation_usage, validation_tiles_height_width,
             batch_size, parsed_arguments.threads, name)
       

@@ -13,7 +13,9 @@
 				"Color", "Direct", "Indirect",
 				"Alpha", "Environment", "Emission",
 				"Shadow", "Ambient Occlusion"
-			]
+			],
+			"feature_flag_mode_description": "Options: NONE, FLAGS, ONE_HOT_ENCODING, EMBEDDING",
+			"feature_flag_mode": "EMBEDDING"
 		},
 	
 		"core_architecture": {

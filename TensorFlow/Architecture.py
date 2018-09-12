@@ -9,6 +9,7 @@ from Naming import Naming
 
 from FeatureEngineering import FeatureEngineering
 from FeatureFlags import FeatureFlags
+from FeatureFlags import FeatureFlagMode
 from SourceEncoder import SourceEncoder
 from KernelPrediction import KernelPrediction
 from MultiScalePrediction import MultiScalePrediction
@@ -289,7 +290,7 @@ class Architecture:
     self.number_of_sources_per_target = parsed_json['number_of_sources_per_target']
     architecture_json = parsed_json['architecture']
     features_json = parsed_json['features']
-    
+
     self.__preserve_source = not architecture_json['kernel_prediction']['use_standardized_source_for_kernel_prediction']
     self.__number_of_core_architecture_input_channels = architecture_json['core_architecture']['number_of_filters_for_convolution_blocks'][0]
     
@@ -335,15 +336,22 @@ class Architecture:
     self.use_kernel_prediction = kernel_prediction_json['use_kernel_prediction']
     self.use_multiscale_predictions = multiscale_prediction_json['use_multiscale_predictions']
     
-    self.feature_flags = FeatureFlags(source_encoder_json['feature_flags'])
+    self.feature_flags = FeatureFlags(
+        source_encoder_json['feature_flags'],
+        FeatureFlagMode[source_encoder_json['feature_flag_mode']],
+        'channels_last')
     for prediction_feature in self.prediction_features:
       if prediction_feature.is_target:
-        self.feature_flags.add_render_pass_name_to_feature_flag_names(
+        self.feature_flags.add_render_pass_name_to_feature_flags_names(
             prediction_feature.name, prediction_feature.feature_flag_names)
     self.feature_flags.freeze()
-    
+
+    feature_flag_mode = self.feature_flags.feature_flag_mode
+    if feature_flag_mode != FeatureFlagMode.EMBEDDING:
+      self.feature_flags = None
+
     self.source_encoder = SourceEncoder(
-        self.prediction_features, self.feature_flags, source_encoder_json['use_all_targets_as_input'],
+        self.prediction_features, self.feature_flags, feature_flag_mode, source_encoder_json['use_all_targets_as_input'],
         self.__number_of_core_architecture_input_channels, activation_function=tf.nn.relu,
         source_data_format=self.source_data_format, data_format=self.data_format)
     
@@ -395,7 +403,7 @@ class Architecture:
         if prediction_feature.is_target:
           
           with tf.name_scope('prepare_network_input'):
-            inputs = self.source_encoder.prepare_neural_network_input(prediction_feature)
+            inputs = self.source_encoder.prepare_neural_network_input(prediction_feature, features)
           
           with tf.name_scope('core_architecture'):
             with tf.variable_scope('reused_core_architecture', reuse=reuse_core_architecture):

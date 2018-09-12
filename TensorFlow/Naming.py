@@ -63,6 +63,11 @@ class Naming:
     return result
   
   @staticmethod
+  def feature_flags_name(name):
+    result = 'feature_flag/' + name
+    return result
+
+  @staticmethod
   def target_feature_name(name, masked=False):
     result = 'target_image/' + name
     result = Naming._masked_if_needed(result, masked=masked)
@@ -80,12 +85,14 @@ class Naming:
       result = result + ' Masked'
     return result
 
+  @staticmethod
   def _internal_if_needed(name, internal):
     result = name
     if internal:
       result = result + ' Internal'
     return result
     
+  @staticmethod
   def _scale_index_if_needed(name, scale_index):
     result = name
     if scale_index != None:
