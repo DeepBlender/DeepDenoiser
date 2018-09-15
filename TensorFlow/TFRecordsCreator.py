@@ -49,7 +49,7 @@ class TFRecordsCreator:
 
     self.exr_directories_list = []
     for exr_directories in relative_exr_directories:
-      new_exr_directories = RenderDirectories(os.path.join(base_exr_directory, exr_directories))
+      new_exr_directories = RenderDirectories(os.path.join(base_exr_directory, exr_directories), self.number_of_sources_per_example)
       
       # Simple validity checks.
       for source_samples_per_pixel in self.source_samples_per_pixel_list:
@@ -66,6 +66,9 @@ class TFRecordsCreator:
       self.exr_directories_list.append(new_exr_directories)
   
   def create_tfrecords(self):
+
+    # TODO: Appropriate error message or assert if files/folders are missing
+
     source_samples_per_pixel_lists = []
     if self.group_by_samples_per_pixel:
       for source_samples_per_pixel_list in self.source_samples_per_pixel_list:
@@ -109,12 +112,13 @@ class TFRecordsCreator:
             # Prepare the source image tile.
             source_index = 0
             for source_samples_per_pixel in source_samples_per_pixel_list:
-              for source_render_directory in exr_directories.samples_per_pixel_to_exr_directories[source_samples_per_pixel]:
-                for source_render_pass in source_render_directory.render_pass_to_image:
-                  image = source_render_directory.render_pass_to_image[source_render_pass]
-                  features[Naming.source_feature_name(source_render_pass, index=source_index)] = TFRecordsCreator._bytes_feature(
-                      tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
-                source_index = source_index + 1
+              for index, source_render_directory in enumerate(exr_directories.samples_per_pixel_to_exr_directories[source_samples_per_pixel]):
+                if index < self.number_of_sources_per_example:
+                  for source_render_pass in source_render_directory.render_pass_to_image:
+                    image = source_render_directory.render_pass_to_image[source_render_pass]
+                    features[Naming.source_feature_name(source_render_pass, index=source_index)] = TFRecordsCreator._bytes_feature(
+                        tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
+                  source_index = source_index + 1
         
             # Prepare the target image tiles.
             target_render_directory = exr_directories.samples_per_pixel_to_exr_directories[target_samples_per_pixel][0]

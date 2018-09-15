@@ -7,8 +7,9 @@ import os
 from RenderDirectory import RenderDirectory
 
 class RenderDirectories:
-  def __init__(self, base_directory):
+  def __init__(self, base_directory, number_of_sources_per_example):
     self.base_directory = base_directory
+    self.number_of_sources_per_example = number_of_sources_per_example
     self.samples_per_pixel_to_exr_directories = {}
     subdirectories = RenderDirectories._subdirectories(self.base_directory)
     for subdirectory in subdirectories:
@@ -20,22 +21,27 @@ class RenderDirectories:
       else:
         exr_directories = self.samples_per_pixel_to_exr_directories[samples_per_pixel]
         exr_directories.append(render_directory)
+        exr_directories.sort()
 
   def required_files_exist(self, samples_per_pixel, render_passes_usage):
     result = True
     if samples_per_pixel in self.samples_per_pixel_to_exr_directories:
       exr_directories = self.samples_per_pixel_to_exr_directories[samples_per_pixel]
-      for render_directory in exr_directories:
-        result = render_directory.required_files_exist(render_passes_usage)
-        if not result:
+      for index, render_directory in enumerate(exr_directories):
+        if index < self.number_of_sources_per_example:
+          result = render_directory.required_files_exist(render_passes_usage)
+          if not result:
+            break
+        else:
           break
     return result
 
   def load_images(self, samples_per_pixel, render_passes_usage):
     if samples_per_pixel in self.samples_per_pixel_to_exr_directories:
       exr_directories = self.samples_per_pixel_to_exr_directories[samples_per_pixel]
-      for render_directory in exr_directories:
-        render_directory.load_images(render_passes_usage)
+      for index, render_directory in enumerate(exr_directories):
+        if index < self.number_of_sources_per_example:
+          render_directory.load_images(render_passes_usage)
   
   def size_of_loaded_images(self):
     height = 0
@@ -57,9 +63,12 @@ class RenderDirectories:
     height, width = self.size_of_loaded_images()
     for samples_per_pixel in self.samples_per_pixel_to_exr_directories:
       exr_directories = self.samples_per_pixel_to_exr_directories[samples_per_pixel]
-      for render_directory in exr_directories:
-        result = render_directory.have_loaded_images_size(height, width)
-        if not result:
+      for index, render_directory in enumerate(exr_directories):
+        if index < self.number_of_sources_per_example:
+          result = render_directory.have_loaded_images_size(height, width)
+          if not result:
+            break
+        else:
           break
       if not result:
         break

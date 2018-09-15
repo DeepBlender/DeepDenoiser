@@ -16,6 +16,12 @@ class RenderDirectory:
     # This is ensured by the Blender script.
     self.samples_per_pixel = int(self.directory.split('_')[-3])
   
+  def __lt__(self, other):
+    return self.directory < other.directory
+
+  def _gt__(self, other):
+    return self.directory > other.directory
+
   def required_files_exist(self, render_passes_usage):
     # TODO: Using missing_render_pass_files in this way is not the best idea. (DeepBlender)
     self.missing_render_pass_files = []
@@ -47,6 +53,9 @@ class RenderDirectory:
             image = image[:, :, 0]
           
           self.render_pass_to_image[render_pass] = image
+
+          # TODO: Check for all render passses and write in log if something went wrong! (NaN, ...) (DeepBlender)
+
           exr_loaded = True
           break
       if not exr_loaded:
