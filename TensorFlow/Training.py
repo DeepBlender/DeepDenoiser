@@ -893,11 +893,11 @@ def extract_evaluation_json_information(base_tfrecords_directory, json_filename)
   name, _ = os.path.splitext(json_filename)
   samples_per_pixel = name.split('_')[-1]
 
-  statistics_filename = os.path.join(base_tfrecords_directory, json_filename)
-  statistics_content = open(statistics_filename, 'r', encoding='utf-8').read()
-  statistics = json.loads(statistics_content)
-  tiles_height_width = statistics['tiles_height_width']
-  number_of_sources_per_example = statistics['number_of_sources_per_example']
+  settings_filename = os.path.join(base_tfrecords_directory, json_filename)
+  settings_content = open(settings_filename, 'r', encoding='utf-8').read()
+  settings = json.loads(settings_content)
+  tiles_height_width = settings['tiles_height_width']
+  number_of_sources_per_example = settings['number_of_sources_per_example']
 
   return name, samples_per_pixel, tiles_height_width, number_of_sources_per_example
 
@@ -956,13 +956,13 @@ def main(parsed_arguments):
     raise Exception('No training mode found.')
   if not 'validation' in modes:
     raise Exception('No validation mode found.')
-  training_statistics_filename = os.path.join(base_tfrecords_directory, 'training.json')
+  training_settings_filename = os.path.join(base_tfrecords_directory, 'training.json')
   
-  training_statistics_content = open(training_statistics_filename, 'r', encoding='utf-8').read()
-  training_statistics = json.loads(training_statistics_content)
+  training_settings_content = open(training_settings_filename, 'r', encoding='utf-8').read()
+  training_settings = json.loads(training_settings_content)
   
-  training_tiles_height_width = training_statistics['tiles_height_width']
-  training_number_of_sources_per_example = training_statistics['number_of_sources_per_example']
+  training_tiles_height_width = training_settings['tiles_height_width']
+  training_number_of_sources_per_example = training_settings['number_of_sources_per_example']
   
   
   # Training features.

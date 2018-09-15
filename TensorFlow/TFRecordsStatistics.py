@@ -33,9 +33,6 @@ class TFRecordsStatistics:
 
     for source_samples_per_pixel_list in source_samples_per_pixel_lists:
       statistics = {}
-      statistics['tiles_height_width'] = self.tfrecords_creator.tiles_height_width
-      statistics['number_of_sources_per_example'] = self.tfrecords_creator.number_of_sources_per_example
-      statistics['source_samples_per_pixel_list'] = source_samples_per_pixel_list
 
       samples_per_pixel = None
       if self.tfrecords_creator.group_by_samples_per_pixel:
@@ -221,9 +218,9 @@ class TFRecordsStatistics:
       
       # Save the statistics.
       
-      filename = self.tfrecords_creator.name + '.json'
+      filename = self.tfrecords_creator.name + '_statistics.json'
       if self.tfrecords_creator.group_by_samples_per_pixel:
-        filename = self.tfrecords_creator.name + '_' + str(samples_per_pixel) + '.json'
+        filename = self.tfrecords_creator.name + '_statistics_' + str(samples_per_pixel) + '.json'
 
       statistics_json_filename = os.path.join(self.tfrecords_creator.base_tfrecords_directory, filename)
       statistics_json_content = json.dumps(statistics, cls=DataStatisticsEncoder, sort_keys=True, indent=2)

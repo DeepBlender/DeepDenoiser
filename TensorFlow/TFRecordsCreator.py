@@ -131,6 +131,23 @@ class TFRecordsCreator:
         
         exr_directories.unload_images()
       tfrecords_writer.close()
+    
+
+      # Save the settings.
+      
+      settings = {}
+      settings['tiles_height_width'] = self.tiles_height_width
+      settings['number_of_sources_per_example'] = self.number_of_sources_per_example
+      settings['source_samples_per_pixel_list'] = source_samples_per_pixel_list
+
+      filename = self.name + '.json'
+      if self.group_by_samples_per_pixel:
+        filename = self.name + '_' + str(source_samples_per_pixel_list[0]) + '.json'
+
+      settings_json_filename = os.path.join(self.base_tfrecords_directory, filename)
+      settings_json_content = json.dumps(settings, cls=DataSettingsEncoder, sort_keys=True, indent=2)
+      with open(settings_json_filename, 'w+', encoding='utf-8') as settings_json_file:
+        settings_json_file.write(settings_json_content)
   
   def create_statistics(self):
     tfrecords_statistics = TFRecordsStatistics(self)
@@ -205,6 +222,14 @@ class TFRecordsWriter:
     original_file.close()
     if delete_uncompressed:
       os.remove(filename)
+
+class DataSettingsEncoder(json.JSONEncoder):
+  def default(self, obj):
+    if hasattr(obj, '__json__'):
+      return obj.__json__()
+    if hasattr(obj, '__dict__'):
+      return obj.__dict__
+    return json.JSONEncoder.default(self, obj)
 
 def main(parsed_arguments):
   try:
