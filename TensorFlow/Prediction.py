@@ -16,7 +16,7 @@ from Architecture import Architecture
 
 from RenderPasses import RenderPasses
 from Naming import Naming
-from RenderDirectory import RenderDirectory
+from OpenEXRDirectory import OpenEXRDirectory
 
 parser = argparse.ArgumentParser(description='Prediction for the DeepDenoiser.')
 
@@ -87,13 +87,13 @@ def main(parsed_arguments):
   height = None
   width = None
   
-  exr_files = RenderDirectory._exr_files(parsed_arguments.input)
+  exr_files = OpenEXRDirectory._exr_files(parsed_arguments.input)
   features = {}
   for prediction_feature in architecture.prediction_features:
     exr_loaded = False
     for exr_file in exr_files:
       if prediction_feature.name in exr_file:
-        image = RenderDirectory._load_exr(exr_file)
+        image = OpenEXRDirectory._load_exr(exr_file)
         
         # Special cases: Alpha and depth passes only have one channel.
         if RenderPasses.number_of_channels(prediction_feature.name) == 1:

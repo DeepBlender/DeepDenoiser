@@ -13,7 +13,7 @@ import gzip
 from Naming import Naming
 from RenderPasses import RenderPassesUsage
 from TFRecordsStatistics import TFRecordsStatistics
-from RenderDirectories import RenderDirectories
+from OpenEXRDirectories import OpenEXRDirectories
 
 
 parser = argparse.ArgumentParser(description='Create tfrecords files for the DeepDenoiser.')
@@ -49,7 +49,7 @@ class TFRecordsCreator:
 
     self.exr_directories_list = []
     for exr_directories in relative_exr_directories:
-      new_exr_directories = RenderDirectories(os.path.join(base_exr_directory, exr_directories), self.number_of_sources_per_example)
+      new_exr_directories = OpenEXRDirectories(os.path.join(base_exr_directory, exr_directories), self.number_of_sources_per_example)
       
       # Simple validity checks.
       for source_samples_per_pixel in self.source_samples_per_pixel_list:
@@ -112,18 +112,18 @@ class TFRecordsCreator:
             # Prepare the source image tile.
             source_index = 0
             for source_samples_per_pixel in source_samples_per_pixel_list:
-              for index, source_render_directory in enumerate(exr_directories.samples_per_pixel_to_exr_directories[source_samples_per_pixel]):
+              for index, source_exr_directory in enumerate(exr_directories.samples_per_pixel_to_exr_directories[source_samples_per_pixel]):
                 if index < self.number_of_sources_per_example:
-                  for source_render_pass in source_render_directory.render_pass_to_image:
-                    image = source_render_directory.render_pass_to_image[source_render_pass]
+                  for source_render_pass in source_exr_directory.render_pass_to_image:
+                    image = source_exr_directory.render_pass_to_image[source_render_pass]
                     features[Naming.source_feature_name(source_render_pass, index=source_index)] = TFRecordsCreator._bytes_feature(
                         tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
                   source_index = source_index + 1
         
             # Prepare the target image tiles.
-            target_render_directory = exr_directories.samples_per_pixel_to_exr_directories[target_samples_per_pixel][0]
-            for target_render_pass in target_render_directory.render_pass_to_image:
-              image = target_render_directory.render_pass_to_image[target_render_pass]
+            target_exr_directory = exr_directories.samples_per_pixel_to_exr_directories[target_samples_per_pixel][0]
+            for target_render_pass in target_exr_directory.render_pass_to_image:
+              image = target_exr_directory.render_pass_to_image[target_render_pass]
               features[Naming.target_feature_name(target_render_pass)] = TFRecordsCreator._bytes_feature(
                   tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
             

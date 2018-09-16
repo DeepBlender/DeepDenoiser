@@ -8,7 +8,7 @@ import numpy as np
 
 from RenderPasses import RenderPasses
 
-class RenderDirectory:
+class OpenEXRDirectory:
   def __init__(self, directory):
     self.directory = directory
     self.unload_images()
@@ -26,7 +26,7 @@ class RenderDirectory:
     # TODO: Using missing_render_pass_files in this way is not the best idea. (DeepBlender)
     self.missing_render_pass_files = []
     required_render_passes = render_passes_usage.render_passes()
-    exr_files = RenderDirectory._exr_files(self.directory)
+    exr_files = OpenEXRDirectory._exr_files(self.directory)
     for render_pass in required_render_passes:
       render_pass_exists = False
       for exr_file in exr_files:
@@ -41,12 +41,12 @@ class RenderDirectory:
     self.render_passes_usage = render_passes_usage
     self.render_pass_to_image = {}
     render_passes = self.render_passes_usage.render_passes()
-    exr_files = RenderDirectory._exr_files(self.directory)
+    exr_files = OpenEXRDirectory._exr_files(self.directory)
     for render_pass in render_passes:
       exr_loaded = False
       for exr_file in exr_files:
         if render_pass in exr_file:
-          image = RenderDirectory._load_exr(exr_file)
+          image = OpenEXRDirectory._load_exr(exr_file)
           
           # Special cases: Alpha and depth passes only have one channel.
           if RenderPasses.number_of_channels(render_pass) == 1:
