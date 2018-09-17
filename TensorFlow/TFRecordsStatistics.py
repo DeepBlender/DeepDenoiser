@@ -19,13 +19,15 @@ import Utilities
 from Conv2dUtilities import Conv2dUtilities
 
 class TFRecordsStatistics:
+
   def __init__(self, tfrecords_creator):
     self.tfrecords_creator = tfrecords_creator
   
   def compute_and_save_statistics(self):
 
     source_samples_per_pixel_lists = []
-    if self.tfrecords_creator.group_by_samples_per_pixel:
+    group_by_samples_per_pixel = self.tfrecords_creator.group_by_samples_per_pixel
+    if group_by_samples_per_pixel:
       for source_samples_per_pixel_list in self.tfrecords_creator.source_samples_per_pixel_list:
         source_samples_per_pixel_lists.append([source_samples_per_pixel_list])
     else:
@@ -35,7 +37,7 @@ class TFRecordsStatistics:
       statistics = {}
 
       samples_per_pixel = None
-      if self.tfrecords_creator.group_by_samples_per_pixel:
+      if group_by_samples_per_pixel:
         assert len(source_samples_per_pixel_list) == 1
         samples_per_pixel = source_samples_per_pixel_list[0]
     
@@ -106,22 +108,23 @@ class TFRecordsStatistics:
       
       # Iterate through the tfrecords to compute the usual and log1p statistics for minimum, maximum and mean.
       
-      iterator = self._dataset_iterator(samples_per_pixel)
+      iterator = self._dataset_iterator(group_by_samples_per_pixel, source_samples_per_pixel_list)
       while True:
         try:
           source_features, target_features = iterator.get_next()
-          
-          for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
-            for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
-              source_feature_name = Naming.source_feature_name(source_render_pass)
-              source_feature = source_features[Naming.source_feature_name(source_render_pass, index=source_index)]
-              self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, False, target_features)
-              if (
-                  RenderPasses.is_direct_or_indirect_render_pass(source_render_pass) and not
-                  RenderPasses.is_volume_render_pass(source_render_pass)):
-                # TODO: Make sure the required target feature is present!
-                source_feature_name = Naming.source_feature_name(source_render_pass, masked=True)
-                self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, True, target_features)
+          for samples_per_pixel in source_samples_per_pixel_list:
+            for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
+              for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
+                source_feature_name = Naming.source_feature_name(source_render_pass)
+                indexed_source_feature_name = Naming.source_feature_name(source_render_pass, samples_per_pixel=samples_per_pixel, index=source_index)
+                source_feature = source_features[indexed_source_feature_name]
+                self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, False, target_features)
+                if (
+                    RenderPasses.is_direct_or_indirect_render_pass(source_render_pass) and not
+                    RenderPasses.is_volume_render_pass(source_render_pass)):
+                  
+                  source_feature_name = Naming.source_feature_name(source_render_pass, masked=True)
+                  self._first_statistics_iteration(source_feature, source_render_pass, source_feature_name, True, target_features)
               
           for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
             target_feature_name = Naming.target_feature_name(target_render_pass)
@@ -132,7 +135,7 @@ class TFRecordsStatistics:
                 RenderPasses.is_volume_render_pass(target_render_pass)):
               target_feature_name = Naming.target_feature_name(target_render_pass, masked=True)
               self._first_statistics_iteration(target_feature, target_render_pass, target_feature_name, True, target_features)
-            
+
         except tf.errors.OutOfRangeError:
           break
       
@@ -158,22 +161,24 @@ class TFRecordsStatistics:
       
       # Iterate again through all the tfrecords to compute the variance, based on the mean.
       
-      iterator = self._dataset_iterator(samples_per_pixel)
+      iterator = self._dataset_iterator(group_by_samples_per_pixel, source_samples_per_pixel_list)
       while True:
         try:
           source_features, target_features = iterator.get_next()
           
-          for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
-            for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
-              source_feature_name = Naming.source_feature_name(source_render_pass)
-              source_feature = source_features[Naming.source_feature_name(source_render_pass, index=source_index)]
-              self._second_statistics_iteration(source_feature, source_render_pass, source_feature_name, False, target_features)
-              if (
-                  RenderPasses.is_direct_or_indirect_render_pass(source_render_pass) and not
-                  RenderPasses.is_volume_render_pass(source_render_pass)):
-                source_feature_name = Naming.source_feature_name(source_render_pass, masked=True)
-                self._second_statistics_iteration(source_feature, source_render_pass, source_feature_name, True, target_features)
-              
+          for samples_per_pixel in source_samples_per_pixel_list:
+            for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
+              for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
+                source_feature_name = Naming.source_feature_name(source_render_pass)
+                indexed_source_feature_name = Naming.source_feature_name(source_render_pass, samples_per_pixel=samples_per_pixel, index=source_index)
+                source_feature = source_features[indexed_source_feature_name]
+                self._second_statistics_iteration(source_feature, source_render_pass, source_feature_name, False, target_features)
+                if (
+                    RenderPasses.is_direct_or_indirect_render_pass(source_render_pass) and not
+                    RenderPasses.is_volume_render_pass(source_render_pass)):
+                  source_feature_name = Naming.source_feature_name(source_render_pass, masked=True)
+                  self._second_statistics_iteration(source_feature, source_render_pass, source_feature_name, True, target_features)
+          
           for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
             target_feature_name = Naming.target_feature_name(target_render_pass)
             target_feature = target_features[target_feature_name]
@@ -183,7 +188,7 @@ class TFRecordsStatistics:
                 RenderPasses.is_volume_render_pass(target_render_pass)):
               target_feature_name = Naming.target_feature_name(target_render_pass, masked=True)
               self._second_statistics_iteration(target_feature, target_render_pass, target_feature_name, True, target_features)
-          
+
         except tf.errors.OutOfRangeError:
           break
       
@@ -310,49 +315,56 @@ class TFRecordsStatistics:
       self.variances[feature_name].append(tf.reduce_mean(tf.square(tf.subtract(feature, mean))))
       self.variances_log1p[feature_name].append(tf.reduce_mean(tf.square(tf.subtract(feature_log1p, mean_log1p))))
     
-  def _dataset_iterator(self, source_samples_per_pixel=None):
+  def _dataset_iterator(self, group_by_samples_per_pixel, source_samples_per_pixel_list):
     directory = os.path.join(self.tfrecords_creator.base_tfrecords_directory, self.tfrecords_creator.name)
-    if source_samples_per_pixel != None:
-      directory = os.path.join(directory, str(source_samples_per_pixel))
+    if group_by_samples_per_pixel:
+      assert len(source_samples_per_pixel_list) == 1
+      directory = os.path.join(directory, str(source_samples_per_pixel_list[0]))
     files = tf.data.Dataset.list_files(directory + '/*')
-    
+
     threads = multiprocessing.cpu_count()
     dataset = tf.data.TFRecordDataset(files, compression_type='GZIP', buffer_size=None, num_parallel_reads=threads)
-    dataset = dataset.map(map_func=self._feature_parser, num_parallel_calls=threads)
+
+
+    def _feature_parser(serialized_example):
+      features = {}
+
+      for samples_per_pixel in source_samples_per_pixel_list:
+        for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
+          for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
+            indexed_source_feature_name = Naming.source_feature_name(source_render_pass, samples_per_pixel=samples_per_pixel, index=source_index)
+            features[indexed_source_feature_name] = tf.FixedLenFeature([], tf.string)
+      for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
+        features[Naming.target_feature_name(target_render_pass)] = tf.FixedLenFeature([], tf.string)
+      
+      parsed_features = tf.parse_single_example(serialized_example, features)
+      
+      source_features = {}
+      for samples_per_pixel in source_samples_per_pixel_list:
+        for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
+          for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
+            indexed_source_feature_name = Naming.source_feature_name(source_render_pass, samples_per_pixel=samples_per_pixel, index=source_index)
+            source_feature = tf.decode_raw(
+                parsed_features[indexed_source_feature_name], tf.float32)
+            number_of_channels = RenderPasses.number_of_channels(source_render_pass)
+            source_feature = tf.reshape(
+                source_feature, [self.tfrecords_creator.tiles_height_width, self.tfrecords_creator.tiles_height_width, number_of_channels])
+            source_features[indexed_source_feature_name] = source_feature
+      
+      target_features = {}
+      for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
+        target_feature = tf.decode_raw(
+            parsed_features[Naming.target_feature_name(target_render_pass)], tf.float32)
+        number_of_channels = RenderPasses.number_of_channels(target_render_pass)
+        target_feature = tf.reshape(
+            target_feature, [self.tfrecords_creator.tiles_height_width, self.tfrecords_creator.tiles_height_width, number_of_channels])
+        target_features[Naming.target_feature_name(target_render_pass)] = target_feature
+      
+      return source_features, target_features
+
+    dataset = dataset.map(map_func=_feature_parser, num_parallel_calls=threads)
     iterator = tfe.Iterator(dataset)
     return iterator
-
-  def _feature_parser(self, serialized_example):
-    features = {}
-    for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
-      for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
-        features[Naming.source_feature_name(source_render_pass, index=source_index)] = tf.FixedLenFeature([], tf.string)
-    for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
-      features[Naming.target_feature_name(target_render_pass)] = tf.FixedLenFeature([], tf.string)
-    
-    parsed_features = tf.parse_single_example(serialized_example, features)
-    
-    source_features = {}
-    for source_index in range(self.tfrecords_creator.number_of_sources_per_example):
-      for source_render_pass in self.tfrecords_creator.source_render_passes_usage.render_passes():
-        source_feature = tf.decode_raw(
-            parsed_features[Naming.source_feature_name(source_render_pass, index=source_index)], tf.float32)
-        number_of_channels = RenderPasses.number_of_channels(source_render_pass)
-        source_feature = tf.reshape(
-            source_feature, [self.tfrecords_creator.tiles_height_width, self.tfrecords_creator.tiles_height_width, number_of_channels])
-        source_features[Naming.source_feature_name(source_render_pass, index=source_index)] = source_feature
-    
-    target_features = {}
-    for target_render_pass in self.tfrecords_creator.target_render_passes_usage.render_passes():
-      target_feature = tf.decode_raw(
-          parsed_features[Naming.target_feature_name(target_render_pass)], tf.float32)
-      number_of_channels = RenderPasses.number_of_channels(target_render_pass)
-      target_feature = tf.reshape(
-          target_feature, [self.tfrecords_creator.tiles_height_width, self.tfrecords_creator.tiles_height_width, number_of_channels])
-      target_features[Naming.target_feature_name(target_render_pass)] = target_feature
-    
-    return source_features, target_features
-
 
 class DataStatisticsEncoder(json.JSONEncoder):
   def default(self, obj):

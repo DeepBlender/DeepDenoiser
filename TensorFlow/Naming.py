@@ -54,8 +54,10 @@ class Naming:
   # Naming for tfrecords, statistics, prediction
   
   @staticmethod
-  def source_feature_name(name, index=None, masked=False):
+  def source_feature_name(name, samples_per_pixel=None, index=None, masked=False):
     result = 'source_image/'
+    if samples_per_pixel != None:
+      result = result + str(samples_per_pixel) + '/'
     if index != None:
       result = result + str(index) + '/'
     result = result + name

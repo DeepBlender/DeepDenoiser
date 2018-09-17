@@ -92,8 +92,7 @@ class TFRecordsCreator:
         
         # Simple validity checks.
         assert exr_directories.have_loaded_images_identical_sizes()
-        
-        
+
         height, width = exr_directories.size_of_loaded_images()
         
         # Split the images into tiles.
@@ -110,15 +109,18 @@ class TFRecordsCreator:
             features = {}
             
             # Prepare the source image tile.
-            source_index = 0
             for source_samples_per_pixel in source_samples_per_pixel_list:
-              for index, source_exr_directory in enumerate(exr_directories.samples_per_pixel_to_exr_directories[source_samples_per_pixel]):
+              for index, source_exr_directory in enumerate(
+                  exr_directories.samples_per_pixel_to_exr_directories[source_samples_per_pixel]):
                 if index < self.number_of_sources_per_example:
                   for source_render_pass in source_exr_directory.render_pass_to_image:
+                    source_feature_name = Naming.source_feature_name(
+                        source_render_pass,
+                        samples_per_pixel=source_samples_per_pixel,
+                        index=index)
                     image = source_exr_directory.render_pass_to_image[source_render_pass]
-                    features[Naming.source_feature_name(source_render_pass, index=source_index)] = TFRecordsCreator._bytes_feature(
-                        tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
-                  source_index = source_index + 1
+                    features[source_feature_name] = TFRecordsCreator._bytes_feature(
+                            tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
         
             # Prepare the target image tiles.
             target_exr_directory = exr_directories.samples_per_pixel_to_exr_directories[target_samples_per_pixel][0]
@@ -131,7 +133,7 @@ class TFRecordsCreator:
         
         exr_directories.unload_images()
       tfrecords_writer.close()
-    
+
 
       # Save the settings.
       
