@@ -9,9 +9,12 @@ import numpy as np
 from RenderPasses import RenderPasses
 
 class OpenEXRDirectory:
-  def __init__(self, directory):
+
+  def __init__(self, directory, logger=None):
     self.directory = directory
     self.unload_images()
+    self.logger = logger
+    self.is_valid = True
     
     # This is ensured by the Blender script.
     self.samples_per_pixel = int(self.directory.split('_')[-3])
@@ -22,20 +25,31 @@ class OpenEXRDirectory:
   def _gt__(self, other):
     return self.directory > other.directory
 
-  def required_files_exist(self, render_passes_usage):
-    # TODO: Using missing_render_pass_files in this way is not the best idea. (DeepBlender)
-    self.missing_render_pass_files = []
+  def ensure_required_files_exist(self, render_passes_usage):
     required_render_passes = render_passes_usage.render_passes()
     exr_files = OpenEXRDirectory._exr_files(self.directory)
     for render_pass in required_render_passes:
       render_pass_exists = False
+      is_render_pass_file_unique = True
       for exr_file in exr_files:
-        if render_pass in exr_file:
-          render_pass_exists = True
-          break
+        # HACK: We add the _ to distinguish between the normal and screen space normal pass.
+        if '_' + render_pass + '_' in exr_file:
+          if render_pass_exists:
+            is_render_pass_file_unique = False
+            break
+          else:
+            render_pass_exists = True
       if not render_pass_exists:
-        self.missing_render_pass_files.append(render_pass)
-    return len(self.missing_render_pass_files) == 0
+        self.is_valid = False
+        if self.logger != None:
+          self.logger.error(self.directory + ' does not contain an exr file for ' + render_pass + '.')
+        break
+      if not is_render_pass_file_unique:
+        self.is_valid = False
+        if self.logger != None:
+          self.logger.error(
+              'There is more than one file in ' + self.directory + ' which could be used for the ' +
+              render_pass + ' pass.')
 
   def load_images(self, render_passes_usage):
     self.render_passes_usage = render_passes_usage
@@ -45,7 +59,8 @@ class OpenEXRDirectory:
     for render_pass in render_passes:
       exr_loaded = False
       for exr_file in exr_files:
-        if render_pass in exr_file:
+        # HACK: We add the _ to distinguish between the normal and screen space normal pass.
+        if '_' + render_pass + '_' in exr_file:
           image = OpenEXRDirectory._load_exr(exr_file)
           
           # Special cases: Alpha and depth passes only have one channel.
@@ -54,12 +69,19 @@ class OpenEXRDirectory:
           
           self.render_pass_to_image[render_pass] = image
 
-          # TODO: Check for all render passses and write in log if something went wrong! (NaN, ...) (DeepBlender)
+          # Neither NaN, nor infinity is valid.
+          if not np.isfinite(image).all():
+            self.is_valid = False
+            if self.logger != None:
+              self.logger.error('There is at least one value in ' + exr_file + ' which is not finite.')
 
           exr_loaded = True
           break
+      if not self.is_valid:
+        break
+      
       if not exr_loaded:
-        # TODO: Improve (DeepBlender)
+        # This should never happen, because we ensure_required_files_exist. (DeepBlender)
         raise Exception('Image for \'' + render_pass + '\' could not be loaded or does not exist.')
 
   def is_loaded(self):
@@ -75,16 +97,18 @@ class OpenEXRDirectory:
       break
     return height, width
 
-  def have_loaded_images_size(self, height, width):
-    result = True
+  def ensure_loaded_images_have_size(self, height, width):
     for render_pass in self.render_pass_to_image:
       image = self.render_pass_to_image[render_pass]
       image_height = image.shape[0]
       image_width = image.shape[1]
       if image_height != height or image_width != width:
-        result = False
-        break
-    return result
+        self.is_valid = False
+        if self.logger != None:
+          self.logger.error(
+              render_pass + ' from ' + self.directory + ' does not have an expected size of (' + 
+              str(width) + ', ' + str(height) + '), but (' +
+              str(image_width) + ', ' + str(image_height) + ').')
   
   def unload_images(self):
     self.render_passes_usage = None

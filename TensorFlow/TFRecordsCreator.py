@@ -4,6 +4,7 @@ from __future__ import print_function
 
 import argparse
 import os
+import logging
 
 import tensorflow as tf
 
@@ -28,8 +29,6 @@ parser.add_argument(
 
 class TFRecordsCreator:
 
-  # TODO: Add log file functionality from previous version. (DeepBlender)
-
   def __init__(
       self, name, base_tfrecords_directory, base_exr_directory, relative_exr_directories,
       source_samples_per_pixel_list, source_render_passes_usage, number_of_sources_per_example,
@@ -47,28 +46,53 @@ class TFRecordsCreator:
     self.examples_per_tfrecords = examples_per_tfrecords
     self.group_by_samples_per_pixel = group_by_samples_per_pixel
 
+    if not os.path.exists(self.base_tfrecords_directory):
+      os.makedirs(self.base_tfrecords_directory)
+
+
+    # Logger
+    filename = self.name
+    if self.group_by_samples_per_pixel:
+      filename = self.name + '_' + str(source_samples_per_pixel_list[0])
+    logger_filename = os.path.join(self.base_tfrecords_directory, filename + '.log')
+
+    self.logger = logging.getLogger(filename)
+    self.logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(levelname)s (%(asctime)s): %(message)s')
+    file_handler = logging.FileHandler(logger_filename, mode='w+')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+    #stream_handler = logging.StreamHandler()
+    #stream_handler.setFormatter(formatter)
+    self.logger.addHandler(file_handler)
+    #self.logger.addHandler(stream_handler)
+    
+
     self.exr_directories_list = []
     for exr_directories in relative_exr_directories:
-      new_exr_directories = OpenEXRDirectories(os.path.join(base_exr_directory, exr_directories), self.number_of_sources_per_example)
+      new_exr_directories = OpenEXRDirectories(os.path.join(base_exr_directory, exr_directories), self.number_of_sources_per_example, self.logger)
       
-      # Simple validity checks.
-      for source_samples_per_pixel in self.source_samples_per_pixel_list:
-        assert new_exr_directories.required_files_exist(source_samples_per_pixel, self.source_render_passes_usage)
-        assert (
-            self.number_of_sources_per_example <= len(
-                new_exr_directories.samples_per_pixel_to_exr_directories[source_samples_per_pixel]))
-      
-      target_samples_per_pixel = self.target_samples_per_pixel
-      if target_samples_per_pixel is 'best':
-        target_samples_per_pixel = new_exr_directories.ground_truth_samples_per_pixel()
-      assert new_exr_directories.required_files_exist(target_samples_per_pixel, self.target_render_passes_usage)
-      
-      self.exr_directories_list.append(new_exr_directories)
+      # Some validity checks.
+      if new_exr_directories.is_valid:
+        for source_samples_per_pixel in self.source_samples_per_pixel_list:
+          new_exr_directories.ensure_required_files_exist(
+              self.number_of_sources_per_example, source_samples_per_pixel, self.source_render_passes_usage)
+          if not new_exr_directories.is_valid:
+            break
+        
+        if new_exr_directories.is_valid:
+          target_samples_per_pixel = self.target_samples_per_pixel
+          if target_samples_per_pixel == 'best':
+            target_samples_per_pixel = new_exr_directories.ground_truth_samples_per_pixel()
+          new_exr_directories.ensure_required_files_exist(
+              1, target_samples_per_pixel, self.target_render_passes_usage)
+          if not new_exr_directories.is_valid:
+            break
+        
+        if new_exr_directories.is_valid:
+          self.exr_directories_list.append(new_exr_directories)
   
   def create_tfrecords(self):
-
-    # TODO: Appropriate error message or assert if files/folders are missing
-
     source_samples_per_pixel_lists = []
     if self.group_by_samples_per_pixel:
       for source_samples_per_pixel_list in self.source_samples_per_pixel_list:
@@ -88,48 +112,56 @@ class TFRecordsCreator:
         
         for source_samples_per_pixel in source_samples_per_pixel_list:
           exr_directories.load_images(source_samples_per_pixel, self.source_render_passes_usage)
-        exr_directories.load_images(target_samples_per_pixel, self.target_render_passes_usage)
+          if not exr_directories.is_valid:
+            break
+        if exr_directories.is_valid:
+          exr_directories.load_images(target_samples_per_pixel, self.target_render_passes_usage)
         
         # Simple validity checks.
-        assert exr_directories.have_loaded_images_identical_sizes()
+        if exr_directories.is_valid:
+          exr_directories.ensure_loaded_images_identical_sizes()
+        
+        if exr_directories.is_valid:
 
-        height, width = exr_directories.size_of_loaded_images()
-        
-        # Split the images into tiles.
-        tiles_x_count = height // self.tiles_height_width
-        tiles_y_count = width // self.tiles_height_width
-        
-        for i in range(tiles_x_count):
-          for j in range (tiles_y_count):
-            x1 = i * self.tiles_height_width
-            x2 = (i + 1) * self.tiles_height_width
-            y1 = j * self.tiles_height_width
-            y2 = (j + 1) * self.tiles_height_width
-            
-            features = {}
-            
-            # Prepare the source image tile.
-            for source_samples_per_pixel in source_samples_per_pixel_list:
-              for index, source_exr_directory in enumerate(
-                  exr_directories.samples_per_pixel_to_exr_directories[source_samples_per_pixel]):
-                if index < self.number_of_sources_per_example:
-                  for source_render_pass in source_exr_directory.render_pass_to_image:
-                    source_feature_name = Naming.source_feature_name(
-                        source_render_pass,
-                        samples_per_pixel=source_samples_per_pixel,
-                        index=index)
-                    image = source_exr_directory.render_pass_to_image[source_render_pass]
-                    features[source_feature_name] = TFRecordsCreator._bytes_feature(
-                            tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
-        
-            # Prepare the target image tiles.
-            target_exr_directory = exr_directories.samples_per_pixel_to_exr_directories[target_samples_per_pixel][0]
-            for target_render_pass in target_exr_directory.render_pass_to_image:
-              image = target_exr_directory.render_pass_to_image[target_render_pass]
-              features[Naming.target_feature_name(target_render_pass)] = TFRecordsCreator._bytes_feature(
-                  tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
-            
-            tfrecords_writer.write(features)
+          # TODO: Maybe which image parts are contained in which tfrecords. (DeepBlender)
+
+          height, width = exr_directories.size_of_loaded_images()
+          
+          # Split the images into tiles.
+          tiles_x_count = height // self.tiles_height_width
+          tiles_y_count = width // self.tiles_height_width
+          
+          for i in range(tiles_x_count):
+            for j in range (tiles_y_count):
+              x1 = i * self.tiles_height_width
+              x2 = (i + 1) * self.tiles_height_width
+              y1 = j * self.tiles_height_width
+              y2 = (j + 1) * self.tiles_height_width
+              
+              features = {}
+              
+              # Prepare the source image tile.
+              for source_samples_per_pixel in source_samples_per_pixel_list:
+                for index, source_exr_directory in enumerate(
+                    exr_directories.samples_per_pixel_to_exr_directories[source_samples_per_pixel]):
+                  if index < self.number_of_sources_per_example:
+                    for source_render_pass in source_exr_directory.render_pass_to_image:
+                      source_feature_name = Naming.source_feature_name(
+                          source_render_pass,
+                          samples_per_pixel=source_samples_per_pixel,
+                          index=index)
+                      image = source_exr_directory.render_pass_to_image[source_render_pass]
+                      features[source_feature_name] = TFRecordsCreator._bytes_feature(
+                              tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
+          
+              # Prepare the target image tiles.
+              target_exr_directory = exr_directories.samples_per_pixel_to_exr_directories[target_samples_per_pixel][0]
+              for target_render_pass in target_exr_directory.render_pass_to_image:
+                image = target_exr_directory.render_pass_to_image[target_render_pass]
+                features[Naming.target_feature_name(target_render_pass)] = TFRecordsCreator._bytes_feature(
+                    tf.compat.as_bytes(image[x1:x2, y1:y2].tostring()))
+              
+              tfrecords_writer.write(features)
         
         exr_directories.unload_images()
       tfrecords_writer.close()
@@ -253,6 +285,9 @@ def main(parsed_arguments):
     base_tfrecords_directory = os.path.join(absolute_json_directory, base_tfrecords_directory)
     base_tfrecords_directory = os.path.realpath(base_tfrecords_directory)
 
+  if not os.path.exists(base_tfrecords_directory):
+    os.makedirs(base_tfrecords_directory)
+
   mode_name_to_mode_settings = parsed_json['modes']
   
   source = parsed_json['source']
@@ -265,6 +300,15 @@ def main(parsed_arguments):
   target_samples_per_pixel = target['samples_per_pixel']
   target_render_passes_usage = RenderPassesUsage()
   target_render_passes_usage.__dict__ = target['features']
+
+  # Central error logger
+  logger_filename = os.path.join(base_tfrecords_directory, 'Error.log')
+  logging.basicConfig(
+      level=logging.ERROR,
+      format='%(levelname)s, %(name)s (%(asctime)s): %(message)s',
+      handlers=[
+          logging.FileHandler(logger_filename, mode='w+'),
+          logging.StreamHandler()])
 
   tfrecords_creators = []
   for mode_name in mode_name_to_mode_settings:
