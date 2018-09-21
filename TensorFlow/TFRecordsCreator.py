@@ -51,10 +51,7 @@ class TFRecordsCreator:
 
 
     # Logger
-    filename = self.name
-    if self.group_by_samples_per_pixel:
-      filename = self.name + '_' + str(source_samples_per_pixel_list[0])
-    logger_filename = os.path.join(self.base_tfrecords_directory, filename + '.log')
+    logger_filename = os.path.join(self.base_tfrecords_directory, self.name + '.log')
 
     self.logger = logging.getLogger(filename)
     self.logger.setLevel(logging.DEBUG)
@@ -62,10 +59,7 @@ class TFRecordsCreator:
     file_handler = logging.FileHandler(logger_filename, mode='w+')
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
-    #stream_handler = logging.StreamHandler()
-    #stream_handler.setFormatter(formatter)
     self.logger.addHandler(file_handler)
-    #self.logger.addHandler(stream_handler)
     
 
     self.exr_directories_list = []
