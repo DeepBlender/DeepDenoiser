@@ -1022,7 +1022,19 @@ def main(parsed_arguments):
         architecture.number_of_sources_per_target, prediction_feature.is_target,
         prediction_feature.number_of_channels, prediction_feature.name))
 
+
+  # If the combined image feature is used, all combined features have to be used as well.
+  # That's why we need to compute it already here.
+  statistics = combined_image['statistics']
+  loss_weights = combined_image['loss_weights']
+  use_combined_image = False
+  if (
+      loss_weights['mean'] > 0. or loss_weights['variation'] > 0. or loss_weights['ms_ssim'] > 0. or
+      statistics['track_mean'] or statistics['track_mean'] or statistics['track_mean'] or
+      statistics['track_mean'] or statistics['track_mean']):
+    use_combined_image = True
   
+
   # Combined training features.
   
   combined_training_features = []
@@ -1039,7 +1051,14 @@ def main(parsed_arguments):
     statistics = combined_feature['statistics']
     statistics_masked = combined_feature['statistics_masked']
     
-    if loss_weights['mean'] > 0. or loss_weights['variation'] > 0.:
+    if (
+        use_combined_image or
+        loss_weights['mean'] > 0. or loss_weights['variation'] > 0. or loss_weights['ms_ssim'] > 0. or
+        statistics['track_mean'] or statistics['track_mean'] or statistics['track_mean'] or
+        statistics['track_mean'] or statistics['track_mean'] or
+        loss_weights_masked['mean'] > 0. or loss_weights_masked['variation'] > 0. or loss_weights_masked['ms_ssim'] > 0. or
+        statistics_masked['track_mean'] or statistics_masked['track_mean'] or statistics_masked['track_mean'] or
+        statistics_masked['track_mean'] or statistics_masked['track_mean']):
       color_feature_name = RenderPasses.combined_to_color_render_pass(combined_feature_name)
       direct_feature_name = RenderPasses.combined_to_direct_render_pass(combined_feature_name)
       indirect_feature_name = RenderPasses.combined_to_indirect_render_pass(combined_feature_name)
@@ -1064,9 +1083,9 @@ def main(parsed_arguments):
   # Combined image training feature.
   
   combined_image_training_feature = None
-  statistics = combined_image['statistics']
-  loss_weights = combined_image['loss_weights']
-  if loss_weights['mean'] > 0. or loss_weights['variation'] > 0:
+  if use_combined_image:
+    statistics = combined_image['statistics']
+    loss_weights = combined_image['loss_weights']
     combined_image_training_feature = CombinedImageTrainingFeature(
         RenderPasses.COMBINED, loss_difference, use_multiscale_loss, use_multiscale_metrics,
         combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_DIFFUSE],
