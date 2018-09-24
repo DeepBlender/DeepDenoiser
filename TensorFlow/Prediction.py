@@ -77,13 +77,17 @@ def main(parsed_arguments):
   
   assert os.path.isdir(parsed_arguments.input)
   
-  
-  architecture = Architecture(parsed_architecture_json, source_data_format='channels_last', data_format=parsed_arguments.data_format)
+  data_format = data_format=parsed_arguments.data_format
+
+  # Force CPU
+  data_format = 'channels_last'
+
+  architecture = Architecture(parsed_architecture_json, source_data_format='channels_last', data_format=data_format)
   if architecture.data_format == 'channels_first':
     use_CPU_only = False
   else:
     use_CPU_only = True
-  
+
   height = None
   width = None
   
@@ -113,11 +117,10 @@ def main(parsed_arguments):
         break
     if not exr_loaded:
       # TODO: Improve (DeepBlender)
-      raise Exception('Image for \'' + render_pass + '\' could not be loaded or does not exist.')
+      raise Exception('Image for \'' + prediction_feature.name + '\' could not be loaded or does not exist.')
   
 
   if use_CPU_only:
-    print('cpu')
     session_config = tf.ConfigProto(device_count = {'GPU': 0})
   else:
     session_config = tf.ConfigProto()
@@ -155,6 +158,9 @@ def main(parsed_arguments):
     transmission_indirect = prediction[Naming.prediction_feature_name(RenderPasses.TRANSMISSION_INDIRECT)]
     transmission_color = prediction[Naming.prediction_feature_name(RenderPasses.TRANSMISSION_COLOR)]
     
+    volume_direct = prediction[Naming.prediction_feature_name(RenderPasses.VOLUME_DIRECT)]
+    volume_indirect = prediction[Naming.prediction_feature_name(RenderPasses.VOLUME_INDIRECT)]
+
     environment = prediction[Naming.prediction_feature_name(RenderPasses.ENVIRONMENT)]
     emission = prediction[Naming.prediction_feature_name(RenderPasses.EMISSION)]
 
@@ -169,16 +175,22 @@ def main(parsed_arguments):
     image = np.add(diffuse, glossy)
     image = np.add(image, subsurface)
     image = np.add(image, transmission)
+    image = np.add(image, volume_direct)
+    image = np.add(image, volume_indirect)
     image = np.add(image, environment)
     image = np.add(image, emission)
     
     
+    # TODO: Alpha currently ignored.
+
+    # Store as npy to open in Blender.
+    np.save(parsed_arguments.input + '/combined.npy', image)
+
     # HACK: Temporary output as png. (DeepBlender)
     image = 255. * image
-    
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-    cv2.imwrite(parsed_arguments.input + '/output.png', image, [int(cv2.IMWRITE_PNG_COMPRESSION), 9])
-    
+    cv2.imwrite(parsed_arguments.input + '/combined.png', image, [int(cv2.IMWRITE_PNG_COMPRESSION), 9])
+
     # HACK: Break needed because no dataset is used (DeepBlender)
     break
 

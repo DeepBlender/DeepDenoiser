@@ -1,8 +1,6 @@
 
 # The RenderPasses and UI code are kept in this file to make it executable in Blender without the need to install it as addon.
 
-# TODO: Make sure there is just one layer and that layer has to be active.
-
 import bpy
 import os
 import sys
@@ -756,14 +754,14 @@ class DeepDenoiserDataGeneratorPanel(bpy.types.Panel):
     
 
 
-classes = (
+classes = [
     DeepDenoiserRenderJobPropertyGroup, DeepDenoiserDataGeneratorPropertyGroup, DeepDenoiserDataGeneratorPanel,
     DeepDenoiserItemUI, RandomizeSeedOperator, JumpToMainFrameOperator,
     JumpToMainFrameMinusFourOperator, JumpToMainFrameMinusThreeOperator, JumpToMainFrameMinusTwoOperator, JumpToMainFrameMinusOneOperator,
     JumpToMainFramePlusOneOperator, JumpToMainFramePlusTwoOperator, JumpToMainFramePlusThreeOperator, JumpToMainFramePlusFourOperator,
     RENDER_JOB_OT_add, RENDER_JOB_OT_remove, RENDER_JOB_OT_move_up, RENDER_JOB_OT_move_down, RENDER_JOB_OT_reset, RENDER_JOB_prepare,
     RENDER_JOB_render_main_frame_noisy, RENDER_JOB_render_main_frame_noiseless, RENDER_JOB_render_main_frame,
-    RENDER_JOB_render_pre_post_noisy, RENDER_JOB_render_all)
+    RENDER_JOB_render_pre_post_noisy, RENDER_JOB_render_all]
 
 def register():
   for i in classes:
