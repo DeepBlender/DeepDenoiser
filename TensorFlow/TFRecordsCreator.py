@@ -53,7 +53,7 @@ class TFRecordsCreator:
     # Logger
     logger_filename = os.path.join(self.base_tfrecords_directory, self.name + '.log')
 
-    self.logger = logging.getLogger(filename)
+    self.logger = logging.getLogger(logger_filename)
     self.logger.setLevel(logging.DEBUG)
     formatter = logging.Formatter('%(levelname)s (%(asctime)s): %(message)s')
     file_handler = logging.FileHandler(logger_filename, mode='w+')
