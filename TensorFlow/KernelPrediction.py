@@ -26,7 +26,6 @@ class KernelPrediction:
     # TODO: Check whether there is a more efficient way than iterating through the channels one by one (DeepBlender)
     for index in range(number_of_channels):
       input = inputs_split[index]
-      padding = []
       
       padded_input = Conv2dUtilities.pad_equally(input, pad, mode=mode, data_format=data_format)
       input_stack = []

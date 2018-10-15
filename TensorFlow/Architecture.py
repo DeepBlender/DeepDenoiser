@@ -3,6 +3,7 @@ from __future__ import division
 from __future__ import print_function
 
 import tensorflow as tf
+from enum import Enum
 
 from RenderPasses import RenderPasses
 from Naming import Naming
@@ -71,19 +72,29 @@ class FeatureVariance:
         epsilon=epsilon, data_format=data_format)
     return result
 
-class PredictionFeature:
+
+class FeaturePredictionType(Enum):
+  COLOR = 1
+  DIRECT = 2
+  INDIRECT = 3
+  AUXILIARY = 4
+
+class FeaturePrediction:
 
   def __init__(
-      self, number_of_sources, preserve_source, is_target, feature_standardization, invert_standardization, feature_variance,
-      feature_flag_names, number_of_channels, name):
+      self, feature_prediction_type, load_data,
+      number_of_sources, preserve_source, is_target,
+      feature_standardization, invert_standardization, feature_variance,
+      number_of_channels, name):
     
+    self.feature_prediction_type = feature_prediction_type
+    self.load_data = load_data
     self.number_of_sources = number_of_sources
     self.preserve_source = preserve_source
     self.is_target = is_target
     self.feature_standardization = feature_standardization
     self.invert_standardization = invert_standardization
     self.feature_variance = feature_variance
-    self.feature_flag_names = feature_flag_names
     self.number_of_channels = number_of_channels
     self.name = name
     self.predictions = []
@@ -93,7 +104,7 @@ class PredictionFeature:
     self.variance = []
     if self.preserve_source:
       self.preserved_source = []
-    
+
     for index in range(self.number_of_sources):
       source = dictionary[Naming.source_feature_name(self.name, index=index)]
       self.source.append(source)
@@ -135,14 +146,50 @@ class PredictionFeature:
   
   def add_prediction_to_dictionary(self, scale_index, dictionary):
     if self.is_target:
-      prediction = self.predictions[scale_index]
+      if self.load_data:
+        prediction = self.predictions[scale_index]
+      else:
+        # If the data was generated, we don't care about the prediction.
+        # Let's make sure it has not negative impact during the training.
+        prediction = self.predictions[scale_index]
+        start = [0, 0, 0, 0]
+        shape = tf.shape(prediction)
+        prediction = tf.slice(self.source[0], start, shape)
       
       # Make sure the prediction has the correct amount of channels.
       if Conv2dUtilities.number_of_channels(prediction, 'channels_last') != self.number_of_channels:
         assert self.number_of_channels == 1
         channel_axis = Conv2dUtilities.channel_axis(prediction, 'channels_last')
         prediction, _ = tf.split(prediction, [1, 2], channel_axis)
-      dictionary[Naming.prediction_feature_name(self.name)] = prediction
+
+      dictionary[Naming.feature_prediction_name(self.name)] = prediction
+
+  @staticmethod
+  def feature_prediction_type_to_string(feature_prediction_type):
+    result = ''
+    if feature_prediction_type == FeaturePredictionType.COLOR:
+      result = 'Color'
+    elif feature_prediction_type == FeaturePredictionType.DIRECT:
+      result = 'Direct'
+    elif feature_prediction_type == FeaturePredictionType.INDIRECT:
+      result = 'Indirect'
+    elif feature_prediction_type == FeaturePredictionType.AUXILIARY:
+      result = 'Auxiliary'
+    return result
+
+
+class FeaturePredictionTupleType(Enum):
+  SINGLE = 1
+  COMBINED = 2
+
+class FeaturePredictionTuple:
+
+  def __init__(
+      self, feature_predictions, feature_prediction_tuple_type, name):
+    self.feature_predictions = feature_predictions
+    self.feature_prediction_tuple_type = feature_prediction_tuple_type
+    self.name = name
+
 
 class CoreArchitecture:
 
@@ -179,6 +226,7 @@ class CoreArchitecture:
     inputs = self.architecture.predict(inputs, is_training)
     return inputs
 
+
 class AdjustNumberOfChannels:
 
   def __init__(self, number_of_output_channels, activation_function=tf.nn.relu, data_format='channels_first'):
@@ -194,8 +242,11 @@ class AdjustNumberOfChannels:
         inputs=inputs, filters=self.number_of_output_channels, kernel_size=(1, 1), padding='same',
         activation=None, data_format=self.data_format)
     return inputs
-  
+
+
 class KernelPredictor:
+
+  # TODO: Consider number_of_sources_per_target and use swa over all of them.
 
   def __init__(
       self, use_kernel_prediction, kernel_size, use_standardized_source_for_kernel_prediction,
@@ -205,33 +256,38 @@ class KernelPredictor:
     self.use_standardized_source_for_kernel_prediction = use_standardized_source_for_kernel_prediction
     self.source_data_format = source_data_format
     self.data_format = data_format
-  
-  def predict(self, prediction_feature):
+
+  def predict(self, feature_prediction):
     if self.use_kernel_prediction:
       if self.use_standardized_source_for_kernel_prediction:
-        source = prediction_feature.source[0]
+        source = feature_prediction.source[0]
       else:
-        source = prediction_feature.preserved_source[0]
+        source = feature_prediction.preserved_source[0]
       
       if self.data_format != self.source_data_format:
         source = Conv2dUtilities.convert_to_data_format(source, self.data_format)
 
+      channel_axis = Conv2dUtilities.channel_axis(source, self.data_format)
+
       # Ensure we always have 3 channels as input.
       if Conv2dUtilities.number_of_channels(source, self.data_format) != 3:
         assert Conv2dUtilities.number_of_channels(source, self.data_format) == 1
-        channel_axis = Conv2dUtilities.channel_axis(source, self.data_format)
         source = tf.concat([source, source, source], channel_axis)
 
-      for scale_index in range(len(prediction_feature.predictions)):
+      for scale_index in range(len(feature_prediction.predictions)):
+        kernel = feature_prediction.predictions[scale_index]
+
         scaled_source = source
         if scale_index > 0:
           size = 2 ** scale_index
           scaled_source = MultiScalePrediction.scale_down(scaled_source, heigh_width_scale_factor=size, data_format=self.data_format)
-        with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
+        with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + feature_prediction.name)):
+          
           prediction = KernelPrediction.kernel_prediction(
-              scaled_source, prediction_feature.predictions[scale_index],
+              scaled_source, kernel,
               self.kernel_size, data_format=self.data_format)
-        prediction_feature.add_prediction(scale_index, prediction)
+        feature_prediction.add_prediction(scale_index, prediction)
+
 
 class MultiScalePredictor:
 
@@ -243,43 +299,45 @@ class MultiScalePredictor:
     self.source_data_format = source_data_format
     self.data_format = data_format
   
-  def predict(self, prediction_feature, multiscale_combine_reuse):
+  def predict(self, feature_prediction, multiscale_combine_reuse):
     if not self.invert_standardization_after_multiscale_predictions:
       with tf.name_scope('invert_standardization'):
-        if prediction_feature.invert_standardization:
-          prediction_feature.prediction_invert_standardization()
+        if feature_prediction.invert_standardization:
+          feature_prediction.prediction_invert_standardization()
     
     with tf.name_scope('combine_multiscales'):
       if self.use_multiscale_predictions:
-        for scale_index in range(len(prediction_feature.predictions) - 1, 0, -1):
+        for scale_index in range(len(feature_prediction.predictions) - 1, 0, -1):
           larger_scale_index = scale_index - 1
           
-          small_prediction = prediction_feature.predictions[scale_index]
-          prediction = prediction_feature.predictions[larger_scale_index]
+          small_prediction = feature_prediction.predictions[scale_index]
+          prediction = feature_prediction.predictions[larger_scale_index]
           
           with tf.variable_scope('reused_compose_scales', reuse=multiscale_combine_reuse):
             prediction = MultiScalePrediction.compose_scales(small_prediction, prediction, data_format=self.data_format)
           multiscale_combine_reuse = True
           
-          prediction_feature.add_prediction(larger_scale_index, prediction)
+          feature_prediction.add_prediction(larger_scale_index, prediction)
     
     if self.invert_standardization_after_multiscale_predictions:
       with tf.name_scope('invert_standardization'):
-        if prediction_feature.invert_standardization:
-          prediction_feature.prediction_invert_standardization()
-    
+        if feature_prediction.invert_standardization:
+          feature_prediction.prediction_invert_standardization()
+
+
 class DataFormatReverter:
 
   def __init__(self, source_data_format='channels_last', data_format='channels_first'):
     self.source_data_format = source_data_format
     self.data_format = data_format
     
-  def predict(self, prediction_feature):
+  def predict(self, feature_prediction):
     # Convert back to the source data format if needed.
     if self.data_format != self.source_data_format:
-      for scale_index in range(len(prediction_feature.predictions)):
-        prediction_feature.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(prediction_feature.predictions[scale_index], self.source_data_format)
-    
+      for scale_index in range(len(feature_prediction.predictions)):
+        feature_prediction.predictions[scale_index] = Conv2dUtilities.convert_to_data_format(feature_prediction.predictions[scale_index], self.source_data_format)
+
+
 class Architecture:
 
   def __init__(self, parsed_json, source_data_format='channels_last', data_format='channels_first'):
@@ -288,46 +346,133 @@ class Architecture:
     
     self.model_directory = parsed_json['model_directory']
     self.number_of_sources_per_target = parsed_json['number_of_sources_per_target']
+    
     architecture_json = parsed_json['architecture']
-    features_json = parsed_json['features']
+    combined_features_json = parsed_json['combined_features']
+    combined_features_handling_json = parsed_json['combined_features_handling']
+    auxiliary_features_json = parsed_json['auxiliary_features']
+
+    self.feature_prediction_tuple_type = architecture_json['source_encoder']['feature_prediction_tuple_type']
+    self.feature_prediction_tuple_type = FeaturePredictionTupleType[self.feature_prediction_tuple_type]
 
     self.__preserve_source = not architecture_json['kernel_prediction']['use_standardized_source_for_kernel_prediction']
     self.__number_of_core_architecture_input_channels = architecture_json['core_architecture']['number_of_filters_for_convolution_blocks'][0]
     
     # Requires 'self.number_of_sources_per_target' and 'self.__preserve_source'
-    self.__prepare_prediction_features(features_json)
+    self.__prepare_feature_predictions(combined_features_json, combined_features_handling_json, auxiliary_features_json)
     
-    # Requires 'self.prediction_features', 'self.__number_of_core_architecture_input_channels', 'self.source_data_format' and 'self.data_format'
-    self.__prepare_architecture(architecture_json)
-    
-  def __prepare_prediction_features(self, features_json):
+    # Requires 'self.feature_predictions', 'self.__number_of_core_architecture_input_channels', 'self.source_data_format' and 'self.data_format'
+    self.__prepare_architecture(architecture_json, combined_features_json)
   
-    # The names have to be sorted, otherwise the channels would be randomly mixed.
-    feature_names = sorted(list(features_json.keys()))
-    
-    self.prediction_features = []
-    for feature_name in feature_names:
-      feature = features_json[feature_name]
+  def __prepare_feature_predictions(self, combined_features_json, combined_features_handling_json, auxiliary_features_json):
+  
+    # The auxiliary names have to be sorted, to ensure they are not randomly mixed between runs.
+    auxiliary_feature_names = sorted(list(auxiliary_features_json.keys()))
+    self.auxiliary_features = []
+    for feature_name in auxiliary_feature_names:
+      feature = auxiliary_features_json[feature_name]
       
-      # REMARK: It is assumed that there are no features which are only a target, without also being a source.
-      if feature['is_source']:
-        feature_variance = feature['feature_variance']
-        feature_variance = FeatureVariance(
-            feature_variance['use_variance'], feature_variance['variance_mode'], feature_variance['relative_variance'],
-            feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'],
-            feature_name)
-        feature_standardization = feature['standardization']
-        feature_standardization = FeatureStandardization(
-            feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'],
-            feature_name)
-        invert_standardization = feature['invert_standardization']
-        prediction_feature = PredictionFeature(
-            self.number_of_sources_per_target, self.__preserve_source, feature['is_target'],
-            feature_standardization, invert_standardization, feature_variance,
-            feature['feature_flags'], feature['number_of_channels'], feature_name)
-        self.prediction_features.append(prediction_feature)  
+      feature_variance = feature['feature_variance']
+      feature_variance = FeatureVariance(
+          feature_variance['use_variance'], feature_variance['variance_mode'], feature_variance['relative_variance'],
+          feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'],
+          feature_name)
+      feature_standardization = feature['standardization']
+      feature_standardization = FeatureStandardization(
+          feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'],
+          feature_name)
+      is_target = False
+      invert_standardization = False
+      auxiliary_feature = FeaturePrediction(
+          FeaturePredictionType.AUXILIARY, True,
+          self.number_of_sources_per_target, self.__preserve_source, is_target,
+          feature_standardization, invert_standardization, feature_variance,
+          feature['number_of_channels'], feature_name)
+      self.auxiliary_features.append(auxiliary_feature)  
+    
 
-  def __prepare_architecture(self, architecture_json):
+    # Prepare how features should be handled.
+    feature_prediction_type_to_feature_variance = {}
+    feature_prediction_type_to_feature_standardization = {}
+    feature_prediction_type_to_invert_standardization = {}
+    for feature_type in [FeaturePredictionType.COLOR, FeaturePredictionType.DIRECT, FeaturePredictionType.INDIRECT]:
+      feature_handling = combined_features_handling_json[FeaturePrediction.feature_prediction_type_to_string(feature_type)]
+      feature_variance = feature_handling['feature_variance']
+      feature_variance = FeatureVariance(
+          feature_variance['use_variance'], feature_variance['variance_mode'], feature_variance['relative_variance'],
+          feature_variance['compute_before_standardization'], feature_variance['compress_to_one_channel'],
+          feature_name)
+      feature_standardization = feature_handling['standardization']
+      feature_standardization = FeatureStandardization(
+          feature_standardization['use_log1p'], feature_standardization['mean'], feature_standardization['variance'],
+          feature_name)
+      invert_standardization = feature_handling['invert_standardization']
+
+      feature_prediction_type_to_feature_variance[feature_type] = feature_variance
+      feature_prediction_type_to_feature_standardization[feature_type] = feature_standardization
+      feature_prediction_type_to_invert_standardization[feature_type] = invert_standardization
+
+    
+    # Combined feature predictions
+
+    self.feature_predictions = []
+    self.feature_prediction_tuples = []
+    combined_feature_names = sorted(list(combined_features_json.keys()))
+
+    for combined_feature_name in combined_feature_names:
+      color_feature_prediction = None
+      direct_feature_prediction = None
+      indirect_feature_prediction = None
+      
+      combined_feature = combined_features_json[combined_feature_name]
+
+      for feature_type in [FeaturePredictionType.COLOR, FeaturePredictionType.DIRECT, FeaturePredictionType.INDIRECT]:
+        is_target = True
+        feature_name = combined_feature[FeaturePrediction.feature_prediction_type_to_string(feature_type)]
+
+        feature_standardization = feature_prediction_type_to_feature_standardization[feature_type]
+        invert_standardization = feature_prediction_type_to_invert_standardization[feature_type]
+        feature_variance = feature_prediction_type_to_feature_variance[feature_type]
+        number_of_channels = RenderPasses.number_of_channels(feature_name)
+        load_data = True
+
+        if feature_name == None or feature_name == '':
+          feature_name = combined_feature_name + ' ' + FeaturePrediction.feature_prediction_type_to_string(feature_type)
+          load_data = False
+
+        if load_data or self.feature_prediction_tuple_type == FeaturePredictionTupleType.COMBINED:
+          feature_prediction = FeaturePrediction(
+              feature_type, load_data,
+              self.number_of_sources_per_target, self.__preserve_source, is_target,
+              feature_standardization, invert_standardization, feature_variance,
+              number_of_channels, feature_name)
+          self.feature_predictions.append(feature_prediction)
+        else:
+          feature_prediction = None
+
+        if feature_type == FeaturePredictionType.COLOR:
+          color_feature_prediction = feature_prediction
+        elif feature_type == FeaturePredictionType.DIRECT:
+          direct_feature_prediction = feature_prediction
+        elif feature_type == FeaturePredictionType.INDIRECT:
+          indirect_feature_prediction = feature_prediction
+
+      if self.feature_prediction_tuple_type == FeaturePredictionTupleType.COMBINED:
+        feature_prediction_tuple = FeaturePredictionTuple(
+            [color_feature_prediction, direct_feature_prediction, indirect_feature_prediction],
+            self.feature_prediction_tuple_type,
+            combined_feature_name)
+        self.feature_prediction_tuples.append(feature_prediction_tuple)
+
+    if self.feature_prediction_tuple_type == FeaturePredictionTupleType.SINGLE:
+      for feature_prediction in self.feature_predictions:
+        feature_prediction_tuple = FeaturePredictionTuple(
+            [feature_prediction],
+            self.feature_prediction_tuple_type,
+            feature_prediction.name)
+        self.feature_prediction_tuples.append(feature_prediction_tuple)
+  
+  def __prepare_architecture(self, architecture_json, combined_features_json):
     source_encoder_json = architecture_json['source_encoder']
     core_architecture_json = architecture_json['core_architecture']
     kernel_prediction_json = architecture_json['kernel_prediction']
@@ -336,22 +481,21 @@ class Architecture:
     self.use_kernel_prediction = kernel_prediction_json['use_kernel_prediction']
     self.use_multiscale_predictions = multiscale_prediction_json['use_multiscale_predictions']
     
+    feature_flags = []
+    for feature_prediction_tuple in self.feature_prediction_tuples:
+      feature_flags.append(feature_prediction_tuple.name)
+
     self.feature_flags = FeatureFlags(
-        source_encoder_json['feature_flags'],
-        FeatureFlagMode[source_encoder_json['feature_flag_mode']],
+        feature_flags, FeatureFlagMode[source_encoder_json['feature_flag_mode']],
         'channels_last')
-    for prediction_feature in self.prediction_features:
-      if prediction_feature.is_target:
-        self.feature_flags.add_render_pass_name_to_feature_flags_names(
-            prediction_feature.name, prediction_feature.feature_flag_names)
-    self.feature_flags.freeze()
 
     feature_flag_mode = self.feature_flags.feature_flag_mode
     if feature_flag_mode != FeatureFlagMode.EMBEDDING:
       self.feature_flags = None
 
     self.source_encoder = SourceEncoder(
-        self.prediction_features, self.feature_flags, feature_flag_mode, source_encoder_json['use_all_targets_as_input'],
+        self.feature_prediction_tuple_type,
+        self.auxiliary_features, self.feature_flags, feature_flag_mode,
         self.__number_of_core_architecture_input_channels, activation_function=tf.nn.relu,
         source_data_format=self.source_data_format, data_format=self.data_format)
     
@@ -363,14 +507,23 @@ class Architecture:
         use_multiscale_predictions=self.use_multiscale_predictions,
         data_format=self.data_format)
     
-    if self.use_kernel_prediction:
-      number_of_output_channels = kernel_prediction_json['kernel_size'] ** 2
+    if self.feature_prediction_tuple_type == FeaturePredictionTupleType.SINGLE:
+      feature_prediction_tuple_size = 1
     else:
-      # The number of actual output channels is always 3.
-      number_of_output_channels = 3
+      feature_prediction_tuple_size = 3
+    
+    if self.use_kernel_prediction:
+      # We predict feature prediction tuple size features each for kernel_size ^ 2.
+      # This is done over all sources.
+      number_of_output_channels = (
+          self.number_of_sources_per_target * feature_prediction_tuple_size * (kernel_prediction_json['kernel_size'] ** 2))
+    else:
+      # The number of actual output channels is 3 for each feature we are predicting.
+      number_of_output_channels = feature_prediction_tuple_size * 3
+
     self.core_architecture_postprocess = AdjustNumberOfChannels(
         number_of_output_channels, activation_function=tf.nn.relu, data_format=self.data_format)
-    
+
     self.kernel_predictor = KernelPredictor(
         self.use_kernel_prediction, kernel_prediction_json['kernel_size'], kernel_prediction_json['use_standardized_source_for_kernel_prediction'],
         source_data_format=self.source_data_format, data_format=self.data_format)
@@ -385,67 +538,80 @@ class Architecture:
     is_training = False
     if mode == tf.estimator.ModeKeys.TRAIN:
       is_training = True
-    
+
     # Initialize the prediction features' sources
-    for prediction_feature in self.prediction_features:
-      prediction_feature.initialize_sources_from_dictionary(features)
+    for feature_prediction in self.feature_predictions:
+      feature_prediction.initialize_sources_from_dictionary(features)
     
+    for auxiliary_feature in self.auxiliary_features:
+      auxiliary_feature.initialize_sources_from_dictionary(features)
+
     # Standardization of the data
     with tf.name_scope('standardize'):
-      for prediction_feature in self.prediction_features:
-        prediction_feature.standardize()
+      for feature_prediction in self.feature_predictions:
+        feature_prediction.standardize()
+      
+      for auxiliary_feature in self.auxiliary_features:
+        auxiliary_feature.standardize()
     
     with tf.name_scope('feature_predictions'):
       reuse_core_architecture = False
       multiscale_combine_reuse = False
-      
-      for prediction_feature in self.prediction_features:
-        if prediction_feature.is_target:
-          
-          with tf.name_scope('prepare_network_input'):
-            inputs = self.source_encoder.prepare_neural_network_input(prediction_feature, features)
-          
-          with tf.name_scope('core_architecture'):
-            with tf.variable_scope('reused_core_architecture', reuse=reuse_core_architecture):
-              inputs = self.core_architecture.predict(inputs, is_training)
-              
-              # Reuse the variables after the first pass.
-              reuse_core_architecture = True
-              
-              with tf.name_scope('Postprocess'):
-                for index in range(len(inputs)):
-                  inputs[index] = self.core_architecture_postprocess.predict(inputs[index])
 
-              if self.use_multiscale_predictions:
-                # Reverse the inputs, such that it is sorted from largest to smallest.
-                inputs = list(reversed(inputs))
+      for feature_prediction_tuple in self.feature_prediction_tuples:
+
+        with tf.name_scope('prepare_network_input'):
+          inputs = self.source_encoder.prepare_neural_network_input(feature_prediction_tuple, features)
+
+        with tf.name_scope('core_architecture'):
+          with tf.variable_scope('reused_core_architecture', reuse=reuse_core_architecture):
+            inputs = self.core_architecture.predict(inputs, is_training)
+            
+            # Reuse the variables after the first pass.
+            reuse_core_architecture = True
+            
+            with tf.name_scope('Postprocess'):
+              for index in range(len(inputs)):
+                inputs[index] = self.core_architecture_postprocess.predict(inputs[index])
+
+            if self.use_multiscale_predictions:
+              # Reverse the inputs, such that it is sorted from largest to smallest.
+              inputs = list(reversed(inputs))
           
+          channel_axis = Conv2dUtilities.channel_axis(inputs[0], self.data_format)
           for scale_index in range(len(inputs)):
-            prediction_feature.add_prediction(scale_index, inputs[scale_index])
+            predictions = tf.split(inputs[scale_index], len(feature_prediction_tuple.feature_predictions), channel_axis)
+
+            for index, prediction in enumerate(predictions):
+              feature_prediction = feature_prediction_tuple.feature_predictions[index]
+              feature_prediction.add_prediction(scale_index, prediction)
           
-          with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + prediction_feature.name)):
-            self.kernel_predictor.predict(prediction_feature)
+          with tf.name_scope(Naming.tensorboard_name('kernel_prediction_' + feature_prediction_tuple.name)):
+            for feature_prediction in feature_prediction_tuple.feature_predictions:
+              self.kernel_predictor.predict(feature_prediction)
           
-          self.multiscale_predictor.predict(prediction_feature, multiscale_combine_reuse)
-          multiscale_combine_reuse = True
+          for feature_prediction in feature_prediction_tuple.feature_predictions:
+            self.multiscale_predictor.predict(feature_prediction, multiscale_combine_reuse)
+            multiscale_combine_reuse = True
           
           # Convert back to the source data format if needed.
           with tf.name_scope('revert_data_format_conversion'):
-            self.data_format_reverter.predict(prediction_feature)
-    
+            for feature_prediction in feature_prediction_tuple.feature_predictions:
+              self.data_format_reverter.predict(feature_prediction)
+
     # Create the prediction dictionaries to be returned
-    target_prediction_feature = None
-    for prediction_feature in self.prediction_features:
-      if prediction_feature.is_target:
-        target_prediction_feature = prediction_feature
+    target_feature_prediction = None
+    for feature_prediction in self.feature_predictions:
+      if feature_prediction.is_target:
+        target_feature_prediction = feature_prediction
         break
     
     prediction_dictionaries = []
-    for scale_index in range(len(target_prediction_feature.predictions)):
+    for scale_index in range(len(target_feature_prediction.predictions)):
       prediction_dictionary = {}
-      for prediction_feature in self.prediction_features:
-        if prediction_feature.is_target:
-          prediction_feature.add_prediction_to_dictionary(scale_index, prediction_dictionary)
+      for feature_prediction in self.feature_predictions:
+        if feature_prediction.is_target:
+          feature_prediction.add_prediction_to_dictionary(scale_index, prediction_dictionary)
       prediction_dictionaries.append(prediction_dictionary)
       
     return prediction_dictionaries

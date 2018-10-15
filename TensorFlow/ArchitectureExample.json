@@ -7,22 +7,17 @@
 	
 	"architecture": {
 		"source_encoder": {
-			"use_all_targets_as_input": false,
-			"feature_flags": [
-				"Diffuse", "Glossy", "Subsurface", "Transmission", "Volume",
-				"Color", "Direct", "Indirect",
-				"Alpha", "Environment", "Emission",
-				"Shadow", "Ambient Occlusion"
-			],
-			"feature_flag_mode_description": "Options: NONE, FLAGS, ONE_HOT_ENCODING, EMBEDDING",
+			"feature_prediction_tuple_type_description": "Options: SINGLE, COMBINED",
+			"feature_prediction_tuple_type": "SINGLE",
+			"feature_flag_mode_description": "Options: NONE, ONE_HOT_ENCODING, EMBEDDING",
 			"feature_flag_mode": "EMBEDDING"
 		},
 	
 		"core_architecture": {
 			"name_description": "Options: U-Net, Tiramisu",
 			"name": "U-Net",
-			"number_of_filters_for_convolution_blocks": [64, 128, 256, 512],
-			"number_of_convolutions_per_block": 3,
+			"number_of_filters_for_convolution_blocks": [64, 96, 128],
+			"number_of_convolutions_per_block": 4,
 			"use_batch_normalization": false,
 			"dropout_rate": 0.0
 		},
@@ -41,16 +36,109 @@
 		}
 	},
 	
-	"features": {
-		"Alpha": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 1,
-			"feature_flags": ["Alpha"],
+	"combined_features": {
+        "Diffuse": {
+            "Color": "Diffuse Color",
+            "Direct": "Diffuse Direct",
+            "Indirect": "Diffuse Indirect"
+        },
+        "Glossy": {
+            "Color": "Glossy Color",
+            "Direct": "Glossy Direct",
+            "Indirect": "Glossy Indirect"
+        },
+        "Subsurface": {
+            "Color": "Subsurface Color",
+            "Direct": "Subsurface Direct",
+            "Indirect": "Subsurface Indirect"
+        },
+        "Transmission": {
+            "Color": "Transmission Color",
+            "Direct": "Transmission Direct",
+            "Indirect": "Transmission Indirect"
+        },
+        "Volume": {
+            "Color": "",
+            "Direct": "Volume Direct",
+            "Indirect": "Volume Indirect"
+        },
+
+        "Emission": {
+            "Color": "Emission",
+            "Direct": "",
+            "Indirect": ""
+        },
+        "Environment": {
+            "Color": "Environment",
+            "Direct": "",
+            "Indirect": ""
+        },
+
+        "Alpha": {
+            "Color": "Alpha",
+            "Direct": "",
+            "Indirect": ""
+        }
+    },
+
+    "combined_features_handling": {
+        "Color": {
+            "feature_variance": {
+				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
+				"relative_variance": true,
+				"compute_before_standardization": false,
+				"compress_to_one_channel": true
+			},
+            "standardization": {
+				"use_log1p": true,
+				"mean": 0.0,
+				"variance": 1.0
+			},
+			"invert_standardization": true
+        },
+        "Direct": {
+            "feature_variance": {
+				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
+				"relative_variance": true,
+				"compute_before_standardization": false,
+				"compress_to_one_channel": true
+			},
+            "standardization": {
+				"use_log1p": true,
+				"mean": 0.0,
+				"variance": 1.0
+			},
+			"invert_standardization": true
+        },
+        "Indirect": {
+            "feature_variance": {
+				"use_variance": true,
+				"variance_mode_description": "Options: uniform, neighbor",
+				"variance_mode": "uniform",
+				"relative_variance": true,
+				"compute_before_standardization": false,
+				"compress_to_one_channel": true
+			},
+            "standardization": {
+				"use_log1p": true,
+				"mean": 0.0,
+				"variance": 1.0
+			},
+			"invert_standardization": true
+        }
+	},
+
+	"auxiliary_features": {
+        "Normal": {
+			"number_of_channels": 3,
 			"feature_variance": {
 				"use_variance": true,
 				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
+				"variance_mode": "uniform",
 				"relative_variance": true,
 				"compute_before_standardization": false,
 				"compress_to_one_channel": true
@@ -59,391 +147,7 @@
 				"use_log1p": false,
 				"mean": 0.0,
 				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Depth": {
-			"is_source": false,
-			"is_target": false,
-			"number_of_channels": 1,
-			"feature_flags": [],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Normal": {
-			"is_source": true,
-			"is_target": false,
-			"number_of_channels": 3,
-			"feature_flags": [],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": false,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Screen Space Normal": {
-			"is_source": false,
-			"is_target": false,
-			"number_of_channels": 3,
-			"feature_flags": [],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": false,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		
-		"Ambient Occlusion": {
-			"is_source": false,
-			"is_target": false,
-			"number_of_channels": 3,
-			"feature_flags": ["Ambient Occlusion"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Shadow": {
-			"is_source": false,
-			"is_target": false,
-			"number_of_channels": 3,
-			"feature_flags": ["Shadow"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		
-		"Emission": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Emission"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Environment": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Environment"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		
-		"Diffuse Color": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Diffuse", "Color"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Diffuse Direct": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Diffuse", "Direct"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Diffuse Indirect": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Diffuse", "Indirect"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Glossy Color": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Glossy", "Color"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Glossy Direct": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Glossy", "Direct"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Glossy Indirect": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Glossy", "Indirect"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Subsurface Color": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Subsurface", "Color"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Subsurface Direct": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Subsurface", "Direct"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Subsurface Indirect": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Subsurface", "Indirect"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Transmission Color": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Transmission", "Color"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Transmission Direct": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Transmission", "Direct"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
-		},
-		"Transmission Indirect": {
-			"is_source": true,
-			"is_target": true,
-			"number_of_channels": 3,
-			"feature_flags": ["Transmission", "Indirect"],
-			"feature_variance": {
-				"use_variance": true,
-				"variance_mode_description": "Options: uniform, neighbor",
-				"variance_mode": "neighbor",
-				"relative_variance": true,
-				"compute_before_standardization": false,
-				"compress_to_one_channel": true
-			},
-			"standardization": {
-				"use_log1p": true,
-				"mean": 0.0,
-				"variance": 1.0
-			},
-			"invert_standardization": true
+			}
 		}
-	}
+    }
 }

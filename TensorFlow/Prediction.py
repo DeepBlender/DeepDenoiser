@@ -13,6 +13,7 @@ import tensorflow as tf
 import multiprocessing
 
 from Architecture import Architecture
+from Architecture import FeaturePredictionType
 
 from RenderPasses import RenderPasses
 from Naming import Naming
@@ -42,8 +43,6 @@ parser.add_argument(
 
 
 def input_fn_predict(features, height, width):
-
-  # TODO: Create a dataset as needed (DeepBlender)
   
   for feature_name in features:
     image = features[feature_name]
@@ -55,7 +54,12 @@ def input_fn_predict(features, height, width):
     
     features[feature_name] = image
   
-  return (features, 0)
+  dataset = tf.data.Dataset.from_tensor_slices(features).batch(1)
+  dataset = dataset.repeat(1)
+  iterator = dataset.make_one_shot_iterator()
+
+  result = iterator.get_next()
+  return result #(features)
 
 def model_fn(features, labels, mode, params):
   architecture = params['architecture']
@@ -93,32 +97,42 @@ def main(parsed_arguments):
   
   exr_files = OpenEXRDirectory._exr_files(parsed_arguments.input)
   features = {}
-  for prediction_feature in architecture.prediction_features:
+  required_features = architecture.auxiliary_features + architecture.feature_predictions
+  for feature_prediction in required_features:
     exr_loaded = False
-    for exr_file in exr_files:
-      if prediction_feature.name in exr_file:
-        image = OpenEXRDirectory._load_exr(exr_file)
-        
-        # Special cases: Alpha and depth passes only have one channel.
-        if RenderPasses.number_of_channels(prediction_feature.name) == 1:
-          image = image[:, :, 0]
-        
-        # HACK: Assume just one source input!
-        features[Naming.source_feature_name(prediction_feature.name, index=0)] = image
-        exr_loaded = True
-        
-        if height == None:
-          height = image.shape[0]
-          width = image.shape[1]
-        else:
-          assert height == image.shape[0]
-          assert width == image.shape[1]
-        
-        break
+
+    if feature_prediction.load_data:
+      for exr_file in exr_files:
+        if feature_prediction.name in exr_file:
+          image = OpenEXRDirectory._load_exr(exr_file)
+          
+          # Special cases: Alpha and depth passes only have one channel.
+          if RenderPasses.number_of_channels(feature_prediction.name) == 1:
+            image = image[:, :, 0]
+          
+          # HACK: Assume just one source input!
+          features[Naming.source_feature_name(feature_prediction.name, index=0)] = image
+          exr_loaded = True
+          
+          if height == None:
+            height = image.shape[0]
+            width = image.shape[1]
+          else:
+            assert height == image.shape[0]
+            assert width == image.shape[1]
+          break
+
+    else:
+      image = tf.ones([height, width, feature_prediction.number_of_channels])
+      if feature_prediction.feature_prediction_type != FeaturePredictionType.COLOR:
+        # Direct and indirect need to be 0.5.
+        image = tf.scalar_mul(0.5, image)
+      features[Naming.source_feature_name(feature_prediction.name, index=0)] = image
+      exr_loaded = True
+    
     if not exr_loaded:
       # TODO: Improve (DeepBlender)
-      raise Exception('Image for \'' + prediction_feature.name + '\' could not be loaded or does not exist.')
-  
+      raise Exception('Image for \'' + feature_prediction.name + '\' could not be loaded or does not exist.')
 
   if use_CPU_only:
     session_config = tf.ConfigProto(device_count = {'GPU': 0})
@@ -139,30 +153,30 @@ def main(parsed_arguments):
   
   
   predictions = estimator.predict(input_fn=lambda: input_fn_predict(features, height, width))
-        
+
   for prediction in predictions:
   
-    diffuse_direct = prediction[Naming.prediction_feature_name(RenderPasses.DIFFUSE_DIRECT)]
-    diffuse_indirect = prediction[Naming.prediction_feature_name(RenderPasses.DIFFUSE_INDIRECT)]
-    diffuse_color = prediction[Naming.prediction_feature_name(RenderPasses.DIFFUSE_COLOR)]
+    diffuse_direct = prediction[Naming.feature_prediction_name(RenderPasses.DIFFUSE_DIRECT)]
+    diffuse_indirect = prediction[Naming.feature_prediction_name(RenderPasses.DIFFUSE_INDIRECT)]
+    diffuse_color = prediction[Naming.feature_prediction_name(RenderPasses.DIFFUSE_COLOR)]
     
-    glossy_direct = prediction[Naming.prediction_feature_name(RenderPasses.GLOSSY_DIRECT)]
-    glossy_indirect = prediction[Naming.prediction_feature_name(RenderPasses.GLOSSY_INDIRECT)]
-    glossy_color = prediction[Naming.prediction_feature_name(RenderPasses.GLOSSY_COLOR)]
+    glossy_direct = prediction[Naming.feature_prediction_name(RenderPasses.GLOSSY_DIRECT)]
+    glossy_indirect = prediction[Naming.feature_prediction_name(RenderPasses.GLOSSY_INDIRECT)]
+    glossy_color = prediction[Naming.feature_prediction_name(RenderPasses.GLOSSY_COLOR)]
     
-    subsurface_direct = prediction[Naming.prediction_feature_name(RenderPasses.SUBSURFACE_DIRECT)]
-    subsurface_indirect = prediction[Naming.prediction_feature_name(RenderPasses.SUBSURFACE_INDIRECT)]
-    subsurface_color = prediction[Naming.prediction_feature_name(RenderPasses.SUBSURFACE_COLOR)]
+    subsurface_direct = prediction[Naming.feature_prediction_name(RenderPasses.SUBSURFACE_DIRECT)]
+    subsurface_indirect = prediction[Naming.feature_prediction_name(RenderPasses.SUBSURFACE_INDIRECT)]
+    subsurface_color = prediction[Naming.feature_prediction_name(RenderPasses.SUBSURFACE_COLOR)]
     
-    transmission_direct = prediction[Naming.prediction_feature_name(RenderPasses.TRANSMISSION_DIRECT)]
-    transmission_indirect = prediction[Naming.prediction_feature_name(RenderPasses.TRANSMISSION_INDIRECT)]
-    transmission_color = prediction[Naming.prediction_feature_name(RenderPasses.TRANSMISSION_COLOR)]
+    transmission_direct = prediction[Naming.feature_prediction_name(RenderPasses.TRANSMISSION_DIRECT)]
+    transmission_indirect = prediction[Naming.feature_prediction_name(RenderPasses.TRANSMISSION_INDIRECT)]
+    transmission_color = prediction[Naming.feature_prediction_name(RenderPasses.TRANSMISSION_COLOR)]
     
-    volume_direct = prediction[Naming.prediction_feature_name(RenderPasses.VOLUME_DIRECT)]
-    volume_indirect = prediction[Naming.prediction_feature_name(RenderPasses.VOLUME_INDIRECT)]
+    volume_direct = prediction[Naming.feature_prediction_name(RenderPasses.VOLUME_DIRECT)]
+    volume_indirect = prediction[Naming.feature_prediction_name(RenderPasses.VOLUME_INDIRECT)]
 
-    environment = prediction[Naming.prediction_feature_name(RenderPasses.ENVIRONMENT)]
-    emission = prediction[Naming.prediction_feature_name(RenderPasses.EMISSION)]
+    environment = prediction[Naming.feature_prediction_name(RenderPasses.ENVIRONMENT)]
+    emission = prediction[Naming.feature_prediction_name(RenderPasses.EMISSION)]
 
   
     # Combined features

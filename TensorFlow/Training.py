@@ -14,6 +14,10 @@ import multiprocessing
 from FeatureFlags import FeatureFlags
 from FeatureFlags import FeatureFlagMode
 from Architecture import Architecture
+from Architecture import FeaturePrediction
+from Architecture import FeaturePredictionType
+from Architecture import FeaturePredictionTuple
+from Architecture import FeaturePredictionTupleType
 
 from Conv2dUtilities import Conv2dUtilities
 from MultiScalePrediction import MultiScalePrediction
@@ -56,7 +60,7 @@ parser.add_argument(
          'with CPU. If left unspecified, the data format will be chosen '
          'automatically based on whether TensorFlow was built for CPU or GPU.')
 
-class BaseTrainingFeature:
+class BaseFeatureTraining:
 
   def __init__(
       self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
@@ -158,15 +162,15 @@ class BaseTrainingFeature:
     return result
   
   def _horizontal_variation_difference(self, scale_index):
-    predicted_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.predicted[scale_index])
-    target_horizontal_variation = BaseTrainingFeature.__horizontal_variation(self.target[scale_index])
+    predicted_horizontal_variation = BaseFeatureTraining.__horizontal_variation(self.predicted[scale_index])
+    target_horizontal_variation = BaseFeatureTraining.__horizontal_variation(self.target[scale_index])
     result = LossDifference.difference(
         predicted_horizontal_variation, target_horizontal_variation, self.loss_difference)
     return result
   
   def _vertical_variation_difference(self, scale_index):
-    predicted_vertical_variation = BaseTrainingFeature.__vertical_variation(self.predicted[scale_index])
-    target_vertical_variation = BaseTrainingFeature.__vertical_variation(self.target[scale_index])
+    predicted_vertical_variation = BaseFeatureTraining.__vertical_variation(self.predicted[scale_index])
+    target_vertical_variation = BaseFeatureTraining.__vertical_variation(self.target[scale_index])
     result = LossDifference.difference(
         predicted_vertical_variation, target_vertical_variation, self.loss_difference)
     return result
@@ -301,14 +305,14 @@ class BaseTrainingFeature:
   def __horizontal_variation(image_batch):
     # 'channels_last' or NHWC
     image_batch = tf.subtract(
-        BaseTrainingFeature.__shift_left(image_batch), BaseTrainingFeature.__shift_right(image_batch))
+        BaseFeatureTraining.__shift_left(image_batch), BaseFeatureTraining.__shift_right(image_batch))
     return image_batch
 
   @staticmethod
   def __vertical_variation(image_batch):
     # 'channels_last' or NHWC
     image_batch = tf.subtract(
-        BaseTrainingFeature.__shift_up(image_batch), BaseTrainingFeature.__shift_down(image_batch))
+        BaseFeatureTraining.__shift_up(image_batch), BaseFeatureTraining.__shift_down(image_batch))
     return image_batch
     
   @staticmethod
@@ -344,10 +348,11 @@ class BaseTrainingFeature:
     return(image_batch)
 
 
-class TrainingFeature(BaseTrainingFeature):
+class FeatureTraining(BaseFeatureTraining):
 
   def __init__(
-      self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
+      self, name, load_data,
+      loss_difference, use_multiscale_loss, use_multiscale_metrics,
       mean_weight, variation_weight, ms_ssim_weight,
       masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
@@ -355,7 +360,7 @@ class TrainingFeature(BaseTrainingFeature):
       track_masked_mean, track_masked_variation, track_masked_ms_ssim,
       track_masked_difference_histogram, track_masked_variation_difference_histogram):
     
-    BaseTrainingFeature.__init__(
+    BaseFeatureTraining.__init__(
         self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
         mean_weight, variation_weight, ms_ssim_weight,
         masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
@@ -363,10 +368,12 @@ class TrainingFeature(BaseTrainingFeature):
         track_difference_histogram, track_variation_difference_histogram,
         track_masked_mean, track_masked_variation, track_masked_ms_ssim,
         track_masked_difference_histogram, track_masked_variation_difference_histogram)
+
+    self.load_data = load_data
   
   def initialize(self, source_features, predicted_features, target_features):
     for scale_index in range(len(target_features)):
-      self.predicted.append(predicted_features[scale_index][Naming.prediction_feature_name(self.name)])
+      self.predicted.append(predicted_features[scale_index][Naming.feature_prediction_name(self.name)])
       self.target.append(target_features[scale_index][Naming.target_feature_name(self.name)])
       
       corresponding_color_pass = None
@@ -385,13 +392,11 @@ class TrainingFeature(BaseTrainingFeature):
         self.mask_sum.append(tf.reduce_sum(self.mask[scale_index]))
 
 
-class CombinedTrainingFeature(BaseTrainingFeature):
-
-  # TODO: Add alpha which can be a mask if invisible.
+class CombinedFeatureTraining(BaseFeatureTraining):
 
   def __init__(
-      self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
-      color_training_feature, direct_training_feature, indirect_training_feature,
+      self, loss_difference, use_multiscale_loss, use_multiscale_metrics,
+      name, color_feature_training, direct_feature_training, indirect_feature_training,
       mean_weight, variation_weight, ms_ssim_weight,
       masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
@@ -399,7 +404,7 @@ class CombinedTrainingFeature(BaseTrainingFeature):
       track_masked_mean, track_masked_variation, track_masked_ms_ssim,
       track_masked_difference_histogram, track_masked_variation_difference_histogram):
     
-    BaseTrainingFeature.__init__(
+    BaseFeatureTraining.__init__(
         self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
         mean_weight, variation_weight, ms_ssim_weight,
         masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
@@ -408,23 +413,23 @@ class CombinedTrainingFeature(BaseTrainingFeature):
         track_masked_mean, track_masked_variation, track_masked_ms_ssim,
         track_masked_difference_histogram, track_masked_variation_difference_histogram)
     
-    self.color_training_feature = color_training_feature
-    self.direct_training_feature = direct_training_feature
-    self.indirect_training_feature = indirect_training_feature
+    self.color_feature_training = color_feature_training
+    self.direct_feature_training = direct_feature_training
+    self.indirect_feature_training = indirect_feature_training
   
   def initialize(self, source_features, predicted_features, target_features):
     for scale_index in range(len(target_features)):
       self.predicted.append(tf.multiply(
-          self.color_training_feature.predicted[scale_index],
+          self.color_feature_training.predicted[scale_index],
           tf.add(
-              self.direct_training_feature.predicted[scale_index],
-              self.indirect_training_feature.predicted[scale_index])))
+              self.direct_feature_training.predicted[scale_index],
+              self.indirect_feature_training.predicted[scale_index])))
 
       self.target.append(tf.multiply(
-          self.color_training_feature.target[scale_index],
+          self.color_feature_training.target[scale_index],
           tf.add(
-              self.direct_training_feature.target[scale_index],
-              self.indirect_training_feature.target[scale_index])))
+              self.direct_feature_training.target[scale_index],
+              self.indirect_feature_training.target[scale_index])))
       
       corresponding_color_pass = RenderPasses.combined_to_color_render_pass(self.name)
       corresponding_target_feature = target_features[scale_index][Naming.target_feature_name(corresponding_color_pass)]
@@ -432,16 +437,16 @@ class CombinedTrainingFeature(BaseTrainingFeature):
       self.mask_sum.append(tf.reduce_sum(self.mask[scale_index]))
   
   
-class CombinedImageTrainingFeature(BaseTrainingFeature):
+class CombinedImageFeatureTraining(BaseFeatureTraining):
 
   # TODO: Add alpha which can be a mask if invisible.
 
   def __init__(
       self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
-      diffuse_training_feature, glossy_training_feature,
-      subsurface_training_feature, transmission_training_feature,
-      volume_direct_training_feature, volume_indirect_training_feature,
-      emission_training_feature, environment_training_feature,
+      diffuse_feature_training, glossy_feature_training,
+      subsurface_feature_training, transmission_feature_training,
+      volume_direct_feature_training, volume_indirect_feature_training,
+      emission_feature_training, environment_feature_training,
       mean_weight, variation_weight, ms_ssim_weight,
       masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
       track_mean, track_variation, track_ms_ssim,
@@ -449,7 +454,7 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
       track_masked_mean, track_masked_variation, track_masked_ms_ssim,
       track_masked_difference_histogram, track_masked_variation_difference_histogram):
     
-    BaseTrainingFeature.__init__(
+    BaseFeatureTraining.__init__(
         self, name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
         mean_weight, variation_weight, ms_ssim_weight,
         masked_mean_weight, masked_variation_weight, masked_ms_ssim_weight,
@@ -458,77 +463,92 @@ class CombinedImageTrainingFeature(BaseTrainingFeature):
         track_masked_mean, track_masked_variation, track_masked_ms_ssim,
         track_masked_difference_histogram, track_masked_variation_difference_histogram)
     
-    self.diffuse_training_feature = diffuse_training_feature
-    self.glossy_training_feature = glossy_training_feature
-    self.subsurface_training_feature = subsurface_training_feature
-    self.transmission_training_feature = transmission_training_feature
-    self.volume_direct_training_feature = volume_direct_training_feature
-    self.volume_indirect_training_feature = volume_indirect_training_feature
-    self.emission_training_feature = emission_training_feature
-    self.environment_training_feature = environment_training_feature
+    self.diffuse_feature_training = diffuse_feature_training
+    self.glossy_feature_training = glossy_feature_training
+    self.subsurface_feature_training = subsurface_feature_training
+    self.transmission_feature_training = transmission_feature_training
+    self.volume_direct_feature_training = volume_direct_feature_training
+    self.volume_indirect_feature_training = volume_indirect_feature_training
+    self.emission_feature_training = emission_feature_training
+    self.environment_feature_training = environment_feature_training
   
   def initialize(self, source_features, predicted_features, target_features):
     for scale_index in range(len(target_features)):
       self.predicted.append(tf.add_n([
-          self.diffuse_training_feature.predicted[scale_index],
-          self.glossy_training_feature.predicted[scale_index],
-          self.subsurface_training_feature.predicted[scale_index],
-          self.transmission_training_feature.predicted[scale_index],
-          self.volume_direct_training_feature.predicted[scale_index],
-          self.volume_indirect_training_feature.predicted[scale_index],
-          self.emission_training_feature.predicted[scale_index],
-          self.environment_training_feature.predicted[scale_index]]))
+          self.diffuse_feature_training.predicted[scale_index],
+          self.glossy_feature_training.predicted[scale_index],
+          self.subsurface_feature_training.predicted[scale_index],
+          self.transmission_feature_training.predicted[scale_index],
+          self.volume_direct_feature_training.predicted[scale_index],
+          self.volume_indirect_feature_training.predicted[scale_index],
+          self.emission_feature_training.predicted[scale_index],
+          self.environment_feature_training.predicted[scale_index]]))
 
       self.target.append(tf.add_n([
-          self.diffuse_training_feature.target[scale_index],
-          self.glossy_training_feature.target[scale_index],
-          self.subsurface_training_feature.target[scale_index],
-          self.transmission_training_feature.target[scale_index],
-          self.volume_direct_training_feature.target[scale_index],
-          self.volume_indirect_training_feature.target[scale_index],
-          self.emission_training_feature.target[scale_index],
-          self.environment_training_feature.target[scale_index]]))
+          self.diffuse_feature_training.target[scale_index],
+          self.glossy_feature_training.target[scale_index],
+          self.subsurface_feature_training.target[scale_index],
+          self.transmission_feature_training.target[scale_index],
+          self.volume_direct_feature_training.target[scale_index],
+          self.volume_indirect_feature_training.target[scale_index],
+          self.emission_feature_training.target[scale_index],
+          self.environment_feature_training.target[scale_index]]))
 
-class TrainingFeatureLoader:
+class FeatureTrainingLoader:
 
-  def __init__(self, is_target, number_of_channels, name):
-    self.is_target = is_target
-    self.number_of_channels = number_of_channels
-    self.name = name
+  def __init__(self, feature_prediction):
+    self.feature_prediction = feature_prediction
   
   def add_to_parse_dictionary(self, dictionary, source_samples_per_pixel_list, required_indices):
-    for samples_per_pixel in source_samples_per_pixel_list:
-      for index in required_indices:
-        dictionary[Naming.source_feature_name(
-            self.name, samples_per_pixel=samples_per_pixel, index=index)] = tf.FixedLenFeature([], tf.string)
-    if self.is_target:
-      dictionary[Naming.target_feature_name(self.name)] = tf.FixedLenFeature([], tf.string)
-  
+    if self.feature_prediction.load_data:
+      for samples_per_pixel in source_samples_per_pixel_list:
+        for index in required_indices:
+          dictionary[Naming.source_feature_name(
+              self.feature_prediction.name, samples_per_pixel=samples_per_pixel, index=index)] = tf.FixedLenFeature([], tf.string)
+      if self.feature_prediction.is_target:
+        dictionary[Naming.target_feature_name(self.feature_prediction.name)] = tf.FixedLenFeature([], tf.string)
+
   def deserialize(self, parsed_features, source_samples_per_pixel_list, required_indices, height, width):
     self.source = {}
-    for samples_per_pixel in source_samples_per_pixel_list:
-      internal_source = {}
-      self.source[samples_per_pixel] = internal_source
-      for index in required_indices:
-        internal_source[index] = tf.decode_raw(
-            parsed_features[Naming.source_feature_name(self.name, samples_per_pixel=samples_per_pixel, index=index)], tf.float32)
-        internal_source[index] = tf.reshape(internal_source[index], [height, width, self.number_of_channels])
-    if self.is_target:
-      self.target = tf.decode_raw(parsed_features[Naming.target_feature_name(self.name)], tf.float32)
-      self.target = tf.reshape(self.target, [height, width, self.number_of_channels])
+    if self.feature_prediction.load_data:
+      for samples_per_pixel in source_samples_per_pixel_list:
+        internal_source = {}
+        self.source[samples_per_pixel] = internal_source
+        for index in required_indices:
+          internal_source[index] = tf.decode_raw(
+              parsed_features[Naming.source_feature_name(self.feature_prediction.name, samples_per_pixel=samples_per_pixel, index=index)], tf.float32)
+          internal_source[index] = tf.reshape(internal_source[index], [height, width, self.feature_prediction.number_of_channels])
+
+      if self.feature_prediction.is_target:
+        self.target = tf.decode_raw(parsed_features[Naming.target_feature_name(self.feature_prediction.name)], tf.float32)
+        self.target = tf.reshape(self.target, [height, width, self.feature_prediction.number_of_channels])
   
-  def add_to_sources_dictionary(self, sources, samples_per_pixel, index_tuple):
-    source = self.source[samples_per_pixel]
+  def add_to_sources_dictionary(self, sources, samples_per_pixel, index_tuple, height, width):
     for i in range(len(index_tuple)):
-      index = index_tuple[i]
-      sources[Naming.source_feature_name(self.name, index=i)] = source[index]
+      if self.feature_prediction.load_data:
+        index = index_tuple[i]
+        sources[Naming.source_feature_name(self.feature_prediction.name, index=i)] = self.source[samples_per_pixel][index]
+      else:
+        assert self.feature_prediction.feature_prediction_type != FeaturePredictionType.AUXILIARY
+        source = tf.ones([height, width, self.feature_prediction.number_of_channels])
+        if self.feature_prediction.feature_prediction_type != FeaturePredictionType.COLOR:
+          # Direct and indirect need to be 0.5.
+          source = tf.scalar_mul(0.5, source)
+        sources[Naming.source_feature_name(self.feature_prediction.name, index=i)] = source
     
-  def add_to_targets_dictionary(self, targets):
-    if self.is_target:
-      targets[Naming.target_feature_name(self.name)] = self.target
+  def add_to_targets_dictionary(self, targets, height, width):
+    if self.feature_prediction.is_target:
+      if self.feature_prediction.load_data:
+        targets[Naming.target_feature_name(self.feature_prediction.name)] = self.target
+      else:
+        target = tf.ones([height, width, self.feature_prediction.number_of_channels])
+        if self.feature_prediction.feature_prediction_type != FeaturePredictionType.COLOR:
+          # Direct and indirect need to be 0.5.
+          target = tf.scalar_mul(0.5, target)
+        targets[Naming.target_feature_name(self.feature_prediction.name)] = target
 
 
-class TrainingFeatureAugmentation:
+class FeatureTrainingAugmentation:
 
   def __init__(self, number_of_sources, is_target, number_of_channels, name):
     self.number_of_sources = number_of_sources
@@ -604,35 +624,35 @@ def model_fn(features, labels, mode, params):
   
   with tf.name_scope('loss_function'):
     with tf.name_scope('feature_loss'):
-      training_features = params['training_features']
-      for training_feature in training_features:
-        training_feature.initialize(features, predictions, targets)
+      feature_trainings = params['feature_trainings']
+      for feature_training in feature_trainings:
+        feature_training.initialize(features, predictions, targets)
       feature_losses = []
-      for training_feature in training_features:
-        feature_losses.append(training_feature.loss())
+      for feature_training in feature_trainings:
+        feature_losses.append(feature_training.loss())
       if len(feature_losses) > 0:
         feature_loss = tf.add_n(feature_losses)
       else:
         feature_loss = 0.
     
     with tf.name_scope('combined_feature_loss'):
-      combined_training_features = params['combined_training_features']
-      if combined_training_features != None:
-        for combined_training_feature in combined_training_features:
-          combined_training_feature.initialize(features, predictions, targets)
+      combined_feature_trainings = params['combined_feature_trainings']
+      if combined_feature_trainings != None:
+        for combined_feature_training in combined_feature_trainings:
+          combined_feature_training.initialize(features, predictions, targets)
         combined_feature_losses = []
-        for combined_training_feature in combined_training_features:
-          combined_feature_losses.append(combined_training_feature.loss())
+        for combined_feature_training in combined_feature_trainings:
+          combined_feature_losses.append(combined_feature_training.loss())
         if len(combined_feature_losses) > 0:
           combined_feature_loss = tf.add_n(combined_feature_losses)
       else:
         combined_feature_loss = 0.
     
     with tf.name_scope('combined_image_loss'):
-      combined_image_training_feature = params['combined_image_training_feature']
-      if combined_image_training_feature != None:
-        combined_image_training_feature.initialize(features, predictions, targets)
-        combined_image_feature_loss = combined_image_training_feature.loss()
+      combined_image_feature_training = params['combined_image_feature_training']
+      if combined_image_feature_training != None:
+        combined_image_feature_training.initialize(features, predictions, targets)
+        combined_image_feature_loss = combined_image_feature_training.loss()
       else:
         combined_image_feature_loss = 0.
     
@@ -644,7 +664,7 @@ def model_fn(features, labels, mode, params):
   if mode == tf.estimator.ModeKeys.TRAIN:
     learning_rate = params['learning_rate']
     global_step = tf.train.get_or_create_global_step()
-    first_decay_steps = 2000
+    first_decay_steps = 5000
     t_mul = 1.3 # Use t_mul more steps after each restart.
     m_mul = 0.8 # Multiply the learning rate after each restart with this number.
     alpha = 1 / 100. # Learning rate decays from 1 * learning_rate to alpha * learning_rate.
@@ -656,25 +676,25 @@ def model_fn(features, labels, mode, params):
     tf.summary.scalar('batch_size', params['batch_size'])
     
     # Histograms
-    for training_feature in training_features:
-      training_feature.add_tracked_histograms()
-    if combined_training_features != None:
-      for combined_training_feature in combined_training_features:
-        combined_training_feature.add_tracked_histograms()
-    if combined_image_training_feature != None:
-      combined_image_training_feature.add_tracked_histograms()
+    for feature_training in feature_trainings:
+      feature_training.add_tracked_histograms()
+    if combined_feature_trainings != None:
+      for combined_feature_training in combined_feature_trainings:
+        combined_feature_training.add_tracked_histograms()
+    if combined_image_feature_training != None:
+      combined_image_feature_training.add_tracked_histograms()
     
     # Summaries
     #with tf.name_scope('feature_summaries'):
-    for training_feature in training_features:
-      training_feature.add_tracked_summaries()
+    for feature_training in feature_trainings:
+      feature_training.add_tracked_summaries()
     #with tf.name_scope('combined_feature_summaries'):
-    if combined_training_features != None:
-      for combined_training_feature in combined_training_features:
-        combined_training_feature.add_tracked_summaries()
+    if combined_feature_trainings != None:
+      for combined_feature_training in combined_feature_trainings:
+        combined_feature_training.add_tracked_summaries()
     #with tf.name_scope('combined_summaries'):
-    if combined_image_training_feature != None:
-      combined_image_training_feature.add_tracked_summaries()
+    if combined_image_feature_training != None:
+      combined_image_feature_training.add_tracked_summaries()
     
     with tf.name_scope('optimizer'):
       optimizer = tf.train.AdamOptimizer(learning_rate_decayed)
@@ -685,17 +705,17 @@ def model_fn(features, labels, mode, params):
     eval_metric_ops = {}
 
     #with tf.name_scope('features'):
-    for training_feature in training_features:
-      training_feature.add_tracked_metrics_to_dictionary(eval_metric_ops)
+    for feature_training in feature_trainings:
+      feature_training.add_tracked_metrics_to_dictionary(eval_metric_ops)
     
     #with tf.name_scope('combined_features'):
-    if combined_training_features != None:
-      for combined_training_feature in combined_training_features:
-        combined_training_feature.add_tracked_metrics_to_dictionary(eval_metric_ops)
+    if combined_feature_trainings != None:
+      for combined_feature_training in combined_feature_trainings:
+        combined_feature_training.add_tracked_metrics_to_dictionary(eval_metric_ops)
     
     #with tf.name_scope('combined'):
-    if combined_image_training_feature != None:
-      combined_image_training_feature.add_tracked_metrics_to_dictionary(eval_metric_ops)
+    if combined_image_feature_training != None:
+      combined_image_feature_training.add_tracked_metrics_to_dictionary(eval_metric_ops)
   
   return tf.estimator.EstimatorSpec(
       mode=mode,
@@ -705,7 +725,7 @@ def model_fn(features, labels, mode, params):
 
 
 def input_fn_tfrecords(
-    files, training_features_loader, feature_flags, training_features_augmentation,
+    files, feature_trainings_loader, feature_flags, feature_trainings_augmentation,
     number_of_epochs, source_samples_per_pixel_list, index_tuples, required_indices, data_augmentation_usage,
     tiles_height_width, batch_size, threads, data_format='channels_last'):
 
@@ -715,13 +735,13 @@ def input_fn_tfrecords(
     
     # Load all the required indices.
     features = {}
-    for training_feature_loader in training_features_loader:
-      training_feature_loader.add_to_parse_dictionary(features, source_samples_per_pixel_list, required_indices)
+    for feature_training_loader in feature_trainings_loader:
+      feature_training_loader.add_to_parse_dictionary(features, source_samples_per_pixel_list, required_indices)
     
     parsed_features = tf.parse_single_example(serialized_example, features)
     
-    for training_feature_loader in training_features_loader:
-      training_feature_loader.deserialize(parsed_features, source_samples_per_pixel_list, required_indices, tiles_height_width, tiles_height_width)
+    for feature_training_loader in feature_trainings_loader:
+      feature_training_loader.deserialize(parsed_features, source_samples_per_pixel_list, required_indices, tiles_height_width, tiles_height_width)
     
     # Prepare the examples.
     index_tuple = index_tuples[0]
@@ -729,9 +749,9 @@ def input_fn_tfrecords(
     
     sources = {}
     targets = {}
-    for training_feature_loader in training_features_loader:
-      training_feature_loader.add_to_sources_dictionary(sources, samples_per_pixel, index_tuple)
-      training_feature_loader.add_to_targets_dictionary(targets)
+    for feature_training_loader in feature_trainings_loader:
+      feature_training_loader.add_to_sources_dictionary(sources, samples_per_pixel, index_tuple, tiles_height_width, tiles_height_width)
+      feature_training_loader.add_to_targets_dictionary(targets, tiles_height_width, tiles_height_width)
 
       if feature_flags != None:
         feature_flags.add_to_source_dictionary(sources, tiles_height_width, tiles_height_width)
@@ -743,22 +763,22 @@ def input_fn_tfrecords(
     
     # Load all the required indices.
     features = {}
-    for training_feature_loader in training_features_loader:
-      training_feature_loader.add_to_parse_dictionary(features, source_samples_per_pixel_list, required_indices)
+    for feature_training_loader in feature_trainings_loader:
+      feature_training_loader.add_to_parse_dictionary(features, source_samples_per_pixel_list, required_indices)
     
     parsed_features = tf.parse_single_example(serialized_example, features)
     
-    for training_feature_loader in training_features_loader:
-      training_feature_loader.deserialize(parsed_features, source_samples_per_pixel_list, required_indices, tiles_height_width, tiles_height_width)
+    for feature_training_loader in feature_trainings_loader:
+      feature_training_loader.deserialize(parsed_features, source_samples_per_pixel_list, required_indices, tiles_height_width, tiles_height_width)
     
     # Prepare the examples.
     for samples_per_pixel in source_samples_per_pixel_list:
       for index_tuple in index_tuples:
         sources = {}
         targets = {}
-        for training_feature_loader in training_features_loader:
-          training_feature_loader.add_to_sources_dictionary(sources, samples_per_pixel, index_tuple)
-          training_feature_loader.add_to_targets_dictionary(targets)
+        for feature_training_loader in feature_trainings_loader:
+          feature_training_loader.add_to_sources_dictionary(sources, samples_per_pixel, index_tuple, tiles_height_width, tiles_height_width)
+          feature_training_loader.add_to_targets_dictionary(targets, tiles_height_width, tiles_height_width)
 
           if feature_flags != None:
             feature_flags.add_to_source_dictionary(sources, tiles_height_width, tiles_height_width)
@@ -779,23 +799,23 @@ def input_fn_tfrecords(
         normal_rotation = tf.random_uniform([3], dtype=tf.float32)
         normal_rotation = DataAugmentation.random_rotation_matrix(normal_rotation)
       
-      for training_feature_augmentation in training_features_augmentation:
-        training_feature_augmentation.intialize_from_dictionaries(sources, targets)
+      for feature_training_augmentation in feature_trainings_augmentation:
+        feature_training_augmentation.intialize_from_dictionaries(sources, targets)
         
         if data_augmentation_usage.use_flip_left_right:
-          training_feature_augmentation.flip_left_right(flip, data_format)
+          feature_training_augmentation.flip_left_right(flip, data_format)
         
         if data_augmentation_usage.use_rotate_90:
-          training_feature_augmentation.rotate_90(rotate, data_format)
+          feature_training_augmentation.rotate_90(rotate, data_format)
 
         if data_augmentation_usage.use_rgb_permutation:
-          training_feature_augmentation.permute_rgb(permute, data_format)
+          feature_training_augmentation.permute_rgb(permute, data_format)
         
         if data_augmentation_usage.use_normal_rotation:
-          training_feature_augmentation.rotate_normal(normal_rotation, data_format)
+          feature_training_augmentation.rotate_normal(normal_rotation, data_format)
     
-        training_feature_augmentation.add_to_sources_dictionary(sources)
-        training_feature_augmentation.add_to_targets_dictionary(targets)
+        feature_training_augmentation.add_to_sources_dictionary(sources)
+        feature_training_augmentation.add_to_targets_dictionary(targets)
     
     return sources, targets
   
@@ -830,7 +850,7 @@ def input_fn_tfrecords(
 
 
 def train(
-    tfrecords_directory, estimator, training_features_loader, feature_flags, training_features_augmentation,
+    tfrecords_directory, estimator, feature_trainings_loader, feature_flags, feature_trainings_augmentation,
     number_of_epochs, source_samples_per_pixel_list, index_tuples, required_indices, data_augmentation_usage,
     tiles_height_width, batch_size, threads):
   
@@ -838,12 +858,12 @@ def train(
 
   # Train the model
   estimator.train(input_fn=lambda: input_fn_tfrecords(
-      files, training_features_loader, feature_flags, training_features_augmentation,
+      files, feature_trainings_loader, feature_flags, feature_trainings_augmentation,
       number_of_epochs, source_samples_per_pixel_list, index_tuples, required_indices, data_augmentation_usage,
       tiles_height_width, batch_size, threads))
 
 def evaluate(
-    tfrecords_directory, estimator, training_features_loader, feature_flags, training_features_augmentation,
+    tfrecords_directory, estimator, feature_trainings_loader, feature_flags, feature_trainings_augmentation,
     source_samples_per_pixel_list, index_tuples, required_indices, data_augmentation_usage,
     tiles_height_width, batch_size, threads, name):
   
@@ -851,7 +871,7 @@ def evaluate(
 
   # Evaluate the model
   estimator.evaluate(input_fn=lambda: input_fn_tfrecords(
-      files, training_features_loader, feature_flags, training_features_augmentation,
+      files, feature_trainings_loader, feature_flags, feature_trainings_augmentation,
       1, source_samples_per_pixel_list, index_tuples, required_indices, data_augmentation_usage,
       tiles_height_width, batch_size, threads), name=name)
 
@@ -917,7 +937,6 @@ def extract_evaluation_json_information(base_tfrecords_directory, json_filename)
   tiles_height_width = settings['tiles_height_width']
   number_of_sources_per_example = settings['number_of_sources_per_example']
   
-
   return name, source_samples_per_pixel_list, tiles_height_width, number_of_sources_per_example
 
 
@@ -964,9 +983,9 @@ def main(parsed_arguments):
   use_multiscale_loss = parsed_json['use_multiscale_loss']
   use_multiscale_metrics = parsed_json['use_multiscale_metrics']
   
-  combined_features = parsed_json['combined_features']
-  combined_image = parsed_json['combined_image']
-  features = parsed_json['features']
+  combined_image_training_settings = parsed_json['combined_image_training_settings']
+  combined_features_training_settings = parsed_json['combined_features_training_settings']
+  features_training_settings = parsed_json['features_training_settings']
   
 
   training_tfrecords_directory = os.path.join(base_tfrecords_directory, 'training')
@@ -984,49 +1003,64 @@ def main(parsed_arguments):
   training_tiles_height_width = training_settings['tiles_height_width']
   training_number_of_sources_per_example = training_settings['number_of_sources_per_example']
   
-  
+
   # Training features.
 
-  training_features = []
-  feature_name_to_training_feature = {}
-  for prediction_feature in architecture.prediction_features:
-    feature_name = prediction_feature.name
-    feature = features[feature_name]
-    if prediction_feature.is_target:
-      
-      # Training loss
-      loss_weights = feature['loss_weights']
-      loss_weights_masked = feature['loss_weights_masked']
-      
-      # Training metrics
-      statistics = feature['statistics']
-      statistics_masked = feature['statistics_masked']
-        
-      training_feature = TrainingFeature(
-          feature_name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
-          loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
-          loss_weights_masked['mean'], loss_weights_masked['variation'], loss_weights_masked['ms_ssim'],
-          statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
-          statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'],
-          statistics_masked['track_mean'], statistics_masked['track_variation'], statistics_masked['track_ms_ssim'],
-          statistics_masked['track_difference_histogram'], statistics_masked['track_variation_difference_histogram'])
-      training_features.append(training_feature)
-      feature_name_to_training_feature[feature_name] = training_feature
+  # Training loss
+  loss_weights = features_training_settings['loss_weights']
+  loss_weights_masked = features_training_settings['loss_weights_masked']
+  
+  # Training metrics
+  statistics = features_training_settings['statistics']
+  statistics_masked = features_training_settings['statistics_masked']
 
-  training_features_loader = []
-  training_features_augmentation = []
-  for prediction_feature in architecture.prediction_features:
-    training_features_loader.append(TrainingFeatureLoader(
-        prediction_feature.is_target, prediction_feature.number_of_channels, prediction_feature.name))
-    training_features_augmentation.append(TrainingFeatureAugmentation(
-        architecture.number_of_sources_per_target, prediction_feature.is_target,
-        prediction_feature.number_of_channels, prediction_feature.name))
+  feature_trainings = []
+  feature_name_to_feature_training = {}
+  for feature_prediction in architecture.feature_predictions:
+    feature_name = feature_prediction.name
+    if feature_prediction.is_target:
+      if feature_prediction.load_data:
+        feature_training = FeatureTraining(
+            feature_name, feature_prediction.load_data,
+            loss_difference, use_multiscale_loss, use_multiscale_metrics,
+            loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
+            loss_weights_masked['mean'], loss_weights_masked['variation'], loss_weights_masked['ms_ssim'],
+            statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
+            statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'],
+            statistics_masked['track_mean'], statistics_masked['track_variation'], statistics_masked['track_ms_ssim'],
+            statistics_masked['track_difference_histogram'], statistics_masked['track_variation_difference_histogram'])
+      else:
+        feature_training = FeatureTraining(
+            feature_name, feature_prediction.load_data,
+            loss_difference, use_multiscale_loss, use_multiscale_metrics,
+            0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0,
+            False, False, False,
+            False, False,
+            False, False, False,
+            False, False)
+      feature_trainings.append(feature_training)
+      feature_name_to_feature_training[feature_name] = feature_training
+
+  feature_trainings_loader = []
+  feature_trainings_augmentation = []
+  for feature_prediction in architecture.feature_predictions:
+    feature_trainings_loader.append(FeatureTrainingLoader(feature_prediction))
+    feature_trainings_augmentation.append(FeatureTrainingAugmentation(
+        architecture.number_of_sources_per_target, feature_prediction.is_target,
+        feature_prediction.number_of_channels, feature_prediction.name))
+
+  for auxiliary_feature in architecture.auxiliary_features:
+    feature_trainings_loader.append(FeatureTrainingLoader(auxiliary_feature))
+    feature_trainings_augmentation.append(FeatureTrainingAugmentation(
+        architecture.number_of_sources_per_target, auxiliary_feature.is_target,
+        auxiliary_feature.number_of_channels, auxiliary_feature.name))
 
 
   # If the combined image feature is used, all combined features have to be used as well.
   # That's why we need to compute it already here.
-  statistics = combined_image['statistics']
-  loss_weights = combined_image['loss_weights']
+  statistics = combined_image_training_settings['statistics']
+  loss_weights = combined_image_training_settings['loss_weights']
   use_combined_image = False
   if (
       loss_weights['mean'] > 0. or loss_weights['variation'] > 0. or loss_weights['ms_ssim'] > 0. or
@@ -1037,65 +1071,129 @@ def main(parsed_arguments):
 
   # Combined training features.
   
-  combined_training_features = []
-  combined_feature_name_to_combined_training_feature = {}
-  combined_feature_names = list(combined_features.keys())
-  for combined_feature_name in combined_feature_names:
-    combined_feature = combined_features[combined_feature_name]
+  combined_feature_trainings = []
+  combined_feature_name_to_combined_feature_training = {}
+
+  # Training loss
+  loss_weights = combined_features_training_settings['loss_weights']
+  loss_weights_masked = combined_features_training_settings['loss_weights_masked']
+
+  # Training metrics
+  statistics = combined_features_training_settings['statistics']
+  statistics_masked = combined_features_training_settings['statistics_masked']
+
+  if (
+      use_combined_image or
+      loss_weights['mean'] > 0. or loss_weights['variation'] > 0. or loss_weights['ms_ssim'] > 0. or
+      statistics['track_mean'] or statistics['track_mean'] or statistics['track_mean'] or
+      statistics['track_mean'] or statistics['track_mean'] or
+      loss_weights_masked['mean'] > 0. or loss_weights_masked['variation'] > 0. or loss_weights_masked['ms_ssim'] > 0. or
+      statistics_masked['track_mean'] or statistics_masked['track_mean'] or statistics_masked['track_mean'] or
+      statistics_masked['track_mean'] or statistics_masked['track_mean']):
     
-    # Training loss
-    loss_weights = combined_feature['loss_weights']
-    loss_weights_masked = combined_feature['loss_weights_masked']
     
-    # Training metrics
-    statistics = combined_feature['statistics']
-    statistics_masked = combined_feature['statistics_masked']
-    
-    if (
-        use_combined_image or
-        loss_weights['mean'] > 0. or loss_weights['variation'] > 0. or loss_weights['ms_ssim'] > 0. or
-        statistics['track_mean'] or statistics['track_mean'] or statistics['track_mean'] or
-        statistics['track_mean'] or statistics['track_mean'] or
-        loss_weights_masked['mean'] > 0. or loss_weights_masked['variation'] > 0. or loss_weights_masked['ms_ssim'] > 0. or
-        statistics_masked['track_mean'] or statistics_masked['track_mean'] or statistics_masked['track_mean'] or
-        statistics_masked['track_mean'] or statistics_masked['track_mean']):
-      color_feature_name = RenderPasses.combined_to_color_render_pass(combined_feature_name)
-      direct_feature_name = RenderPasses.combined_to_direct_render_pass(combined_feature_name)
-      indirect_feature_name = RenderPasses.combined_to_indirect_render_pass(combined_feature_name)
-      combined_training_feature = CombinedTrainingFeature(
-          combined_feature_name, loss_difference, use_multiscale_loss, use_multiscale_metrics,
-          feature_name_to_training_feature[color_feature_name],
-          feature_name_to_training_feature[direct_feature_name],
-          feature_name_to_training_feature[indirect_feature_name],
-          loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
-          loss_weights_masked['mean'], loss_weights_masked['variation'], loss_weights_masked['ms_ssim'],
-          statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
-          statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'],
-          statistics_masked['track_mean'], statistics_masked['track_variation'], statistics_masked['track_ms_ssim'],
-          statistics_masked['track_difference_histogram'], statistics_masked['track_variation_difference_histogram'])
-      combined_training_features.append(combined_training_feature)
-      combined_feature_name_to_combined_training_feature[combined_feature_name] = combined_training_feature
+    if architecture.feature_prediction_tuple_type == FeaturePredictionTupleType.SINGLE:
+      combined_features_json = parsed_architecture_json['combined_features']
+      combined_feature_names = sorted(list(combined_features_json.keys()))
+      for combined_feature_name in combined_feature_names:
+        combined_feature = combined_features_json[combined_feature_name]
         
-  if len(combined_training_features) == 0:
-    combined_training_features = None
+        for feature_type in [FeaturePredictionType.COLOR, FeaturePredictionType.DIRECT, FeaturePredictionType.INDIRECT]:
+          feature_name = combined_feature[FeaturePrediction.feature_prediction_type_to_string(feature_type)]
+
+          if feature_name == None or feature_name == '':
+            feature_name = combined_feature_name + ' ' + FeaturePrediction.feature_prediction_type_to_string(feature_type)
+
+          if feature_type == FeaturePredictionType.COLOR:
+            color_feature_name = feature_name
+          elif feature_type == FeaturePredictionType.DIRECT:
+            direct_feature_name = feature_name
+          elif feature_type == FeaturePredictionType.INDIRECT:
+            indirect_feature_name = feature_name
+
+        color_feature_training = None
+        direct_feature_training = None
+        indirect_feature_training = None
+        if color_feature_name in feature_name_to_feature_training:
+          color_feature_training = feature_name_to_feature_training[color_feature_name]
+        if direct_feature_name in feature_name_to_feature_training:
+          direct_feature_training = feature_name_to_feature_training[direct_feature_name]
+        if indirect_feature_name in feature_name_to_feature_training:
+          indirect_feature_training = feature_name_to_feature_training[indirect_feature_name]
+
+        if (
+            color_feature_training != None and
+            direct_feature_training != None and
+            indirect_feature_training != None):
+          combined_feature_training = CombinedFeatureTraining(
+              loss_difference, use_multiscale_loss, use_multiscale_metrics,
+              combined_feature_name,
+              color_feature_training, direct_feature_training, indirect_feature_training,
+              loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
+              loss_weights_masked['mean'], loss_weights_masked['variation'], loss_weights_masked['ms_ssim'],
+              statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
+              statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'],
+              statistics_masked['track_mean'], statistics_masked['track_variation'], statistics_masked['track_ms_ssim'],
+              statistics_masked['track_difference_histogram'], statistics_masked['track_variation_difference_histogram'])
+          combined_feature_trainings.append(combined_feature_training)
+          combined_feature_name_to_combined_feature_training[combined_feature_training.name] = combined_feature_training
+
+    else:
+      for feature_prediction_tuple in architecture.feature_prediction_tuples:
+        assert architecture.feature_prediction_tuple_type == FeaturePredictionTupleType.COMBINED
+        color_feature_training = feature_name_to_feature_training[feature_prediction_tuple.feature_predictions[0].name]
+        direct_feature_training = feature_name_to_feature_training[feature_prediction_tuple.feature_predictions[1].name]
+        indirect_feature_training = feature_name_to_feature_training[feature_prediction_tuple.feature_predictions[2].name]
+
+        if (
+            color_feature_training.load_data and
+            not direct_feature_training.load_data and
+            not indirect_feature_training.load_data):
+          combined_feature_training = CombinedFeatureTraining(
+              loss_difference, use_multiscale_loss, use_multiscale_metrics,
+              feature_prediction_tuple.name,
+              color_feature_training, direct_feature_training, indirect_feature_training,
+              loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
+              loss_weights_masked['mean'], loss_weights_masked['variation'], loss_weights_masked['ms_ssim'],
+              False, False, False,
+              False, False,
+              False, False, False,
+              False,False)
+        else:
+          combined_feature_training = CombinedFeatureTraining(
+              loss_difference, use_multiscale_loss, use_multiscale_metrics,
+              feature_prediction_tuple.name,
+              color_feature_training, direct_feature_training, indirect_feature_training,
+              loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
+              loss_weights_masked['mean'], loss_weights_masked['variation'], loss_weights_masked['ms_ssim'],
+              statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
+              statistics['track_difference_histogram'], statistics['track_variation_difference_histogram'],
+              statistics_masked['track_mean'], statistics_masked['track_variation'], statistics_masked['track_ms_ssim'],
+              statistics_masked['track_difference_histogram'], statistics_masked['track_variation_difference_histogram'])
+        combined_feature_trainings.append(combined_feature_training)
+        combined_feature_name_to_combined_feature_training[combined_feature_training.name] = combined_feature_training
+        
+      
+  if len(combined_feature_trainings) == 0:
+    combined_feature_trainings = None
   
   
   # Combined image training feature.
   
-  combined_image_training_feature = None
+  combined_image_feature_training = None
   if use_combined_image:
-    statistics = combined_image['statistics']
-    loss_weights = combined_image['loss_weights']
-    combined_image_training_feature = CombinedImageTrainingFeature(
+    statistics = combined_image_training_settings['statistics']
+    loss_weights = combined_image_training_settings['loss_weights']
+    combined_image_feature_training = CombinedImageFeatureTraining(
         RenderPasses.COMBINED, loss_difference, use_multiscale_loss, use_multiscale_metrics,
-        combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_DIFFUSE],
-        combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_GLOSSY],
-        combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_SUBSURFACE],
-        combined_feature_name_to_combined_training_feature[RenderPasses.COMBINED_TRANSMISSION],
-        feature_name_to_training_feature[RenderPasses.VOLUME_DIRECT],
-        feature_name_to_training_feature[RenderPasses.VOLUME_INDIRECT],
-        feature_name_to_training_feature[RenderPasses.EMISSION],
-        feature_name_to_training_feature[RenderPasses.ENVIRONMENT],
+        combined_feature_name_to_combined_feature_training[RenderPasses.COMBINED_DIFFUSE],
+        combined_feature_name_to_combined_feature_training[RenderPasses.COMBINED_GLOSSY],
+        combined_feature_name_to_combined_feature_training[RenderPasses.COMBINED_SUBSURFACE],
+        combined_feature_name_to_combined_feature_training[RenderPasses.COMBINED_TRANSMISSION],
+        feature_name_to_feature_training[RenderPasses.VOLUME_DIRECT],
+        feature_name_to_feature_training[RenderPasses.VOLUME_INDIRECT],
+        feature_name_to_feature_training[RenderPasses.EMISSION],
+        feature_name_to_feature_training[RenderPasses.ENVIRONMENT],
         loss_weights['mean'], loss_weights['variation'], loss_weights['ms_ssim'],
         0., 0., 0.,
         statistics['track_mean'], statistics['track_variation'], statistics['track_ms_ssim'],
@@ -1128,9 +1226,9 @@ def main(parsed_arguments):
           'batch_size': batch_size,
           'use_multiscale_loss': use_multiscale_loss,
           'use_multiscale_metrics': use_multiscale_metrics,
-          'training_features': training_features,
-          'combined_training_features': combined_training_features,
-          'combined_image_training_feature': combined_image_training_feature})
+          'feature_trainings': feature_trainings,
+          'combined_feature_trainings': combined_feature_trainings,
+          'combined_image_feature_training': combined_image_feature_training})
 
   if parsed_arguments.validate:
 
@@ -1146,7 +1244,7 @@ def main(parsed_arguments):
 
       index_tuples, required_indices = source_index_tuples(
           validation_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
-      evaluate(validation_tfrecords_directory, estimator, training_features_loader, architecture.feature_flags, training_features_augmentation,
+      evaluate(validation_tfrecords_directory, estimator, feature_trainings_loader, architecture.feature_flags, feature_trainings_augmentation,
           samples_per_pixel_list, index_tuples, required_indices, validation_data_augmentation_usage, validation_tiles_height_width,
           batch_size, parsed_arguments.threads, name)
   else:
@@ -1161,7 +1259,7 @@ def main(parsed_arguments):
         index_tuples, required_indices = source_index_tuples(
             training_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
         train(
-            training_tfrecords_directory, estimator, training_features_loader, architecture.feature_flags, training_features_augmentation,
+            training_tfrecords_directory, estimator, feature_trainings_loader, architecture.feature_flags, feature_trainings_augmentation,
             epochs_to_train, training_source_samples_per_pixel_list, index_tuples, required_indices, data_augmentation_usage, training_tiles_height_width,
             batch_size, parsed_arguments.threads)
       
@@ -1178,7 +1276,7 @@ def main(parsed_arguments):
 
         index_tuples, required_indices = source_index_tuples(
             validation_number_of_sources_per_example, number_of_source_index_tuples, architecture.number_of_sources_per_target)
-        evaluate(validation_tfrecords_directory, estimator, training_features_loader, architecture.feature_flags, training_features_augmentation,
+        evaluate(validation_tfrecords_directory, estimator, feature_trainings_loader, architecture.feature_flags, feature_trainings_augmentation,
             samples_per_pixel_list, index_tuples, required_indices, validation_data_augmentation_usage, validation_tiles_height_width,
             batch_size, parsed_arguments.threads, name)
       

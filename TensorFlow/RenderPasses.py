@@ -86,11 +86,40 @@ class RenderPasses:
       result = render_pass_name.replace(' Direct', ' Color')
     elif render_pass_name.endswith(' Indirect'):
       result = render_pass_name.replace(' Inirect', ' Color')
+
+    # TODO: Special cases, rather hacky:
+    if result.startswith(RenderPasses.ALPHA):
+      result = RenderPasses.ALPHA
+    elif result.startswith(RenderPasses.EMISSION):
+      result = RenderPasses.EMISSION
+    elif result.startswith(RenderPasses.ENVIRONMENT):
+      result = RenderPasses.ENVIRONMENT
+
+    elif result.startswith(RenderPasses.AMBIENT_OCCLUSION):
+      result = RenderPasses.AMBIENT_OCCLUSION
+    elif result.startswith(RenderPasses.SHADOW):
+      result = RenderPasses.SHADOW
+
     return result
   
   @staticmethod
   def combined_to_color_render_pass(render_pass_name):
-    return render_pass_name + ' Color'
+    result = render_pass_name + ' Color'
+
+    # TODO: Special cases, rather hacky:
+    if result.startswith(RenderPasses.ALPHA):
+      result = RenderPasses.ALPHA
+    elif result.startswith(RenderPasses.EMISSION):
+      result = RenderPasses.EMISSION
+    elif result.startswith(RenderPasses.ENVIRONMENT):
+      result = RenderPasses.ENVIRONMENT
+
+    elif result.startswith(RenderPasses.AMBIENT_OCCLUSION):
+      result = RenderPasses.AMBIENT_OCCLUSION
+    elif result.startswith(RenderPasses.SHADOW):
+      result = RenderPasses.SHADOW
+
+    return result
   
   @staticmethod
   def combined_to_direct_render_pass(render_pass_name):

@@ -76,7 +76,7 @@ class Naming:
     return result
   
   @staticmethod
-  def prediction_feature_name(name):
+  def feature_prediction_name(name):
     result = 'prediction/' + name
     return result
   
