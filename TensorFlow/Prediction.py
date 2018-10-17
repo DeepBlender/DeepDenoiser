@@ -53,22 +53,26 @@ parser.add_argument(
          'automatically based on whether TensorFlow was built for CPU or GPU.')
 
 
-def input_fn_predict(features, height, width):
+def input_fn_predict(features_list, height, width):
   
-  for feature_name in features:
-    image = features[feature_name]
-    image = tf.convert_to_tensor(image, np.float32)
-    if len(image.shape) == 2:
-      image = tf.reshape(image, [-1, height, width, 1])
+  dataset = None
+  for features in features_list:
+    for feature_name in features:
+      image = features[feature_name]
+      image = tf.convert_to_tensor(image, np.float32)
+      if len(image.shape) == 2:
+        image = tf.reshape(image, [-1, height, width, 1])
+      else:
+        image = tf.reshape(image, [-1, height, width, 3])
+      features[feature_name] = image
+    current_dataset = tf.data.Dataset.from_tensor_slices(features)
+    if dataset == None:
+      dataset = current_dataset
     else:
-      image = tf.reshape(image, [-1, height, width, 3])
-    
-    features[feature_name] = image
-  
-  dataset = tf.data.Dataset.from_tensor_slices(features).batch(1)
-  dataset = dataset.repeat(1)
-  iterator = dataset.make_one_shot_iterator()
+      dataset = dataset.concatenate(current_dataset)
 
+  dataset = dataset.batch(1)
+  iterator = dataset.make_one_shot_iterator()
   result = iterator.get_next()
   return result
 
@@ -225,19 +229,17 @@ def main(parsed_arguments):
       config=run_config,
       params={'architecture': architecture})
   
+  tiled_features_list = []
   for height_index in range(height_count):
     for width_index in range(width_count):
       tiled_features = tiled_features_grid[height_index][width_index]
-      predictions = estimator.predict(input_fn=lambda: input_fn_predict(tiled_features, tile_size, tile_size))
+      tiled_features_list.append(tiled_features)
 
-      # Make sure there is only one prediction!
-      only_one_prediction = True
-      for prediction in predictions:
-        assert only_one_prediction
-        tiled_features_grid[height_index][width_index] = prediction
-
-        # Make sure the assertion fails in the case of another iteration.
-        only_one_prediction = False
+  predictions = estimator.predict(input_fn=lambda: input_fn_predict(tiled_features_list, tile_size, tile_size))
+    
+  for height_index in range(height_count):
+    for width_index in range(width_count):
+      tiled_features_grid[height_index][width_index] = next(predictions)
 
   predictions = {}
   for feature_prediction_tuple in architecture.feature_prediction_tuples:
