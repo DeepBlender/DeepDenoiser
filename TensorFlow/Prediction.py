@@ -53,7 +53,107 @@ parser.add_argument(
          'automatically based on whether TensorFlow was built for CPU or GPU.')
 
 
-def input_fn_predict(features_list, height, width):
+class FeatureLoader:
+
+  def __init__(self, feature_prediction):
+    self.feature_prediction = feature_prediction
+  
+  def add_to_parse_dictionary(self, dictionary):
+    if self.feature_prediction.load_data:
+      dictionary[Naming.source_feature_name(self.feature_prediction.name, index=0)] = tf.FixedLenFeature([], tf.string)
+
+  def deserialize(self, parsed_features, height, width):
+    if self.feature_prediction.load_data:
+      internal_source = tf.decode_raw(
+          parsed_features[Naming.source_feature_name(self.feature_prediction.name, index=0)], tf.float32)
+      #internal_source = tf.reshape(internal_source, [height, width, self.feature_prediction.number_of_channels])
+      internal_source = tf.reshape(internal_source, [height, width, 3])
+      self.source = internal_source
+  
+  def add_to_sources_dictionary(self, sources, height, width):
+    if self.feature_prediction.load_data:
+      sources[Naming.source_feature_name(self.feature_prediction.name, index=0)] = self.source
+    else:
+      assert self.feature_prediction.feature_prediction_type != FeaturePredictionType.AUXILIARY
+      source = tf.ones([height, width, self.feature_prediction.number_of_channels])
+      if self.feature_prediction.feature_prediction_type != FeaturePredictionType.COLOR:
+        # Direct and indirect need to be 0.5.
+        source = tf.scalar_mul(0.5, source)
+      sources[Naming.source_feature_name(self.feature_prediction.name, index=0)] = source
+
+
+def input_fn_tfrecords(
+    files, features_loader, feature_flags,
+    tiles_height_width, batch_size, threads, data_format='channels_last'):
+
+  def fast_feature_parser(serialized_example):
+    
+    # Load all the required indices.
+    features = {}
+    for feature_loader in features_loader:
+      feature_loader.add_to_parse_dictionary(features)
+    
+    parsed_features = tf.parse_single_example(serialized_example, features)
+    
+    for feature_loader in features_loader:
+      feature_loader.deserialize(parsed_features, tiles_height_width, tiles_height_width)
+    
+    # Prepare the examples.
+    
+    sources = {}
+    for feature_loader in features_loader:
+      feature_loader.add_to_sources_dictionary(sources, tiles_height_width, tiles_height_width)
+
+      if feature_flags != None:
+        feature_flags.add_to_source_dictionary(sources, tiles_height_width, tiles_height_width)
+
+    return sources
+  
+  def feature_parser(serialized_example):
+    dataset = None
+
+    # Load all the required indices.
+    features = {}
+    for feature_loader in features_loader:
+      feature_loader.add_to_parse_dictionary(features)
+
+    parsed_features = tf.parse_single_example(serialized_example, features)
+
+    for feature_loader in features_loader:
+      feature_loader.deserialize(parsed_features, tiles_height_width, tiles_height_width)
+
+    # Prepare the examples.
+    sources = {}
+    for feature_loader in features_loader:
+      feature_loader.add_to_sources_dictionary(sources, tiles_height_width, tiles_height_width)
+
+      if feature_flags != None:
+        feature_flags.add_to_source_dictionary(sources, tiles_height_width, tiles_height_width)
+
+    if dataset == None:
+      dataset = tf.data.Dataset.from_tensors((sources))
+    else:
+      dataset = dataset.concatenate(tf.data.Dataset.from_tensors((sources)))
+
+    return dataset
+  
+  dataset = tf.data.TFRecordDataset(files, compression_type=None, buffer_size=None, num_parallel_reads=threads)
+
+  dataset = dataset.map(map_func=fast_feature_parser, num_parallel_calls=threads)
+  #dataset = dataset.flat_map(map_func=feature_parser)
+
+  dataset = dataset.batch(batch_size)
+
+  prefetch_buffer_size = 5
+  dataset = dataset.prefetch(buffer_size=prefetch_buffer_size)
+  
+  iterator = dataset.make_one_shot_iterator()
+
+  features = iterator.get_next()
+  return features
+
+
+def slow_direct_input_fn_predict(features_list, height, width):
   
   dataset = None
   for features in features_list:
@@ -86,6 +186,7 @@ def model_fn(features, labels, mode, params):
 
 
 def main(parsed_arguments):
+  # Eager execution was faster, but the reason was no clear. (DeepBlender)
   tf.enable_eager_execution()
 
   if not isinstance(parsed_arguments.threads, int):
@@ -211,6 +312,30 @@ def main(parsed_arguments):
   # We don't need the features anymore.
   features = None
 
+  
+  # Directly predicting the results by creating a dataset from the tiled features resulted
+  # in a huge computational overhead.
+  # Converting the tiled features to tfrecords and predicting with a tfrecords dataset
+  # is a questionable approach, but it is significantly faster.
+  use_tfrecords = True
+
+  if use_tfrecords:
+    temporary_tfrecords_filename = './tmp.tfrecords'
+    tfrecords_writer =  tf.python_io.TFRecordWriter(temporary_tfrecords_filename)
+    for height_index in range(height_count):
+      for width_index in range(width_count):
+        tiled_features = tiled_features_grid[height_index][width_index]
+        serializable_features = {}
+
+        for tiled_feature_name in tiled_features:
+          tiled_feature = tiled_features[tiled_feature_name]
+          tiled_feature = tf.train.Feature(
+              bytes_list=tf.train.BytesList(value=[tf.compat.as_bytes(tiled_feature.tostring())]))
+          serializable_features[tiled_feature_name] = tiled_feature
+
+        example = tf.train.Example(features=tf.train.Features(feature=serializable_features))
+        tfrecords_writer.write(example.SerializeToString())
+    tfrecords_writer.close()
 
   if use_CPU_only:
     session_config = tf.ConfigProto(device_count = {'GPU': 0})
@@ -229,14 +354,29 @@ def main(parsed_arguments):
       config=run_config,
       params={'architecture': architecture})
   
-  tiled_features_list = []
-  for height_index in range(height_count):
-    for width_index in range(width_count):
-      tiled_features = tiled_features_grid[height_index][width_index]
-      tiled_features_list.append(tiled_features)
+  if use_tfrecords:
+    features_loader = []
+    required_features = architecture.auxiliary_features + architecture.feature_predictions
+    for feature_prediction in required_features:
+      features_loader.append(FeatureLoader(feature_prediction))
 
-  predictions = estimator.predict(input_fn=lambda: input_fn_predict(tiled_features_list, tile_size, tile_size))
-    
+    tfrecords_files = [os.path.abspath(temporary_tfrecords_filename)]
+    batch_size = 1
+    threads = 1
+    predictions = estimator.predict(input_fn=lambda: 
+        input_fn_tfrecords(
+            tfrecords_files, features_loader, architecture.feature_flags,
+            tile_size, batch_size, threads))
+  else:
+    tiled_features_list = []
+    for height_index in range(height_count):
+      for width_index in range(width_count):
+        tiled_features = tiled_features_grid[height_index][width_index]
+        tiled_features_list.append(tiled_features)
+
+    predictions = estimator.predict(input_fn=lambda:
+        slow_direct_input_fn_predict(tiled_features_list, tile_size, tile_size))
+
   for height_index in range(height_count):
     for width_index in range(width_count):
       tiled_features_grid[height_index][width_index] = next(predictions)
@@ -322,6 +462,8 @@ def main(parsed_arguments):
   environment = predictions[Naming.feature_prediction_name(RenderPasses.ENVIRONMENT)]
   emission = predictions[Naming.feature_prediction_name(RenderPasses.EMISSION)]
 
+  alpha = predictions[Naming.feature_prediction_name(RenderPasses.ALPHA)]
+
 
   # Combined features
   diffuse = np.multiply(diffuse_color, np.add(diffuse_direct, diffuse_indirect))
@@ -339,15 +481,43 @@ def main(parsed_arguments):
   image = np.add(image, emission)
   
   
-  # TODO: Alpha currently ignored.
+  # TODO: Alpha currently ignored for the combined image. (DeepBlender)
 
   # Store as npy to open in Blender.
-  np.save(parsed_arguments.input + '/combined.npy', image)
+  np.save(parsed_arguments.input + '/' + RenderPasses.COMBINED + '.npy', image)
+
+  np.save(parsed_arguments.input + '/' + RenderPasses.DIFFUSE_DIRECT + '.npy', diffuse_direct)
+  np.save(parsed_arguments.input + '/' + RenderPasses.DIFFUSE_INDIRECT + '.npy', diffuse_indirect)
+  np.save(parsed_arguments.input + '/' + RenderPasses.DIFFUSE_COLOR + '.npy', diffuse_color)
+
+  np.save(parsed_arguments.input + '/' + RenderPasses.GLOSSY_DIRECT + '.npy', glossy_direct)
+  np.save(parsed_arguments.input + '/' + RenderPasses.GLOSSY_INDIRECT + '.npy', glossy_indirect)
+  np.save(parsed_arguments.input + '/' + RenderPasses.GLOSSY_COLOR + '.npy', glossy_color)
+
+  np.save(parsed_arguments.input + '/' + RenderPasses.SUBSURFACE_DIRECT + '.npy', subsurface_direct)
+  np.save(parsed_arguments.input + '/' + RenderPasses.SUBSURFACE_INDIRECT + '.npy', subsurface_indirect)
+  np.save(parsed_arguments.input + '/' + RenderPasses.SUBSURFACE_COLOR + '.npy', subsurface_color)
+
+  np.save(parsed_arguments.input + '/' + RenderPasses.TRANSMISSION_DIRECT + '.npy', transmission_direct)
+  np.save(parsed_arguments.input + '/' + RenderPasses.TRANSMISSION_INDIRECT + '.npy', transmission_indirect)
+  np.save(parsed_arguments.input + '/' + RenderPasses.TRANSMISSION_COLOR + '.npy', transmission_color)
+
+  np.save(parsed_arguments.input + '/' + RenderPasses.VOLUME_DIRECT + '.npy', volume_direct)
+  np.save(parsed_arguments.input + '/' + RenderPasses.VOLUME_INDIRECT + '.npy', volume_indirect)
+
+  np.save(parsed_arguments.input + '/' + RenderPasses.ENVIRONMENT + '.npy', environment)
+  np.save(parsed_arguments.input + '/' + RenderPasses.EMISSION + '.npy', emission)
+  
+  np.save(parsed_arguments.input + '/' + RenderPasses.ALPHA + '.npy', alpha)
+
 
   # HACK: Temporary output as png. (DeepBlender)
-  image = 255. * image
-  image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-  cv2.imwrite(parsed_arguments.input + '/combined.png', image, [int(cv2.IMWRITE_PNG_COMPRESSION), 9])
+  # image = 255. * image
+  # image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+  # cv2.imwrite(parsed_arguments.input + '/combined.png', image, [int(cv2.IMWRITE_PNG_COMPRESSION), 9])
+
+  if use_tfrecords:
+    os.remove(temporary_tfrecords_filename)
 
 if __name__ == '__main__':
   parsed_arguments, unparsed = parser.parse_known_args()
