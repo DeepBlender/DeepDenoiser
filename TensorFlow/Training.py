@@ -664,13 +664,14 @@ def model_fn(features, labels, mode, params):
   if mode == tf.estimator.ModeKeys.TRAIN:
     learning_rate = params['learning_rate']
     global_step = tf.train.get_or_create_global_step()
-    first_decay_steps = 5000
-    t_mul = 1.3 # Use t_mul more steps after each restart.
-    m_mul = 0.8 # Multiply the learning rate after each restart with this number.
-    alpha = 1 / 100. # Learning rate decays from 1 * learning_rate to alpha * learning_rate.
-    learning_rate_decayed = tf.train.cosine_decay_restarts(
-        learning_rate, global_step, first_decay_steps,
-        t_mul=t_mul, m_mul=m_mul, alpha=alpha)
+    # first_decay_steps = 5000
+    # t_mul = 1.3 # Use t_mul more steps after each restart.
+    # m_mul = 0.8 # Multiply the learning rate after each restart with this number.
+    # alpha = 1 / 100. # Learning rate decays from 1 * learning_rate to alpha * learning_rate.
+    # learning_rate_decayed = tf.train.cosine_decay_restarts(
+    #     learning_rate, global_step, first_decay_steps,
+    #     t_mul=t_mul, m_mul=m_mul, alpha=alpha)
+    learning_rate_decayed = learning_rate
   
     tf.summary.scalar('learning_rate', learning_rate_decayed)
     tf.summary.scalar('batch_size', params['batch_size'])
