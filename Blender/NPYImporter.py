@@ -30,7 +30,7 @@ class BrowseNPY(bpy.types.Operator, ImportHelper):
     image_name = os.path.basename(self.filepath)
     image_name = os.path.splitext(image_name)[0]
     
-    image = bpy.data.images.new(image_name, width=npy_image.shape[0], height=npy_image.shape[1], float_buffer=True)
+    image = bpy.data.images.new(image_name, width=npy_image.shape[1], height=npy_image.shape[0], float_buffer=True)
     image.pixels = npy_image.ravel()
 
     return{'FINISHED'}
