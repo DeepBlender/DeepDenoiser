@@ -12,8 +12,8 @@
 			"group_by_samples_per_pixel": false,
 			"tiles_height_width": 64,
 			"examples_per_tfrecords": 16,
-			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
-			"render_directories":[
+			"open_exr_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
+			"exr_directories":[
 				"Training_Example_01",
 				"Training_Example_02",
 				"Training_Example_03"
@@ -23,8 +23,8 @@
 			"group_by_samples_per_pixel": true,
 			"tiles_height_width": 64,
 			"examples_per_tfrecords": 16,
-			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
-			"render_directories":[
+			"open_exr_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
+			"exr_directories":[
 				"Validation_Example_01",
 				"Validation_Example_02"
 			]
@@ -33,8 +33,8 @@
 			"group_by_samples_per_pixel": true,
 			"tiles_height_width": 64,
 			"examples_per_tfrecords": 16,
-			"render_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
-			"render_directories":[
+			"open_exr_directories_description": "Relative directory containing the necessary rendering examples with the specified samples_per_pixel.",
+			"exr_directories":[
 				"Testing_Example_01",
 				"Testing_Example_02"
 			]
